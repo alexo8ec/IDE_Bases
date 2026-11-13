@@ -2,5 +2,5 @@
     "version":  "0.11.3",
     "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.3-win64.zip",
     "sha256":  "f2da7a176eec35472906a19d479181f0078564647992343414300760c2dee33b",
-    "notes":  "Actualizador HTTPS con TLS 1.2 y conexion nativa segura, idiomas espanol/ingles, temas claro/oscuro/sistema y distribucion Java para Windows, Linux y macOS."
+    "notes":  "Cuadricula editable con Guardar y Descartar, seleccion y copia de filas o columnas, filtros por columna y autocompletado de columnas y alias. Paquete Windows sin firma digital: las advertencias de confianza quedan pendientes del certificado de publicacion."
 }

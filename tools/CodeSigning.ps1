@@ -7,7 +7,7 @@ function Get-NexoSigner {
     if ($certificate.NotAfter -le (Get-Date) -or $certificate.NotBefore -gt (Get-Date)) { throw 'El certificado no esta vigente.' }
     if ($certificate.Subject -eq $certificate.Issuer) { throw 'Una firma autofirmada no sirve para una publicacion publica de confianza.' }
     if ('1.3.6.1.5.5.7.3.3' -notin @($certificate.EnhancedKeyUsageList | ForEach-Object { $_.ObjectId.Value })) { throw 'El certificado no permite firma de codigo.' }
-    $chain = New-Object Security.Cryptography.X509Certificates.X509Chain
+    $chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
     try { if (-not $chain.Build($certificate)) { throw 'La cadena de confianza del certificado no se pudo validar.' } } finally { $chain.Dispose() }
     $tool = Get-Command signtool.exe -ErrorAction SilentlyContinue
     $toolPath = if ($tool) { $tool.Source } else { '' }
@@ -24,7 +24,7 @@ function Get-NexoSigner {
 function Invoke-NexoSignFile {
     param([Parameter(Mandatory)]$Signer, [Parameter(Mandatory)][string]$Path)
     $absolute = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path
-    & $Signer.Tool sign /fd SHA256 /sha1 $Signer.Certificate.Thumbprint /tr https://timestamp.digicert.com /td SHA256 /d 'NexoDB Studio' $absolute
+    & $Signer.Tool sign /fd SHA256 /sha1 $Signer.Certificate.Thumbprint /tr http://timestamp.digicert.com /td SHA256 /d 'NexoDB Studio' $absolute
     if ($LASTEXITCODE -ne 0) { throw "No se pudo firmar: $absolute" }
     & $Signer.Tool verify /pa /all /tw $absolute
     if ($LASTEXITCODE -ne 0) { throw "No se pudo verificar la firma: $absolute" }

@@ -502,6 +502,7 @@ public final class MainFrame extends JFrame {
                                     : tr("La actualización fue descargada y verificada.\n\n¿Abrir el paquete con el instalador de tu sistema?"),
                             tr("Instalar actualización"), JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
                     if (install == JOptionPane.YES_OPTION) {
+                        if(!queryPanel.confirmDiscardResults()||!queryPanel.saveDraftBeforeClose())return;
                         updateService.launchInstaller(zip);
                         if (UpdateService.canInstallInPlace()) {
                             closeAllSessions();
@@ -1503,6 +1504,7 @@ public final class MainFrame extends JFrame {
 
     private void exitApplication() {
         if(!queryPanel.confirmDiscardResults())return;
+        if(!queryPanel.saveDraftBeforeClose())return;
         closeAllSessions();
         dispose();
     }

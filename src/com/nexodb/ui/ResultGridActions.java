@@ -9,11 +9,15 @@ import java.awt.datatransfer.StringSelection;
 import java.util.*;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 import static com.nexodb.util.I18n.tr;
 
 /** View-only grid operations. Row selections always retain model indexes across sorting/filtering. */
 final class ResultGridActions {
     interface ColumnEditor { void open(int column,boolean delete); }
+    record EditingActions(Runnable edit,Runnable insert,Runnable delete,Runnable save,Runnable discard,Consumer<Object> setValue,
+                          Runnable duplicate,Runnable export,BooleanSupplier canEdit,BooleanSupplier hasChanges,
+                          BooleanSupplier canSetValue,BooleanSupplier canDefault,BooleanSupplier canExport) {}
     private record Filter(String text,Object value,boolean exact) {}
     private final JTable table;
     private final ResultTableModel model;
@@ -25,6 +29,7 @@ final class ResultGridActions {
     private final JCheckBox all=new JCheckBox();
     private final Consumer<String> copied;
     private ColumnEditor columnEditor;
+    private EditingActions editing;
 
     ResultGridActions(JTable table,ResultTableModel model,JScrollPane scroll,JTextField search,Runnable changed,Consumer<String> copied){
         this.table=table;this.model=model;this.search=search;this.changed=changed;this.copied=copied;
@@ -36,6 +41,9 @@ final class ResultGridActions {
         table.getActionMap().put("copy-grid",new AbstractAction(){public void actionPerformed(ActionEvent event){copySelection();}});
     }
     int checkedCount(){return checked.size();}
+    boolean isMarked(int row){return checked.contains(row);}
+    void clearChecked(){checked.clear();all.setSelected(false);rows.fireTableDataChanged();table.repaint();changed.run();}
+    void editingActions(EditingActions actions){editing=actions;}
     void columnEditor(ColumnEditor editor){columnEditor=editor;}
     List<Integer> selectedRows(){
         if(!checked.isEmpty())return List.copyOf(checked);
@@ -43,12 +51,19 @@ final class ResultGridActions {
     }
     List<Integer> selectedColumns(){return Arrays.stream(table.getSelectedColumns()).map(table::convertColumnIndexToModel).boxed().toList();}
     private List<Integer> visibleRows(){List<Integer> values=new ArrayList<>();for(int i=0;i<table.getRowCount();i++)values.add(table.convertRowIndexToModel(i));return values;}
-    private void listenSorter(){if(table.getRowSorter()!=null)table.getRowSorter().addRowSorterListener(event->{rows.fireTableDataChanged();changed.run();});}
+    private void listenSorter(){if(table.getRowSorter()!=null)table.getRowSorter().addRowSorterListener(event->{rows.fireTableDataChanged();changed.run();if(!checked.isEmpty())SwingUtilities.invokeLater(()->{if(!checked.isEmpty())selectMarkedRows();});});}
+    private void selectMarkedRows(){
+        var selection=table.getSelectionModel();selection.setValueIsAdjusting(true);
+        try{selection.clearSelection();for(int row:checked)if(row<model.getRowCount()){int view=table.convertRowIndexToView(row);if(view>=0)selection.addSelectionInterval(view,view);}if(!checked.isEmpty()&&table.getColumnCount()>0)table.setColumnSelectionInterval(0,table.getColumnCount()-1);}
+        finally{selection.setValueIsAdjusting(false);}
+        boolean every=table.getRowCount()>0;for(int row:visibleRows())every&=checked.contains(row);all.setSelected(every);table.repaint();
+    }
     private void applyFilter(){
         if(!(table.getRowSorter() instanceof TableRowSorter<?> sorter))return;
         String global=search.getText().toLowerCase(Locale.ROOT);
         sorter.setRowFilter(new RowFilter<TableModel,Integer>(){
             public boolean include(Entry<? extends TableModel,? extends Integer> entry){
+                if(model.isNewRow(entry.getIdentifier()))return true;
                 if(!global.isBlank()){boolean found=false;for(int i=0;i<entry.getValueCount();i++)if(display(entry.getValue(i)).toLowerCase(Locale.ROOT).contains(global)){found=true;break;}if(!found)return false;}
                 for(var item:filters.entrySet()){
                     Object value=entry.getValue(item.getKey());Filter filter=item.getValue();
@@ -66,15 +81,15 @@ final class ResultGridActions {
         header.getColumnModel().getColumn(1).setCellRenderer(new DefaultTableCellRenderer(){public Component getTableCellRendererComponent(JTable t,Object value,boolean selected,boolean focus,int row,int col){super.getTableCellRendererComponent(t,value,selected,focus,row,col);setHorizontalAlignment(RIGHT);if(!selected){setBackground(UIManager.getColor("TableHeader.background"));setForeground(UIManager.getColor("TableHeader.foreground"));}return this;}});
         header.addMouseListener(new MouseAdapter(){public void mousePressed(MouseEvent event){int row=header.rowAtPoint(event.getPoint());if(row>=0&&header.columnAtPoint(event.getPoint())==1){table.setRowSelectionInterval(row,row);if(table.getColumnCount()>0)table.setColumnSelectionInterval(0,table.getColumnCount()-1);}}});
         all.setHorizontalAlignment(SwingConstants.CENTER);UiLanguage.tooltip(all,UiLanguage.key("Seleccionar todas las filas visibles"));
-        all.addActionListener(event->{for(int row:visibleRows())if(all.isSelected())checked.add(row);else checked.remove(row);rows.fireTableDataChanged();changed.run();});
+        all.addActionListener(event->{boolean selected=all.isSelected();for(int row:visibleRows())if(selected)checked.add(row);else checked.remove(row);selectMarkedRows();rows.fireTableDataChanged();changed.run();});
         scroll.setRowHeaderView(header);scroll.setCorner(JScrollPane.UPPER_LEFT_CORNER,all);
     }
     private final class RowHeader extends AbstractTableModel {
         public int getRowCount(){return table==null?0:table.getRowCount();}public int getColumnCount(){return 2;}
         public Class<?> getColumnClass(int column){return column==0?Boolean.class:String.class;}
-        public Object getValueAt(int row,int column){int index=table.convertRowIndexToModel(row);return column==0?checked.contains(index):Integer.toString(index+1);}
+        public Object getValueAt(int row,int column){int index=table.convertRowIndexToModel(row);return column==0?checked.contains(index):(model.isNewRow(index)?"*":"")+Integer.toString(index+1);}
         public boolean isCellEditable(int row,int column){return column==0;}
-        public void setValueAt(Object value,int row,int column){int index=table.convertRowIndexToModel(row);if(Boolean.TRUE.equals(value))checked.add(index);else checked.remove(index);fireTableCellUpdated(row,column);changed.run();}
+        public void setValueAt(Object value,int row,int column){int index=table.convertRowIndexToModel(row);if(Boolean.TRUE.equals(value))checked.add(index);else checked.remove(index);selectMarkedRows();fireTableCellUpdated(row,column);changed.run();}
     }
     private void installHeaders(){
         JTableHeader header=new JTableHeader(table.getColumnModel()){
@@ -92,12 +107,43 @@ final class ResultGridActions {
     }
     private void selectColumn(int column){if(column<0)return;table.setColumnSelectionInterval(column,column);if(table.getRowCount()>0)table.setRowSelectionInterval(0,table.getRowCount()-1);}
     private void installPopup(){
-        table.addMouseListener(new MouseAdapter(){private void popup(MouseEvent event){if(event.isPopupTrigger()){int row=table.rowAtPoint(event.getPoint()),column=table.columnAtPoint(event.getPoint());if(row<0||column<0)return;if(!table.isCellSelected(row,column))table.changeSelection(row,column,false,false);menu(false).show(table,event.getX(),event.getY());}}public void mousePressed(MouseEvent e){popup(e);}public void mouseReleased(MouseEvent e){popup(e);}});
+        table.addMouseListener(new MouseAdapter(){
+            private void popup(MouseEvent event){if(event.isPopupTrigger())showAt(event);}
+            private void showAt(MouseEvent event){int row=table.rowAtPoint(event.getPoint()),column=table.columnAtPoint(event.getPoint());if(row<0||column<0)return;table.changeSelection(row,column,false,false);menu(false).show(table,event.getX(),event.getY());}
+            public void mousePressed(MouseEvent e){popup(e);}public void mouseReleased(MouseEvent e){popup(e);}
+            public void mouseClicked(MouseEvent e){if(SwingUtilities.isLeftMouseButton(e)&&e.getClickCount()==1&&!table.isEditing()){int row=table.rowAtPoint(e.getPoint()),col=table.columnAtPoint(e.getPoint());if(row>=0&&col>=0){Rectangle cell=table.getCellRect(row,col,false);if(e.getX()>=cell.x+cell.width-18)showAt(e);}}}
+        });
+        table.getInputMap().put(KeyStroke.getKeyStroke("shift F10"),"result-menu");table.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_CONTEXT_MENU,0),"result-menu");
+        table.getActionMap().put("result-menu",new AbstractAction(){public void actionPerformed(ActionEvent event){showMenu(table);}});
     }
     private void item(JPopupMenu menu,String label,Runnable action){JMenuItem item=UiLanguage.text(new JMenuItem(),UiLanguage.key(label));item.addActionListener(event->action.run());menu.add(item);}
+    private void action(JPopupMenu menu,String label,Runnable action,boolean enabled){item(menu,label,action);menu.getComponent(menu.getComponentCount()-1).setEnabled(enabled);}
+    private void submenu(JPopupMenu menu,JMenu submenu,String label,Runnable action){JMenuItem item=UiLanguage.text(new JMenuItem(),UiLanguage.key(label));item.addActionListener(event->action.run());submenu.add(item);}
+    void showMenu(Component anchor){JPopupMenu menu=menu(false);if(anchor==table){int row=table.getSelectedRow(),col=table.getSelectedColumn();Rectangle rect=row>=0&&col>=0?table.getCellRect(row,col,true):new Rectangle();menu.show(table,rect.x,rect.y+rect.height);}else menu.show(anchor,0,anchor.getHeight());}
     private int column(){int column=table.getSelectedColumn();return column<0?-1:table.convertColumnIndexToModel(column);}
     private JPopupMenu menu(boolean heading){
         JPopupMenu menu=new JPopupMenu();int column=column();
+        if(!heading&&editing!=null){
+            boolean writable=editing.canEdit().getAsBoolean(),cell=editing.canSetValue().getAsBoolean();
+            action(menu,"Editar celda",editing.edit(),cell);action(menu,"Insertar nueva fila",editing.insert(),writable);
+            action(menu,"Guardar cambios",editing.save(),writable&&editing.hasChanges().getAsBoolean());
+            action(menu,"Eliminar filas seleccionadas",editing.delete(),writable&&!selectedRows().isEmpty());
+            action(menu,"Cancelar cambios",editing.discard(),writable&&editing.hasChanges().getAsBoolean());
+            menu.addSeparator();action(menu,"Establecer cadena vacía",()->editing.setValue().accept(""),cell);
+            action(menu,"Establecer NULL",()->editing.setValue().accept(null),cell);
+            action(menu,"Establecer valor predeterminado",()->editing.setValue().accept(com.nexodb.db.QueryEditSupport.DefaultValue.INSTANCE),cell&&editing.canDefault().getAsBoolean());
+            menu.addSeparator();action(menu,"Quitar ordenación",()->table.getRowSorter().setSortKeys(List.of()),!table.getRowSorter().getSortKeys().isEmpty());
+            JMenu filters=UiLanguage.text(new JMenu(),UiLanguage.key("Filtro"));
+            submenu(menu,filters,"Filtrar esta columna…",()->filterColumn(column));
+            submenu(menu,filters,"Quitar filtro de esta columna",()->{this.filters.remove(column);applyFilter();});
+            submenu(menu,filters,"Limpiar todos los filtros",()->{this.filters.clear();search.setText("");applyFilter();});
+            menu.add(filters);menu.addSeparator();action(menu,"Exportar resultado…",editing.export(),editing.canExport().getAsBoolean());
+            JMenu copy=UiLanguage.text(new JMenu(),UiLanguage.key("Copiar"));
+            submenu(menu,copy,"Copiar selección",this::copySelection);submenu(menu,copy,"Copiar filas completas",()->copy(selectedRows(),allColumns()));submenu(menu,copy,"Copiar columna completa",()->{if(column>=0)copy(visibleRows(),List.of(column));});menu.add(copy);
+            action(menu,"Duplicar fila actual",editing.duplicate(),writable&&table.getSelectedRow()>=0);
+            menu.addSeparator();
+        }
+        if(heading||editing==null){
         if(!heading){item(menu,"Copiar selección",this::copySelection);item(menu,"Copiar filas completas",()->copy(selectedRows(),allColumns()));}
         item(menu,"Copiar columna completa",()->{if(column>=0)copy(visibleRows(),List.of(column));});
         menu.addSeparator();item(menu,"Filtrar esta columna…",()->filterColumn(column));
@@ -105,6 +151,7 @@ final class ResultGridActions {
         item(menu,"Quitar filtro de esta columna",()->{filters.remove(column);applyFilter();});
         item(menu,"Limpiar todos los filtros",()->{filters.clear();search.setText("");applyFilter();});
         menu.addSeparator();item(menu,"Ordenar ascendente",()->sort(column,SortOrder.ASCENDING));item(menu,"Ordenar descendente",()->sort(column,SortOrder.DESCENDING));
+        }else item(menu,"Filtrar por este valor",()->{int row=table.getSelectedRow();if(column>=0&&row>=0){filters.put(column,new Filter("",model.getValueAt(table.convertRowIndexToModel(row),column),true));applyFilter();}});
         if(columnEditor!=null){menu.addSeparator();item(menu,"Agregar columna a la tabla…",()->columnEditor.open(column,false));item(menu,"Eliminar columna de la tabla…",()->columnEditor.open(column,true));}
         return menu;
     }

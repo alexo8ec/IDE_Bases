@@ -11,7 +11,7 @@ public final class QueryEditSupport {
     public record Column(String name, int type, boolean writable, String sourceName) {
         public Column(String name,int type,boolean writable){this(name,type,writable,name);}
     }
-    public record Target(String qualifiedTable, List<Column> columns, List<Integer> keys, SchemaItem table) {
+    public record Target(String qualifiedTable, List<Column> columns, List<Integer> keys, SchemaItem table, DatabaseType type) {
         public Target { columns=List.copyOf(columns); keys=List.copyOf(keys); }
     }
     public record Eligibility(Target target, String reason) {}
@@ -80,14 +80,17 @@ public final class QueryEditSupport {
             parts.add(quoted(table,quote));
             // Store names already quoted; user data is always bound as parameters.
             List<Column> quotedColumns=columns.stream().map(c->new Column(quoted(c.name(),quote),c.type(),c.writable(),c.name())).toList();
-            return new Eligibility(new Target(String.join(".",parts),quotedColumns,keys,new SchemaItem(SchemaItem.Kind.TABLE,empty(catalog),empty(schema),table,"")),"");
+            return new Eligibility(new Target(String.join(".",parts),quotedColumns,keys,new SchemaItem(SchemaItem.Kind.TABLE,empty(catalog),empty(schema),table,""),type),"");
         }catch(SQLException|RuntimeException error) {
             return denied("No se pudo identificar una clave primaria editable para este resultado.");
         }
     }
 
     public record Saved(Object value, boolean pendingCommit) {}
-    public record RowChange(int row, List<Object> original, Map<Integer,Object> values) {
+    public enum DefaultValue { INSTANCE; @Override public String toString(){return "(DEFAULT)";} }
+    public enum ChangeKind { UPDATE, INSERT, DELETE }
+    public record RowChange(int row, List<Object> original, Map<Integer,Object> values, ChangeKind kind) {
+        public RowChange(int row,List<Object> original,Map<Integer,Object> values){this(row,original,values,ChangeKind.UPDATE);}
         public RowChange { original=Collections.unmodifiableList(new ArrayList<>(original));values=Collections.unmodifiableMap(new LinkedHashMap<>(values)); }
     }
     public record BatchSaved(List<RowChange> rows, boolean pendingCommit) {}
@@ -107,7 +110,7 @@ public final class QueryEditSupport {
                 if(column<0||column>=target.columns().size()||!target.columns().get(column).writable())throw new SQLException(tr("Esta columna es de solo lectura."));
                 values.put(column,convert(entry.getValue(),target.columns().get(column).type()));
             }
-            normalized.add(new RowChange(row.row(),row.original(),values));
+            normalized.add(new RowChange(row.row(),row.original(),values,row.kind()));
         }
         synchronized(connection) {
             if(connection.isClosed() || connection.isReadOnly()) throw new SQLException(tr("La conexión está cerrada o en modo de solo lectura."));
@@ -115,7 +118,11 @@ public final class QueryEditSupport {
             Savepoint savepoint=null;boolean completed=false;
             try {
                 if(auto) connection.setAutoCommit(false); else savepoint=connection.setSavepoint();
-                for(RowChange row:normalized)updateRow(connection,target,row);
+                for(RowChange row:normalized)switch(row.kind()) {
+                    case UPDATE -> updateRow(connection,target,row);
+                    case INSERT -> insertRow(connection,target,row);
+                    case DELETE -> deleteRow(connection,target,row);
+                }
                 if(auto)connection.commit();
                 completed=true;
                 return new BatchSaved(List.copyOf(normalized),!auto);
@@ -133,9 +140,12 @@ public final class QueryEditSupport {
         if(changed.isEmpty())return;
         StringBuilder sql=new StringBuilder("UPDATE ").append(target.qualifiedTable()).append(" SET ");
         List<Object> parameters=new ArrayList<>();
+        int assignments=0;
         for(var entry:changed.entrySet()) {
-            if(!parameters.isEmpty())sql.append(", ");
-            sql.append(target.columns().get(entry.getKey()).name()).append("=?");parameters.add(entry.getValue());
+            if(assignments++>0)sql.append(", ");
+            sql.append(target.columns().get(entry.getKey()).name()).append('=');
+            if(entry.getValue()==DefaultValue.INSTANCE)sql.append("DEFAULT");
+            else{sql.append('?');parameters.add(entry.getValue());}
         }
         sql.append(" WHERE ");
         for(int i=0;i<target.keys().size();i++) {
@@ -147,6 +157,39 @@ public final class QueryEditSupport {
         for(int column:changed.keySet()) {
             sql.append(" AND ").append(target.columns().get(column).name());Object old=row.original().get(column);
             if(old==null)sql.append(" IS NULL");else{sql.append("=?");parameters.add(old);}
+        }
+        try(PreparedStatement statement=connection.prepareStatement(sql.toString())) {
+            for(int i=0;i<parameters.size();i++)statement.setObject(i+1,parameters.get(i));
+            if(statement.executeUpdate()!=1)throw new SQLException(tr("La fila cambió o fue eliminada. Ejecuta de nuevo la consulta antes de editarla."));
+        }
+    }
+    private static void insertRow(Connection connection,Target target,RowChange row)throws SQLException {
+        List<Integer> columns=row.values().keySet().stream().filter(index->row.values().get(index)!=DefaultValue.INSTANCE).toList();
+        StringBuilder sql=new StringBuilder("INSERT INTO ").append(target.qualifiedTable());
+        if(columns.isEmpty()) {
+            if(target.type()==DatabaseType.MYSQL||target.type()==DatabaseType.MARIADB)sql.append(" () VALUES ()");
+            else if(target.type()==DatabaseType.ORACLE)sql.append(" (").append(target.columns().get(0).name()).append(") VALUES (DEFAULT)");
+            else sql.append(" DEFAULT VALUES");
+        }else {
+            sql.append(" (");for(int i=0;i<columns.size();i++){if(i>0)sql.append(',');sql.append(target.columns().get(columns.get(i)).name());}
+            sql.append(") VALUES (").append(String.join(",",Collections.nCopies(columns.size(),"?"))).append(')');
+        }
+        try(PreparedStatement statement=connection.prepareStatement(sql.toString())) {
+            for(int i=0;i<columns.size();i++)statement.setObject(i+1,row.values().get(columns.get(i)));
+            if(statement.executeUpdate()!=1)throw new SQLException(tr("No se pudo insertar la fila."));
+        }
+    }
+    private static void deleteRow(Connection connection,Target target,RowChange row)throws SQLException {
+        Set<Integer> columns=new LinkedHashSet<>(target.keys());
+        for(int index=0;index<target.columns().size();index++)if(target.columns().get(index).writable())columns.add(index);
+        StringBuilder sql=new StringBuilder("DELETE FROM ").append(target.qualifiedTable()).append(" WHERE ");
+        List<Object> parameters=new ArrayList<>();int conditions=0;
+        for(int index:columns) {
+            Object value=row.original().get(index);
+            if(target.keys().contains(index)&&value==null)throw new SQLException(tr("La clave primaria de esta fila no está disponible."));
+            if(conditions++>0)sql.append(" AND ");
+            sql.append(target.columns().get(index).name());
+            if(value==null)sql.append(" IS NULL");else{sql.append("=?");parameters.add(value);}
         }
         try(PreparedStatement statement=connection.prepareStatement(sql.toString())) {
             for(int i=0;i<parameters.size();i++)statement.setObject(i+1,parameters.get(i));

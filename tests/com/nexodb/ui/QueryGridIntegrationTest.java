@@ -35,7 +35,9 @@ public final class QueryGridIntegrationTest {
                 ResultTableModel model=new ResultTableModel();model.setResult(result);JTable table=new JTable(model);table.setRowHeight(26);table.setAutoCreateRowSorter(true);table.setCellSelectionEnabled(true);
                 QueryResultPanel panel=new QueryResultPanel(session,result,model,table,"SELECT * FROM people ORDER BY id",10,busy::set,text->{},t->{});reference.set(panel);
                 JFrame window=new JFrame();frame.set(window);window.setContentPane(panel);window.setSize(1100,420);window.setVisible(true);window.validate();
-                button(panel,"query-edit").doClick();model.setValueAt("Alice changed",0,1);equal(1,model.changeCount());equal(1,model.changes().get(0).values().size());
+                Rectangle cell=table.getCellRect(0,1,true);table.dispatchEvent(new MouseEvent(table,MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,cell.x+12,cell.y+12,2,false,MouseEvent.BUTTON1));
+                equal(true,table.isEditing());equal(true,button(panel,"query-edit").isSelected());((JTextField)table.getEditorComponent()).setText("Alice changed");table.getCellEditor().stopCellEditing();
+                equal(1,model.changeCount());equal(1,model.changes().get(0).values().size());
                 snapshot(panel,"query-grid-light.png");
             });
             QueryResultPanel panel=reference.get();
@@ -50,6 +52,7 @@ public final class QueryGridIntegrationTest {
                 JTable table=field(panel,"table",JTable.class);ResultTableModel model=field(panel,"model",ResultTableModel.class);
                 JTextField filter=field(panel,"filter",JTextField.class);filter.setText("Carol");equal(1,table.getRowCount());
                 JTable rows=find(panel,"query-row-selector",JTable.class);rows.setValueAt(true,0,0);
+                for(int column=0;column<table.getColumnCount();column++)equal(true,table.isCellSelected(0,column));
                 ResultGridActions actions=field(panel,"grid",ResultGridActions.class);equal(List.of(2),actions.selectedRows());
                 filter.setText("");table.getRowSorter().toggleSortOrder(0);table.getRowSorter().toggleSortOrder(0);
                 equal(List.of(2),actions.selectedRows());equal("Carol\ttwo",ResultGridActions.text(model,actions.selectedRows(),List.of(1,2)));
@@ -63,6 +66,8 @@ public final class QueryGridIntegrationTest {
                 equal(3,table.getSelectedRowCount());equal(1,table.getSelectedColumnCount());equal(order,table.getRowSorter().getSortKeys());
                 table.changeSelection(0,0,false,false);
                 JPopupMenu menu=invoke(actions,"menu",new Class[]{boolean.class},false);
+                equal(true,menuItem(menu,"Insertar nueva fila").isEnabled());equal(true,menuItem(menu,"Eliminar filas seleccionadas").isEnabled());equal(false,menuItem(menu,"Guardar cambios").isEnabled());
+                snapshot(menuImage(menu),"query-grid-menu.png");
                 for(Component item:menu.getComponents())if(item instanceof JMenuItem entry&&entry.getText().equals("Filtrar por este valor"))entry.doClick();
                 equal(1,table.getRowCount());equal("two",table.getValueAt(0,0));
                 AtomicReference<String> structureColumn=new AtomicReference<>();panel.setColumnEditor((origin,target,column,delete)->{equal(session,origin);equal("PEOPLE",target.table().name());equal(true,delete);structureColumn.set(column);});
@@ -99,6 +104,8 @@ public final class QueryGridIntegrationTest {
         }finally{SwingUtilities.invokeAndWait(()->{field(p,"completionTimer",javax.swing.Timer.class).stop();window.get().dispose();});}
     }
     private static AbstractButton button(Container root,String name){return find(root,name,AbstractButton.class);}
+    private static JMenuItem menuItem(JPopupMenu root,String text){for(Component component:root.getComponents())if(component instanceof JMenuItem item&&text.equals(item.getText()))return item;throw new AssertionError("Missing menu action: "+text);}
+    private static Component menuImage(JPopupMenu menu){menu.setSize(menu.getPreferredSize());menu.doLayout();return menu;}
     private static <T extends Component>T find(Component root,String name,Class<T> type){if(name.equals(root.getName())&&type.isInstance(root))return type.cast(root);if(root instanceof Container c)for(Component child:c.getComponents()){T found=find(child,name,type);if(found!=null)return found;}return null;}
     private static <T>T field(Object target,String name,Class<T> type){try{Field field=target.getClass().getDeclaredField(name);field.setAccessible(true);return type.cast(field.get(target));}catch(Exception error){throw new RuntimeException(error);}}
     @SuppressWarnings("unchecked") private static <T>T invoke(Object target,String name,Class<?>[] types,Object... args){try{Method method=target.getClass().getDeclaredMethod(name,types);method.setAccessible(true);return (T)method.invoke(target,args);}catch(Exception error){throw new RuntimeException(error);}}

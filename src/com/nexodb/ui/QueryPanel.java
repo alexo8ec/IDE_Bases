@@ -7,6 +7,7 @@ import com.nexodb.db.QueryResult;
 import com.nexodb.db.SqlColumnCompletion;
 import com.nexodb.util.DataExporter;
 import com.nexodb.util.SqlText;
+import com.nexodb.util.SqlDraftStore;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -73,11 +74,21 @@ public final class QueryPanel extends JPanel {
     private final Set<String> columnWords = new LinkedHashSet<>();
     private long completionGeneration, completionCatalogGeneration;
     private QueryResultPanel.ColumnEditor columnEditor;
+    private final SqlDraftStore drafts;
+    private final javax.swing.Timer draftTimer;
+    private final java.util.concurrent.ExecutorService draftWriter;
+    private boolean restoringDraft, draftDirty;
 
     public QueryPanel(Consumer<String> statusConsumer, Consumer<Boolean> busyConsumer) {
+        this(statusConsumer,busyConsumer,SqlDraftStore.configured());
+    }
+    QueryPanel(Consumer<String> statusConsumer,Consumer<Boolean> busyConsumer,SqlDraftStore drafts) {
         super(new BorderLayout());
         this.statusConsumer = statusConsumer;
         this.busyConsumer = busyConsumer;
+        this.drafts=drafts;
+        draftWriter=drafts==null?null:java.util.concurrent.Executors.newSingleThreadExecutor(task->{Thread thread=new Thread(task,"nexodb-sql-draft");thread.setDaemon(true);return thread;});
+        draftTimer=new javax.swing.Timer(700,event->saveDraftAsync());draftTimer.setRepeats(false);
         this.completionTimer = new javax.swing.Timer(180, e -> showCompletions(false));
         completionTimer.setRepeats(false);
         addSqlKeywords();
@@ -89,7 +100,23 @@ public final class QueryPanel extends JPanel {
         split.setResizeWeight(0.55);
         split.setDividerLocation(350);
         add(split, BorderLayout.CENTER);
+        if(drafts!=null){
+            try{drafts.load().ifPresent(draft->{restoringDraft=true;try{editor.setText(draft.text());editor.setCaretPosition(draft.caret());}finally{restoringDraft=false;}});}catch(Exception error){statusConsumer.accept(tr("No se pudo recuperar el borrador SQL."));}
+            editor.getDocument().addDocumentListener(new DocumentListener(){private void changed(){scheduleDraft();}public void insertUpdate(DocumentEvent event){changed();}public void removeUpdate(DocumentEvent event){changed();}public void changedUpdate(DocumentEvent event){}});
+            editor.addCaretListener(event->scheduleDraft());
+        }
         updateActions();
+    }
+    private void scheduleDraft(){if(drafts!=null&&!restoringDraft){draftDirty=true;draftTimer.restart();}}
+    private SqlDraftStore.Draft draftSnapshot(){return new SqlDraftStore.Draft(editor.getText(),editor.getCaretPosition());}
+    private void saveDraftAsync(){
+        if(drafts==null||!draftDirty)return;SqlDraftStore.Draft snapshot=draftSnapshot();draftDirty=false;
+        draftWriter.submit(()->{try{drafts.save(snapshot);}catch(Exception error){SwingUtilities.invokeLater(()->{draftDirty=true;statusConsumer.accept(tr("No se pudieron guardar automáticamente las consultas."));});}});
+    }
+    public boolean saveDraftBeforeClose(){
+        draftTimer.stop();if(drafts==null)return true;SqlDraftStore.Draft snapshot=draftSnapshot();
+        try{draftWriter.submit(()->{drafts.save(snapshot);return null;}).get(5,java.util.concurrent.TimeUnit.SECONDS);draftDirty=false;return true;}
+        catch(Exception error){return JOptionPane.showConfirmDialog(this,tr("No se pudo guardar el texto de las consultas. ¿Salir sin guardar el borrador?"),tr("Consultas sin guardar"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)==JOptionPane.YES_OPTION;}
     }
 
     public void setSession(JdbcSession session) {
@@ -450,6 +477,7 @@ public final class QueryPanel extends JPanel {
         },statusConsumer,this::resizeColumns);
         panel.putClientProperty(RESULT_PROPERTY, result);
         panel.setColumnEditor(columnEditor);
+        panel.setExportAction(this::exportData);
         panel.setAvailable(session, false);
         int messagesIndex = outputTabs.indexOfComponent(messagesScroll);
         outputTabs.insertTab(uniqueTabName(requestedName), IconFactory.of(IconFactory.Kind.TABLE, 16),

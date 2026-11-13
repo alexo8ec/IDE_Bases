@@ -10,50 +10,52 @@ $tests = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -Filter '*.
 & javac -encoding UTF-8 -cp $mainClasspath -d $testRoot $tests
 if ($LASTEXITCODE -ne 0) { throw 'La compilacion de pruebas fallo.' }
 $testClasspath = "$testRoot;$mainClasspath"
-& java -cp $testClasspath com.nexodb.util.SqlTextTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.SqlTextTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas fallaron.' }
-& java -cp $testClasspath com.nexodb.CoreTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.CoreTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del nucleo fallaron.' }
-& java -cp $testClasspath com.nexodb.db.JdbcSessionTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.JdbcSessionTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de credenciales JDBC fallaron.' }
-& java -cp $testClasspath com.nexodb.db.PostgresSupportTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.PostgresSupportTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de seleccion de bases PostgreSQL fallaron.' }
-& java -cp $testClasspath com.nexodb.ui.CompletionInteractionTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.CompletionInteractionTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de autocompletado fallo.' }
-& java -cp $testClasspath com.nexodb.db.ZeroDateTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.ZeroDateTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de fechas cero fallo.' }
-& java -cp $testClasspath com.nexodb.util.SecretStoreTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.SecretStoreTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba del almacen seguro de contrasenas fallo.' }
-& java -cp $testClasspath com.nexodb.util.DataExporterTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.DataExporterTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de exportacion de datos fallo.' }
-& java -cp $testClasspath com.nexodb.db.DriverDownloadServiceTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.DriverDownloadServiceTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba del gestor de adaptadores JDBC fallo.' }
-& java -cp $testClasspath com.nexodb.update.UpdateServiceTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.update.UpdateServiceTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del actualizador fallaron.' }
-& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.AppearanceTest
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.AppearanceTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de idiomas y temas fallaron.' }
-& java -cp $testClasspath com.nexodb.util.SecureDownloadTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.SecureDownloadTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de descarga HTTPS fallaron.' }
-& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.LanguageSwitchTest
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.LanguageSwitchTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de cambio de idioma en vivo fallaron.' }
-& java -cp $testClasspath com.nexodb.ui.LanguageWindowTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.LanguageWindowTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de idioma en la ventana real fallo.' }
-& java -cp $testClasspath com.nexodb.db.SchemaMetadataReaderTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.SchemaMetadataReaderTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de lectura de esquemas fallaron.' }
-& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ComparisonSelectionTest
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ComparisonSelectionTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de seleccion persistente fallaron.' }
-& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ConnectionFeedbackTest
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ConnectionFeedbackTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de resultado de conexion fallaron.' }
-& java -cp $testClasspath com.nexodb.ui.ComparisonWindowTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.ComparisonWindowTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de casillas en la ventana de comparacion fallo.' }
-& java -cp $testClasspath com.nexodb.db.QueryEditSqlTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.QueryEditSqlTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de consultas editables fallaron.' }
-& java -cp $testClasspath com.nexodb.db.SqlColumnCompletionTest
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.SqlColumnCompletionTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de columnas en autocompletado fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.SqlDraftPersistenceTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de guardado de consultas fallaron.' }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
-    & java -cp $testClasspath com.nexodb.db.QueryEditIntegrationTest
+    & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.QueryEditIntegrationTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de escritura y transacciones fallaron.' }
-    & java -cp $testClasspath com.nexodb.ui.QueryGridIntegrationTest
+    & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.QueryGridIntegrationTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de la cuadricula editable fallaron.' }
 }
 
