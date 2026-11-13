@@ -56,14 +56,14 @@ public final class MainFrame extends JFrame {
     private final JList<SchemaItem> searchResults = new JList<>(searchResultModel);
     private final CardLayout objectCards = new CardLayout();
     private final JPanel objectCenter = new JPanel(objectCards);
-    private final JLabel status = new JLabel(tr("Listo"));
+    private final JLabel status = UiLanguage.text(new JLabel(tr("Listo")), UiLanguage.key("Listo"));
     private final JProgressBar busyBar = new JProgressBar();
     private final QueryPanel queryPanel = new QueryPanel(this::setStatus, this::setBusy);
     private final JTabbedPane workspaceTabs = new JTabbedPane();
-    private final JButton connectButton = new JButton(tr("Conectar"));
-    private final JButton disconnectButton = new JButton(tr("Desconectar"));
-    private final JButton refreshButton = new JButton(tr("Actualizar objetos"));
-    private final JButton compareButton = new JButton(tr("Comparar esquemas"));
+    private final JButton connectButton = UiLanguage.text(new JButton(tr("Conectar")), UiLanguage.key("Conectar"));
+    private final JButton disconnectButton = UiLanguage.text(new JButton(tr("Desconectar")), UiLanguage.key("Desconectar"));
+    private final JButton refreshButton = UiLanguage.text(new JButton(tr("Actualizar objetos")), UiLanguage.key("Actualizar objetos"));
+    private final JButton compareButton = UiLanguage.text(new JButton(tr("Comparar esquemas")), UiLanguage.key("Comparar esquemas"));
     private final Map<String, JdbcSession> sessions = new LinkedHashMap<>();
     private JdbcSession session;
     private int busyDepth;
@@ -110,13 +110,13 @@ public final class MainFrame extends JFrame {
         root.add(buildMainToolbar(), BorderLayout.NORTH);
 
         JTabbedPane navigator = new JTabbedPane();
-        navigator.addTab(tr("Conexiones"), IconFactory.of(IconFactory.Kind.CONNECTIONS), buildProfilesPanel());
-        navigator.addTab(tr("Objetos"), IconFactory.of(IconFactory.Kind.OBJECTS), buildObjectsPanel());
+        UiLanguage.addTab(navigator, new Object[]{UiLanguage.key("Conexiones")}, IconFactory.of(IconFactory.Kind.CONNECTIONS), buildProfilesPanel());
+        UiLanguage.addTab(navigator, new Object[]{UiLanguage.key("Objetos")}, IconFactory.of(IconFactory.Kind.OBJECTS), buildObjectsPanel());
         navigator.putClientProperty("JTabbedPane.tabType", "card");
         navigator.setMinimumSize(new Dimension(250, 0));
         navigator.setPreferredSize(new Dimension(310, 0));
 
-        workspaceTabs.addTab(tr("Consulta SQL"), IconFactory.of(IconFactory.Kind.SQL, 16), queryPanel);
+        UiLanguage.addTab(workspaceTabs, new Object[]{UiLanguage.key("Consulta SQL")}, IconFactory.of(IconFactory.Kind.SQL, 16), queryPanel);
         workspaceTabs.putClientProperty("JTabbedPane.tabType", "card");
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, navigator, workspaceTabs);
         split.setDividerLocation(310);
@@ -145,7 +145,7 @@ public final class MainFrame extends JFrame {
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
         toolbar.setBorder(new EmptyBorder(7, 10, 7, 10));
-        JButton add = new JButton(tr("Nueva conexión"));
+        JButton add = UiLanguage.text(new JButton(tr("Nueva conexión")), UiLanguage.key("Nueva conexión"));
         styleToolbarButton(add, IconFactory.Kind.ADD, tr("Crear un nuevo perfil de conexión"));
         styleToolbarButton(connectButton, IconFactory.Kind.CONNECT, tr("Conectar el perfil seleccionado"));
         styleToolbarButton(disconnectButton, IconFactory.Kind.DISCONNECT, tr("Cerrar la conexión activa"));
@@ -176,9 +176,9 @@ public final class MainFrame extends JFrame {
         profileList.putClientProperty("List.selectionArc", 10);
         panel.add(new JScrollPane(profileList), BorderLayout.CENTER);
         JPanel actions = new JPanel(new GridLayout(1, 3, 5, 0));
-        JButton add = new JButton(tr("Nueva"));
-        JButton edit = new JButton(tr("Editar"));
-        JButton delete = new JButton(tr("Eliminar"));
+        JButton add = UiLanguage.text(new JButton(tr("Nueva")), UiLanguage.key("Nueva"));
+        JButton edit = UiLanguage.text(new JButton(tr("Editar")), UiLanguage.key("Editar"));
+        JButton delete = UiLanguage.text(new JButton(tr("Eliminar")), UiLanguage.key("Eliminar"));
         add.setIcon(IconFactory.of(IconFactory.Kind.ADD, 16));
         edit.setIcon(IconFactory.of(IconFactory.Kind.EDIT, 16));
         delete.setIcon(IconFactory.of(IconFactory.Kind.DELETE, 16));
@@ -199,10 +199,10 @@ public final class MainFrame extends JFrame {
     private JComponent buildObjectsPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        objectSearch.putClientProperty("JTextField.placeholderText", tr("Buscar objetos en la base activa…"));
+        UiLanguage.placeholder(objectSearch, "Buscar objetos en la base activa…");
         objectSearch.putClientProperty("JTextField.leadingIcon", IconFactory.of(IconFactory.Kind.SEARCH, 16));
         JButton clearSearch = new JButton("×");
-        clearSearch.setToolTipText(tr("Limpiar búsqueda (Esc)"));
+        UiLanguage.tooltip(clearSearch, UiLanguage.key("Limpiar búsqueda (Esc)"));
         clearSearch.setFocusable(false);
         clearSearch.setBorderPainted(false);
         clearSearch.setContentAreaFilled(false);
@@ -215,7 +215,7 @@ public final class MainFrame extends JFrame {
         };
         objectSearch.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "clear-object-search");
         objectSearch.getActionMap().put("clear-object-search", clearSearchAction);
-        objectSearch.setToolTipText(tr("Busca tablas, vistas, procedimientos, funciones, triggers y eventos en la base seleccionada"));
+        UiLanguage.tooltip(objectSearch, UiLanguage.key("Busca tablas, vistas, procedimientos, funciones, triggers y eventos en la base seleccionada"));
         panel.add(objectSearch, BorderLayout.NORTH);
         objectCenter.add(new JScrollPane(objectTree), "tree");
         searchResults.setCellRenderer(new SearchResultRenderer());
@@ -257,7 +257,7 @@ public final class MainFrame extends JFrame {
         });
         searchResults.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "clear-object-search");
         searchResults.getActionMap().put("clear-object-search", clearSearchAction);
-        JButton refresh = new JButton(tr("Actualizar"));
+        JButton refresh = UiLanguage.text(new JButton(tr("Actualizar")), UiLanguage.key("Actualizar"));
         refresh.setIcon(IconFactory.of(IconFactory.Kind.REFRESH, 16));
         refresh.addActionListener(e -> refreshObjects());
         panel.add(refresh, BorderLayout.SOUTH);
@@ -266,12 +266,12 @@ public final class MainFrame extends JFrame {
 
     private JMenuBar buildMenu() {
         JMenuBar bar = new JMenuBar();
-        JMenu file = new JMenu(tr("Archivo"));
+        JMenu file = UiLanguage.text(new JMenu(tr("Archivo")), UiLanguage.key("Archivo"));
         file.setIcon(IconFactory.of(IconFactory.Kind.FOLDER, 16));
-        JMenuItem newConnection = new JMenuItem(tr("Nueva conexión…"));
-        JMenuItem connect = new JMenuItem(tr("Conectar"));
-        JMenuItem disconnect = new JMenuItem(tr("Desconectar"));
-        JMenuItem exit = new JMenuItem(tr("Salir"));
+        JMenuItem newConnection = UiLanguage.text(new JMenuItem(tr("Nueva conexión…")), UiLanguage.key("Nueva conexión…"));
+        JMenuItem connect = UiLanguage.text(new JMenuItem(tr("Conectar")), UiLanguage.key("Conectar"));
+        JMenuItem disconnect = UiLanguage.text(new JMenuItem(tr("Desconectar")), UiLanguage.key("Desconectar"));
+        JMenuItem exit = UiLanguage.text(new JMenuItem(tr("Salir")), UiLanguage.key("Salir"));
         newConnection.setIcon(IconFactory.of(IconFactory.Kind.ADD));
         connect.setIcon(IconFactory.of(IconFactory.Kind.CONNECT));
         disconnect.setIcon(IconFactory.of(IconFactory.Kind.DISCONNECT));
@@ -286,45 +286,45 @@ public final class MainFrame extends JFrame {
         file.addSeparator();
         file.add(exit);
 
-        JMenu database = new JMenu(tr("Base de datos"));
+        JMenu database = UiLanguage.text(new JMenu(tr("Base de datos")), UiLanguage.key("Base de datos"));
         database.setIcon(IconFactory.of(IconFactory.Kind.DATABASE, 16));
-        JMenuItem users = new JMenuItem(tr("Administrar usuarios…"), IconFactory.of(IconFactory.Kind.USER));
-        JMenuItem refreshObjects = new JMenuItem(tr("Actualizar objetos"), IconFactory.of(IconFactory.Kind.REFRESH));
+        JMenuItem users = UiLanguage.text(new JMenuItem(tr("Administrar usuarios…"), IconFactory.of(IconFactory.Kind.USER)), UiLanguage.key("Administrar usuarios…"));
+        JMenuItem refreshObjects = UiLanguage.text(new JMenuItem(tr("Actualizar objetos"), IconFactory.of(IconFactory.Kind.REFRESH)), UiLanguage.key("Actualizar objetos"));
         users.addActionListener(e -> manageUsers());
         refreshObjects.addActionListener(e -> refreshObjects());
         database.add(users);
         database.addSeparator();
         database.add(refreshObjects);
 
-        JMenu comparison = new JMenu(tr("Comparación"));
+        JMenu comparison = UiLanguage.text(new JMenu(tr("Comparación")), UiLanguage.key("Comparación"));
         comparison.setIcon(IconFactory.of(IconFactory.Kind.COMPARE, 16));
-        JMenuItem compareSchemas = new JMenuItem(tr("Nueva comparación de esquemas…"), IconFactory.of(IconFactory.Kind.COMPARE));
-        JMenuItem compareData = new JMenuItem(tr("Nueva comparación de datos…"), IconFactory.of(IconFactory.Kind.TABLE));
+        JMenuItem compareSchemas = UiLanguage.text(new JMenuItem(tr("Nueva comparación de esquemas…"), IconFactory.of(IconFactory.Kind.COMPARE)), UiLanguage.key("Nueva comparación de esquemas…"));
+        JMenuItem compareData = UiLanguage.text(new JMenuItem(tr("Nueva comparación de datos…"), IconFactory.of(IconFactory.Kind.TABLE)), UiLanguage.key("Nueva comparación de datos…"));
         compareSchemas.addActionListener(e -> compareSchemas());
         compareData.addActionListener(e -> compareData());
         comparison.add(compareSchemas);
         comparison.add(compareData);
 
-        JMenu query = new JMenu(tr("Consulta"));
+        JMenu query = UiLanguage.text(new JMenu(tr("Consulta")), UiLanguage.key("Consulta"));
         query.setIcon(IconFactory.of(IconFactory.Kind.SQL, 16));
-        JMenuItem executeQuery = new JMenuItem(tr("Ejecutar"), IconFactory.of(IconFactory.Kind.PLAY));
+        JMenuItem executeQuery = UiLanguage.text(new JMenuItem(tr("Ejecutar"), IconFactory.of(IconFactory.Kind.PLAY)), UiLanguage.key("Ejecutar"));
         executeQuery.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0));
         executeQuery.addActionListener(e -> queryPanel.executeCurrent());
-        JMenuItem cancelQuery = new JMenuItem(tr("Cancelar"), IconFactory.of(IconFactory.Kind.STOP));
+        JMenuItem cancelQuery = UiLanguage.text(new JMenuItem(tr("Cancelar"), IconFactory.of(IconFactory.Kind.STOP)), UiLanguage.key("Cancelar"));
         cancelQuery.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0));
         cancelQuery.addActionListener(e -> queryPanel.cancelCurrent());
         query.add(executeQuery);
         query.add(cancelQuery);
 
-        JMenu help = new JMenu(tr("Ayuda"));
-        JMenu view = new JMenu(com.nexodb.util.I18n.tr("Preferencias"));
-        JMenuItem preferences = new JMenuItem(com.nexodb.util.I18n.tr("Idioma y apariencia…"), IconFactory.of(IconFactory.Kind.SETTINGS));
+        JMenu help = UiLanguage.text(new JMenu(tr("Ayuda")), UiLanguage.key("Ayuda"));
+        JMenu view = UiLanguage.text(new JMenu(com.nexodb.util.I18n.tr("Preferencias")), UiLanguage.key("Preferencias"));
+        JMenuItem preferences = UiLanguage.text(new JMenuItem(com.nexodb.util.I18n.tr("Idioma y apariencia…"), IconFactory.of(IconFactory.Kind.SETTINGS)), UiLanguage.key("Idioma y apariencia…"));
         preferences.addActionListener(e -> PreferencesDialog.show(this));
         view.add(preferences);
         help.setIcon(IconFactory.of(IconFactory.Kind.INFO, 16));
-        JMenuItem updates = new JMenuItem(tr("Buscar actualizaciones…"));
-        JMenuItem updateChannel = new JMenuItem(tr("Canal de actualizaciones (administrador)…"));
-        JMenuItem about = new JMenuItem(tr("Acerca de NexoDB Studio"));
+        JMenuItem updates = UiLanguage.text(new JMenuItem(tr("Buscar actualizaciones…")), UiLanguage.key("Buscar actualizaciones…"));
+        JMenuItem updateChannel = UiLanguage.text(new JMenuItem(tr("Canal de actualizaciones (administrador)…")), UiLanguage.key("Canal de actualizaciones (administrador)…"));
+        JMenuItem about = UiLanguage.text(new JMenuItem(tr("Acerca de NexoDB Studio")), UiLanguage.key("Acerca de NexoDB Studio"));
         updates.setIcon(IconFactory.of(IconFactory.Kind.UPDATE));
         updateChannel.setIcon(IconFactory.of(IconFactory.Kind.SETTINGS));
         about.setIcon(IconFactory.of(IconFactory.Kind.INFO));
@@ -362,7 +362,7 @@ public final class MainFrame extends JFrame {
 
     private void styleToolbarButton(AbstractButton button, IconFactory.Kind icon, String tooltip) {
         button.setIcon(IconFactory.of(icon));
-        button.setToolTipText(tooltip);
+        UiLanguage.tooltip(button, UiLanguage.caption(tooltip));
         button.setIconTextGap(7);
         button.putClientProperty("JButton.buttonType", "toolBarButton");
         button.setMargin(new Insets(6, 10, 6, 10));
@@ -384,10 +384,10 @@ public final class MainFrame extends JFrame {
                 + tr("Esta opción es para quien publica NexoDB en un servidor propio. Debe apuntar directamente<br>")
                 + tr("al archivo <code>update-manifest.json</code> mediante HTTPS.</html>"));
         explanation.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel fieldLabel = new JLabel(tr("Dirección del manifiesto:"));
+        JLabel fieldLabel = UiLanguage.text(new JLabel(tr("Dirección del manifiesto:")), UiLanguage.key("Dirección del manifiesto:"));
         fieldLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         url.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel verification = new JLabel(tr("<html>NexoDB comprobará la versión y la firma SHA-256 antes de instalar.</html>"));
+        JLabel verification = UiLanguage.text(new JLabel(tr("<html>NexoDB comprobará la versión y la firma SHA-256 antes de instalar.</html>")), UiLanguage.key("<html>NexoDB comprobará la versión y la firma SHA-256 antes de instalar.</html>"));
         verification.setForeground(UIManager.getColor("Label.disabledForeground"));
         verification.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(explanation);
@@ -402,9 +402,9 @@ public final class MainFrame extends JFrame {
         try {
             updateService.setManifestUrl(url.getText());
             if (url.getText().isBlank()) {
-                setStatus(tr("Canal predeterminado de actualizaciones restaurado"));
+                setStatus(new Object[]{UiLanguage.key("Canal predeterminado de actualizaciones restaurado")});
             } else {
-                setStatus(tr("Canal de actualizaciones guardado"));
+                setStatus(new Object[]{UiLanguage.key("Canal de actualizaciones guardado")});
                 checkForUpdates(true);
             }
         } catch (Exception error) {
@@ -423,7 +423,7 @@ public final class MainFrame extends JFrame {
                     tr("Canal aún no publicado"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        setStatus(tr("Buscando actualizaciones…"));
+        setStatus(new Object[]{UiLanguage.key("Buscando actualizaciones…")});
         checkingUpdates = true;
         new SwingWorker<UpdateService.UpdateInfo, Void>() {
             @Override protected UpdateService.UpdateInfo doInBackground() throws Exception { return updateService.check(); }
@@ -432,16 +432,16 @@ public final class MainFrame extends JFrame {
                 try {
                     UpdateService.UpdateInfo update = get();
                     if (UpdateService.isNewer(update.version(), UpdateService.CURRENT_VERSION)) {
-                        setStatus(tr("Actualización ") + update.version() + tr(" disponible"));
+                        setStatus(new Object[]{UiLanguage.key("Actualización "), update.version(), UiLanguage.key(" disponible")});
                         offerUpdate(update);
                     } else {
-                        setStatus(tr("NexoDB Studio está actualizado"));
+                        setStatus(new Object[]{UiLanguage.key("NexoDB Studio está actualizado")});
                         if (manual) JOptionPane.showMessageDialog(MainFrame.this,
                                 tr("Ya tienes la versión más reciente (") + UpdateService.CURRENT_VERSION + ").",
                                 tr("Sin actualizaciones"), JOptionPane.INFORMATION_MESSAGE);
                     }
                 } catch (Exception error) {
-                    setStatus(tr("No se pudo comprobar la actualización"));
+                    setStatus(new Object[]{UiLanguage.key("No se pudo comprobar la actualización")});
                     if (manual) JOptionPane.showMessageDialog(MainFrame.this,
                             UpdateService.explainError(error), tr("No se pudo buscar actualizaciones"), JOptionPane.WARNING_MESSAGE);
                 } finally {
@@ -560,7 +560,7 @@ public final class MainFrame extends JFrame {
     }
 
     private void loadProfilesAsync() {
-        setStatus(tr("Cargando perfiles…"));
+        setStatus(new Object[]{UiLanguage.key("Cargando perfiles…")});
         setBusy(true);
         new SwingWorker<List<ConnectionProfile>, Void>() {
             @Override protected List<ConnectionProfile> doInBackground() { return profileStore.load(); }
@@ -570,9 +570,9 @@ public final class MainFrame extends JFrame {
                 try {
                     for (ConnectionProfile profile : get()) profileModel.addElement(profile);
                     if (!profileModel.isEmpty()) profileList.setSelectedIndex(0);
-                    setStatus(tr("Listo"));
+                    setStatus(new Object[]{UiLanguage.key("Listo")});
                 } catch (Exception ex) {
-                    setStatus(tr("No se pudieron cargar los perfiles; puedes crear uno nuevo."));
+                    setStatus(new Object[]{UiLanguage.key("No se pudieron cargar los perfiles; puedes crear uno nuevo.")});
                 }
                 updateConnectionActions();
                 setBusy(false);
@@ -637,7 +637,7 @@ public final class MainFrame extends JFrame {
         JdbcSession open = sessions.get(profile.id());
         if (open != null && open.isOpen()) {
             activateSession(open);
-            setStatus(tr("Conexión activa: ") + profile.name());
+            setStatus(new Object[]{UiLanguage.key("Conexión activa: "), profile.name()});
             return;
         }
         if (secretStore.has(profile.id())) {
@@ -650,10 +650,10 @@ public final class MainFrame extends JFrame {
             }
         }
         JPasswordField password = new JPasswordField(24);
-        JCheckBox remember = new JCheckBox(tr("Recordar de forma segura con Windows"), true);
+        JCheckBox remember = UiLanguage.text(new JCheckBox(tr("Recordar de forma segura con Windows"), true), UiLanguage.key("Recordar de forma segura con Windows"));
         remember.setEnabled(SecretStore.isSupported());
         remember.setSelected(SecretStore.isSupported());
-        if (!SecretStore.isSupported()) remember.setText(tr("Guardar contraseña no disponible en este sistema"));
+        if (!SecretStore.isSupported()) UiLanguage.text(remember, UiLanguage.key("Guardar contraseña no disponible en este sistema"));
         JPanel panel = new JPanel(new BorderLayout(6, 6));
         panel.add(new JLabel(tr("Contraseña para ") + profile.name() + ":"), BorderLayout.NORTH);
         panel.add(password, BorderLayout.CENTER);
@@ -686,7 +686,7 @@ public final class MainFrame extends JFrame {
 
     private void connect(ConnectionProfile profile, char[] password, boolean rememberAfterSuccess) {
         char[] savedCandidate = rememberAfterSuccess ? Arrays.copyOf(password, password.length) : new char[0];
-        setStatus(tr("Conectando a ") + profile.name() + "…");
+        setStatus(new Object[]{UiLanguage.key("Conectando a "), profile.name(), "…"});
         setBusy(true);
         connectButton.setEnabled(false);
         new SwingWorker<JdbcSession, Void>() {
@@ -719,7 +719,7 @@ public final class MainFrame extends JFrame {
                 try {
                     JdbcSession next = get();
                     if (next == null) {
-                        setStatus(tr("Conexión cancelada: no se seleccionó una base de datos."));
+                        setStatus(new Object[]{UiLanguage.key("Conexión cancelada: no se seleccionó una base de datos.")});
                         return;
                     }
                     JdbcSession previous = sessions.put(profile.id(), next);
@@ -737,11 +737,11 @@ public final class MainFrame extends JFrame {
                         }
                     }
                     activateSession(next);
-                    setStatus(tr("Conectado a ") + next.connection().getMetaData().getDatabaseProductName());
+                    setStatus(new Object[]{UiLanguage.key("Conectado a "), next.connection().getMetaData().getDatabaseProductName()});
                     refreshConnectionObjects(next);
                 } catch (Exception ex) {
                     showError(tr("No se pudo conectar"), rootCause(ex));
-                    setStatus(tr("Error de conexión"));
+                    setStatus(new Object[]{UiLanguage.key("Error de conexión")});
                 } finally {
                     Arrays.fill(savedCandidate, '\0');
                     busyBar.setIndeterminate(true);
@@ -769,10 +769,10 @@ public final class MainFrame extends JFrame {
             objectRoot.removeAllChildren();
             objectModel.reload();
             setTitle("NexoDB Studio");
-            setStatus(tr("Sin conexiones activas"));
+            setStatus(new Object[]{UiLanguage.key("Sin conexiones activas")});
         } else {
             activateSession(session);
-            setStatus(tr("Conexión activa: ") + session.profile().name());
+            setStatus(new Object[]{UiLanguage.key("Conexión activa: "), session.profile().name()});
         }
         updateConnectionActions();
     }
@@ -787,7 +787,7 @@ public final class MainFrame extends JFrame {
 
     private void closeSpecificSession(JdbcSession target) {
         try { target.close(); }
-        catch (Exception e) { setStatus(tr("Conexión cerrada con advertencias")); }
+        catch (Exception e) { setStatus(new Object[]{UiLanguage.key("Conexión cerrada con advertencias")}); }
     }
 
     private LazyNode findConnectionNode(String profileId) {
@@ -877,7 +877,7 @@ public final class MainFrame extends JFrame {
                     objectModel.reload(finalConnectionNode);
                     objectTree.expandRow(0);
                     objectTree.expandPath(new TreePath(finalConnectionNode.getPath()));
-                    setStatus(target.profile().name() + " · " + schemas.size() + tr(" esquemas cargados"));
+                    setStatus(new Object[]{(target.profile().name()), " · ", schemas.size(), UiLanguage.key(" esquemas cargados")});
                 } catch (Exception ex) {
                     finalConnectionNode.removeAllChildren();
                     finalConnectionNode.add(new LazyNode(new SchemaItem(SchemaItem.Kind.COLUMN, "", "", tr("Error al cargar objetos"), ""), true, target));
@@ -898,7 +898,7 @@ public final class MainFrame extends JFrame {
         if (database.isBlank()) {
             searchResultModel.clear();
             searchResultModel.addElement(new SchemaItem(SchemaItem.Kind.TABLE, "", "", "Selecciona una base", ""));
-            setStatus(tr("Selecciona una base antes de buscar objetos"));
+            setStatus(new Object[]{UiLanguage.key("Selecciona una base antes de buscar objetos")});
             return;
         }
         int generation = ++searchGeneration;
@@ -973,7 +973,7 @@ public final class MainFrame extends JFrame {
                     if (searchResultModel.isEmpty()) {
                         searchResultModel.addElement(new SchemaItem(SchemaItem.Kind.TABLE, "", "", tr("Sin resultados"), query));
                     }
-                    setStatus(searchResultModel.size() + tr(" coincidencias en ") + database + tr(" para “") + query + "”");
+                    setStatus(new Object[]{(searchResultModel.size()), UiLanguage.key(" coincidencias en "), database, UiLanguage.key(" para “"), query, "”"});
                 } catch (Exception error) {
                     if (generation == searchGeneration) {
                         searchResultModel.clear();
@@ -1213,7 +1213,7 @@ public final class MainFrame extends JFrame {
     private void chooseTableToCopy(JdbcSession source, SchemaItem schema) {
         if (source == null || !source.isOpen()) return;
         setBusy(true);
-        setStatus(tr("Cargando tablas de ") + schema.name() + "…");
+        setStatus(new Object[]{UiLanguage.key("Cargando tablas de "), schema.name(), "…"});
         new SwingWorker<List<SchemaItem>, Void>() {
             @Override protected List<SchemaItem> doInBackground() throws Exception {
                 return loadTables(source, schema, "TABLE", SchemaItem.Kind.TABLE);
@@ -1241,7 +1241,7 @@ public final class MainFrame extends JFrame {
         if (target == null || !target.isOpen()) return;
         JSpinner limit = new JSpinner(new SpinnerNumberModel(10000, 1, 1000000, 1000));
         JPanel options = new JPanel(new BorderLayout(8, 8));
-        options.add(new JLabel(tr("Máximo de filas que se exportarán:")), BorderLayout.NORTH);
+        options.add(UiLanguage.text(new JLabel(tr("Máximo de filas que se exportarán:")), UiLanguage.key("Máximo de filas que se exportarán:")), BorderLayout.NORTH);
         options.add(limit, BorderLayout.CENTER);
         if (JOptionPane.showConfirmDialog(this, options, tr("Exportar ") + table.name(),
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
@@ -1250,7 +1250,7 @@ public final class MainFrame extends JFrame {
         int maxRows = ((Number) limit.getValue()).intValue();
         String qualified = qualifiedName(target, table);
         setBusy(true);
-        setStatus(tr("Exportando ") + table.name() + "…");
+        setStatus(new Object[]{UiLanguage.key("Exportando "), table.name(), "…"});
         new SwingWorker<Integer, Void>() {
             @Override protected Integer doInBackground() throws Exception {
                 QueryResult result = target.execute("SELECT * FROM " + qualified, maxRows);
@@ -1261,7 +1261,7 @@ public final class MainFrame extends JFrame {
                 setBusy(false);
                 try {
                     int rows = get();
-                    setStatus(request.format() + tr(" exportado · ") + rows + tr(" filas · ") + request.path().getFileName());
+                    setStatus(new Object[]{(request.format()), UiLanguage.key(" exportado · "), rows, UiLanguage.key(" filas · "), request.path().getFileName()});
                 } catch (Exception error) {
                     showError(tr("No se pudo exportar la tabla"), rootCause(error));
                 }
@@ -1298,7 +1298,7 @@ public final class MainFrame extends JFrame {
         close.setMargin(new Insets(0, 4, 0, 4));
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
-        close.setToolTipText(tr("Cerrar pestaña"));
+        UiLanguage.tooltip(close, UiLanguage.key("Cerrar pestaña"));
         close.addActionListener(e -> workspaceTabs.remove(component));
         tab.add(close);
         return tab;
@@ -1323,13 +1323,13 @@ public final class MainFrame extends JFrame {
         String database = item.catalog() != null && !item.catalog().isBlank() ? item.catalog() : item.name();
         queryPanel.selectDatabase(database);
         workspaceTabs.setSelectedIndex(0);
-        setStatus(tr("Base activa: ") + database);
+        setStatus(new Object[]{UiLanguage.key("Base activa: "), database});
     }
 
     private void openDefinition(JdbcSession target, SchemaItem item) {
         if (target == null || !target.isOpen()) return;
         activateSession(target);
-        setStatus(tr("Leyendo definición de ") + item.name() + "…");
+        setStatus(new Object[]{UiLanguage.key("Leyendo definición de "), item.name(), "…"});
         setBusy(true);
         new SwingWorker<String, Void>() {
             @Override protected String doInBackground() throws Exception {
@@ -1353,7 +1353,7 @@ public final class MainFrame extends JFrame {
             @Override protected void done() {
                 try {
                     insertTemplate(get());
-                    setStatus(tr("Definición de ") + item.name() + tr(" cargada"));
+                    setStatus(new Object[]{UiLanguage.key("Definición de "), item.name(), UiLanguage.key(" cargada")});
                 } catch (Exception error) {
                     showError(tr("No se pudo leer la definición"), rootCause(error));
                 } finally {
@@ -1478,7 +1478,8 @@ public final class MainFrame extends JFrame {
         new UserManagerDialog(this, session).showDialog();
     }
 
-    private void setStatus(String text) { status.setText(text == null ? "" : text); }
+    private void setStatus(String text) { UiLanguage.text(status, UiLanguage.caption(text == null ? "" : text)); }
+    private void setStatus(Object[] parts) { UiLanguage.text(status, parts); }
 
     private void setBusy(boolean busy) {
         Runnable update = () -> {
@@ -1544,6 +1545,11 @@ public final class MainFrame extends JFrame {
                                                                  boolean leaf, int row, boolean focus) {
             JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, focus);
             if (value instanceof LazyNode node) {
+                if (isGroup(node.item().kind())) label.setText(groupLabel(node.item().kind()));
+                if (node.item().kind() == SchemaItem.Kind.ROOT && node.nodeSession() == null) {
+                    int count = node.getChildCount();
+                    label.setText(tr("Conexiones activas") + (count == 0 ? "" : " (" + count + ")"));
+                }
                 if (node.item().kind() == SchemaItem.Kind.ROOT && node.nodeSession() != null) {
                     label.setIcon(IconFactory.database(node.nodeSession().profile().type(), 17));
                     label.setBorder(new EmptyBorder(2, 3, 2, 4));

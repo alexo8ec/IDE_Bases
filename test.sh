@@ -14,6 +14,6 @@ classpath="$root/build/classes:$root/build/lib/*"
 javac --release 17 -encoding UTF-8 -cp "$classpath" -d "$test_classes" "${sources[@]}"
 for test in util.SqlTextTest CoreTest db.JdbcSessionTest db.PostgresSupportTest \
   ui.CompletionInteractionTest db.ZeroDateTest util.SecretStoreTest util.DataExporterTest \
-  db.DriverDownloadServiceTest update.UpdateServiceTest ui.AppearanceTest util.SecureDownloadTest; do
+  db.DriverDownloadServiceTest update.UpdateServiceTest ui.AppearanceTest util.SecureDownloadTest ui.LanguageSwitchTest; do
   java -Djava.awt.headless=true -cp "$test_classes:$classpath" "com.nexodb.$test"
 done

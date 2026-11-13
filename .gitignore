@@ -1,8 +1,8 @@
 /build/
 /dist/*
 !/dist/update-manifest.json
-!/dist/NexoDB-Studio-0.11.0-win64.zip
-!/dist/NexoDB-Studio-0.11.0-universal.zip
+!/dist/NexoDB-Studio-0.11.1-win64.zip
+!/dist/NexoDB-Studio-0.11.1-universal.zip
 /.tools/
 /.github/
 *.log

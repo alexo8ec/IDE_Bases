@@ -33,15 +33,16 @@ public final class SchemaCompareDialog extends JDialog {
             new Object[]{tr("Objeto"), tr("Nombre"), tr("Estado"), tr("Detalle")}, 0) {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
-    private final JTable results = new JTable(model);
-    private final JButton compare = new JButton(tr("Comparar"), IconFactory.of(IconFactory.Kind.COMPARE, 16));
-    private final JButton generate = new JButton(tr("Generar script"), IconFactory.of(IconFactory.Kind.SQL, 16));
-    private final JLabel status = new JLabel(tr("Selecciona el origen y el destino."));
+    private final JTable results = UiLanguage.headers(new JTable(model));
+    private final JButton compare = UiLanguage.text(new JButton(tr("Comparar"), IconFactory.of(IconFactory.Kind.COMPARE, 16)), UiLanguage.key("Comparar"));
+    private final JButton generate = UiLanguage.text(new JButton(tr("Generar script"), IconFactory.of(IconFactory.Kind.SQL, 16)), UiLanguage.key("Generar script"));
+    private final JLabel status = UiLanguage.text(new JLabel(tr("Selecciona el origen y el destino.")), UiLanguage.key("Selecciona el origen y el destino."));
     private final JProgressBar progress = new JProgressBar();
     private Comparison lastComparison;
 
     public SchemaCompareDialog(Window owner, JdbcSession activeSession, List<JdbcSession> sessions, BiConsumer<JdbcSession, String> scriptConsumer) {
         super(owner, tr("Comparar esquemas"), ModalityType.APPLICATION_MODAL);
+        UiLanguage.title(this, UiLanguage.key("Comparar esquemas"));
         this.scriptConsumer = scriptConsumer;
         for (JdbcSession session : sessions) if (session != null && session.isOpen()) {
             SessionOption option = new SessionOption(session); sourceConnection.addItem(option); targetConnection.addItem(option);
@@ -69,7 +70,7 @@ public final class SchemaCompareDialog extends JDialog {
         status.setIcon(IconFactory.of(IconFactory.Kind.INFO, 15));
         bottom.add(status, BorderLayout.CENTER);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        JButton close = new JButton(tr("Cerrar"), IconFactory.of(IconFactory.Kind.CANCEL, 16));
+        JButton close = UiLanguage.text(new JButton(tr("Cerrar"), IconFactory.of(IconFactory.Kind.CANCEL, 16)), UiLanguage.key("Cerrar"));
         compare.addActionListener(e -> compare());
         generate.addActionListener(e -> generateScript());
         generate.setEnabled(false);
@@ -88,20 +89,20 @@ public final class SchemaCompareDialog extends JDialog {
 
     private JComponent buildSelectors() {
         JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createTitledBorder(tr("Origen y destino")));
+        panel.setBorder(UiLanguage.border("Origen y destino"));
         GridBagConstraints c = new GridBagConstraints();
         c.insets = new Insets(7, 8, 7, 8);
         c.gridy = 0;
         c.fill = GridBagConstraints.HORIZONTAL;
         c.weightx = 0;
-        panel.add(new JLabel(tr("Instancia de origen:")), c);
+        panel.add(UiLanguage.text(new JLabel(tr("Instancia de origen:")), UiLanguage.key("Instancia de origen:")), c);
         c.gridx = 1;
         c.weightx = 1;
         panel.add(sourceConnection, c);
         c.gridx = 2;
         c.weightx = 0;
         JButton swap = new JButton("⇄", IconFactory.of(IconFactory.Kind.COMPARE, 16));
-        swap.setToolTipText(tr("Intercambiar origen y destino"));
+        UiLanguage.tooltip(swap, UiLanguage.key("Intercambiar origen y destino"));
         swap.addActionListener(e -> {
             Object left = sourceConnection.getSelectedItem();
             sourceConnection.setSelectedItem(targetConnection.getSelectedItem());
@@ -109,13 +110,13 @@ public final class SchemaCompareDialog extends JDialog {
         });
         panel.add(swap, c);
         c.gridx = 3;
-        panel.add(new JLabel(tr("Instancia de destino:")), c);
+        panel.add(UiLanguage.text(new JLabel(tr("Instancia de destino:")), UiLanguage.key("Instancia de destino:")), c);
         c.gridx = 4;
         c.weightx = 1;
         panel.add(targetConnection, c);
-        c.gridy = 1; c.gridx = 0; c.weightx = 0; panel.add(new JLabel(tr("Base de origen:")), c);
+        c.gridy = 1; c.gridx = 0; c.weightx = 0; panel.add(UiLanguage.text(new JLabel(tr("Base de origen:")), UiLanguage.key("Base de origen:")), c);
         c.gridx = 1; c.weightx = 1; panel.add(source, c);
-        c.gridx = 3; c.weightx = 0; panel.add(new JLabel(tr("Base de destino:")), c);
+        c.gridx = 3; c.weightx = 0; panel.add(UiLanguage.text(new JLabel(tr("Base de destino:")), UiLanguage.key("Base de destino:")), c);
         c.gridx = 4; c.weightx = 1; panel.add(target, c);
         sourceConnection.addActionListener(e -> loadDatabases(sourceSession(), source));
         targetConnection.addActionListener(e -> loadDatabases(targetSession(), target));
@@ -165,8 +166,8 @@ public final class SchemaCompareDialog extends JDialog {
                     if (requested != null && !requested.isBlank()) combo.setSelectedItem(requested);
                     combo.setEnabled(combo.getItemCount() > 0);
                     compare.setEnabled(source.getItemCount() > 0 && target.getItemCount() > 0);
-                    status.setText(tr("Selecciona las instancias y bases que deseas comparar."));
-                } catch (Exception error) { status.setText(tr("No se pudieron cargar las bases: ") + rootCause(error).getMessage()); }
+                    UiLanguage.text(status, UiLanguage.key("Selecciona las instancias y bases que deseas comparar."));
+                } catch (Exception error) { UiLanguage.text(status, UiLanguage.key("No se pudieron cargar las bases: "), rootCause(error).getMessage()); }
             }
         }.execute();
     }
@@ -183,7 +184,7 @@ public final class SchemaCompareDialog extends JDialog {
         }
         compare.setEnabled(false);
         generate.setEnabled(false);
-        status.setText(tr("Comparando ") + sourceName + tr(" con ") + targetName + "…");
+        UiLanguage.text(status, UiLanguage.key("Comparando "), sourceName, UiLanguage.key(" con "), targetName, "…");
         progress.setVisible(true);
         model.setRowCount(0);
         new SwingWorker<Comparison, Void>() {
@@ -201,10 +202,10 @@ public final class SchemaCompareDialog extends JDialog {
                     }
                     generate.setEnabled(!lastComparison.script().isBlank());
                     long changes = lastComparison.differences().stream().filter(d -> !d.status().equals(tr("Igual"))).count();
-                    status.setText(lastComparison.differences().size() + tr(" objetos revisados · ") + changes + tr(" diferencias"));
+                    UiLanguage.text(status, (lastComparison.differences().size()), UiLanguage.key(" objetos revisados · "), changes, UiLanguage.key(" diferencias"));
                 } catch (Exception error) {
                     Throwable cause = rootCause(error);
-                    status.setText(tr("Error al comparar"));
+                    UiLanguage.text(status, UiLanguage.key("Error al comparar"));
                     JOptionPane.showMessageDialog(SchemaCompareDialog.this, cause.getMessage(),
                             tr("No se pudieron comparar los esquemas"), JOptionPane.ERROR_MESSAGE);
                 }

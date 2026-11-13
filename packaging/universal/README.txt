@@ -16,7 +16,7 @@ Windows:
 Preferencias → Idioma y apariencia:
   Español / English / Según el sistema.
   Claro / Oscuro / Según el sistema.
-El tema cambia al guardar. El idioma se aplica al volver a abrir.
+El tema y el idioma cambian al guardar, sin cerrar tus consultas.
 
 Las conexiones y consultas funcionan en los tres sistemas. El guardado
 de contraseñas con Windows DPAPI y GSSAPI/SSPI de Windows solo se ofrecen

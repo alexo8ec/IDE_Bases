@@ -23,6 +23,14 @@ public final class I18n {
     }
     public static Locale locale() { return Locale.forLanguageTag(language); }
     public static String tr(String text) { return "en".equals(language) ? english.getProperty(text, text) : text; }
+    /** Only for UI captions already known to be application text, never database values. */
+    public static String source(String caption) {
+        if (english.containsKey(caption)) return caption;
+        for (String source : english.stringPropertyNames()) {
+            if (english.getProperty(source).equals(caption)) return source;
+        }
+        return caption;
+    }
     public static String tr(String text, Object... values) { return String.format(locale(), tr(text), values); }
     public static void initialize(String preference) {
         language = resolved(preference, Locale.getDefault());

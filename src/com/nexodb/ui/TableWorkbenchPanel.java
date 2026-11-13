@@ -40,17 +40,17 @@ public final class TableWorkbenchPanel extends JPanel {
     private final JTable dataTable = createTable(dataModel);
     private final DefaultTableModel columnsModel = readOnlyModel(
             tr("Columna"), tr("Tipo"), tr("Tamaño"), tr("Nulos"), tr("Predeterminado"), tr("Auto incremento"), tr("Comentario"));
-    private final JTable columnsTable = createTable(columnsModel);
+    private final JTable columnsTable = UiLanguage.headers(createTable(columnsModel));
     private final DefaultTableModel indexesModel = readOnlyModel(
             tr("Índice"), tr("Único"), tr("Columna"), tr("Posición"), tr("Tipo"));
-    private final JTable indexesTable = createTable(indexesModel);
+    private final JTable indexesTable = UiLanguage.headers(createTable(indexesModel));
     private final DefaultTableModel foreignKeysModel = readOnlyModel(
             tr("Relación"), tr("Columna"), tr("Tabla referenciada"), tr("Columna referenciada"), tr("Al eliminar"), tr("Al actualizar"));
-    private final JTable foreignKeysTable = createTable(foreignKeysModel);
+    private final JTable foreignKeysTable = UiLanguage.headers(createTable(foreignKeysModel));
     private final JTextArea ddl = new JTextArea();
-    private final JLabel state = new JLabel(tr("Cargando…"));
+    private final JLabel state = UiLanguage.text(new JLabel(tr("Cargando…")), UiLanguage.key("Cargando…"));
     private final JProgressBar progress = new JProgressBar();
-    private final JComboBox<String> editMode = new JComboBox<>(new String[]{tr("Solo lectura"), tr("Editable · guardado inmediato")});
+    private final JComboBox<String> editMode = new JComboBox<>(new String[]{"Solo lectura", "Editable · guardado inmediato"});
     private final JSpinner maxRows = new JSpinner(new SpinnerNumberModel(1000, 1, 100000, 100));
     private SwingWorker<Snapshot, Void> worker;
     private List<String> primaryKeys = List.of();
@@ -67,10 +67,10 @@ public final class TableWorkbenchPanel extends JPanel {
         setBorder(new EmptyBorder(0, 8, 8, 8));
         add(buildToolbar(), BorderLayout.NORTH);
         configureDdl();
-        sections.addTab(tr("Datos"), IconFactory.of(IconFactory.Kind.TABLE, 16), new JScrollPane(dataTable));
-        sections.addTab(tr("Columnas"), IconFactory.of(IconFactory.Kind.COLUMN, 16), columnSection());
-        sections.addTab(tr("Índices"), IconFactory.of(IconFactory.Kind.KEY, 16), indexSection());
-        sections.addTab(tr("Relaciones"), IconFactory.of(IconFactory.Kind.COMPARE, 16), foreignKeySection());
+        UiLanguage.addTab(sections, new Object[]{UiLanguage.key("Datos")}, IconFactory.of(IconFactory.Kind.TABLE, 16), new JScrollPane(dataTable));
+        UiLanguage.addTab(sections, new Object[]{UiLanguage.key("Columnas")}, IconFactory.of(IconFactory.Kind.COLUMN, 16), columnSection());
+        UiLanguage.addTab(sections, new Object[]{UiLanguage.key("Índices")}, IconFactory.of(IconFactory.Kind.KEY, 16), indexSection());
+        UiLanguage.addTab(sections, new Object[]{UiLanguage.key("Relaciones")}, IconFactory.of(IconFactory.Kind.COMPARE, 16), foreignKeySection());
         sections.addTab("SQL / DDL", IconFactory.of(IconFactory.Kind.SQL, 16), new JScrollPane(ddl));
         sections.putClientProperty("JTabbedPane.tabType", "card");
         add(sections, BorderLayout.CENTER);
@@ -89,18 +89,19 @@ public final class TableWorkbenchPanel extends JPanel {
                 item.kind() == SchemaItem.Kind.VIEW ? IconFactory.Kind.VIEW : IconFactory.Kind.TABLE, 18), JLabel.LEFT);
         title.setFont(title.getFont().deriveFont(Font.BOLD));
         title.setBorder(new EmptyBorder(0, 4, 0, 14));
-        JButton refresh = new JButton(tr("Actualizar"), IconFactory.of(IconFactory.Kind.REFRESH, 16));
+        JButton refresh = UiLanguage.text(new JButton(tr("Actualizar"), IconFactory.of(IconFactory.Kind.REFRESH, 16)), UiLanguage.key("Actualizar"));
         refresh.putClientProperty("JButton.buttonType", "toolBarButton");
         refresh.addActionListener(e -> refresh());
         bar.add(title);
         bar.addSeparator();
-        bar.add(new JLabel(tr("Modo: ")));
+        bar.add(UiLanguage.text(new JLabel(tr("Modo: ")), UiLanguage.key("Modo: ")));
         editMode.setMaximumSize(new Dimension(210, 30));
         editMode.setEnabled(false);
+        UiLanguage.choices(editMode);
         editMode.addActionListener(e -> changeEditMode());
         bar.add(editMode);
         bar.addSeparator();
-        bar.add(new JLabel(tr("Máx. filas: ")));
+        bar.add(UiLanguage.text(new JLabel(tr("Máx. filas: ")), UiLanguage.key("Máx. filas: ")));
         bar.add(maxRows);
         bar.add(refresh);
         bar.add(Box.createHorizontalGlue());
@@ -168,7 +169,7 @@ public final class TableWorkbenchPanel extends JPanel {
 
     private void refresh() {
         if (worker != null && !worker.isDone()) return;
-        state.setText(tr("Cargando…"));
+        UiLanguage.text(state, UiLanguage.key("Cargando…"));
         progress.setVisible(true);
         int limit = ((Number) maxRows.getValue()).intValue();
         worker = new SwingWorker<>() {
@@ -192,11 +193,11 @@ public final class TableWorkbenchPanel extends JPanel {
                     resizeColumns(columnsTable);
                     resizeColumns(indexesTable);
                     String suffix = snapshot.data().truncated() ? tr(" · límite alcanzado") : "";
-                    state.setText(snapshot.data().rows().size() + tr(" filas") + suffix);
+                    UiLanguage.text(state, (snapshot.data().rows().size()), UiLanguage.key(" filas"), suffix);
                     statusConsumer.accept(qualifiedName + " · " + snapshot.data().rows().size() + tr(" filas"));
                 } catch (Exception error) {
                     Throwable cause = rootCause(error);
-                    state.setText(tr("Error al cargar"));
+                    UiLanguage.text(state, UiLanguage.key("Error al cargar"));
                     statusConsumer.accept(tr("No se pudo abrir ") + qualifiedName);
                     JOptionPane.showMessageDialog(TableWorkbenchPanel.this,
                             cause.getMessage(), tr("No se pudo abrir la tabla"), JOptionPane.ERROR_MESSAGE);
@@ -280,7 +281,7 @@ public final class TableWorkbenchPanel extends JPanel {
         try {
             session.setReadOnly(false);
             dataModel.setEditable(true);
-            state.setText(tr("Editable · cambios inmediatos"));
+            UiLanguage.text(state, UiLanguage.key("Editable · cambios inmediatos"));
         } catch (SQLException error) {
             resetEditMode();
             JOptionPane.showMessageDialog(this, error.getMessage(), tr("No se pudo activar la edición"), JOptionPane.ERROR_MESSAGE);
@@ -303,13 +304,13 @@ public final class TableWorkbenchPanel extends JPanel {
         JComboBox<String> type = new JComboBox<>(new String[]{"INT", "BIGINT", "DECIMAL", "VARCHAR", "CHAR", "TEXT", "DATE", "DATETIME", "TIMESTAMP", "BOOLEAN", "BLOB", "JSON"});
         type.setEditable(true);
         JTextField size = new JTextField(editing ? value(columnsModel, row, 2) : "", 12);
-        JCheckBox nullable = new JCheckBox(tr("Permitir NULL"), !editing || tr("Sí").equals(value(columnsModel, row, 3)));
+        JCheckBox nullable = UiLanguage.text(new JCheckBox(tr("Permitir NULL"), !editing || tr("Sí").equals(value(columnsModel, row, 3))), UiLanguage.key("Permitir NULL"));
         JTextField defaultValue = new JTextField(editing ? value(columnsModel, row, 4) : "", 20);
-        JCheckBox autoIncrement = new JCheckBox(tr("Auto incremento"), editing && "YES".equalsIgnoreCase(value(columnsModel, row, 5)));
+        JCheckBox autoIncrement = UiLanguage.text(new JCheckBox(tr("Auto incremento"), editing && "YES".equalsIgnoreCase(value(columnsModel, row, 5))), UiLanguage.key("Auto incremento"));
         if (editing) type.setSelectedItem(value(columnsModel, row, 1));
         JPanel form = form(new String[]{tr("Nombre"), tr("Tipo"), tr("Longitud / precisión"), tr("Valor predeterminado"), tr("Opciones")},
                 new JComponent[]{name, type, size, defaultValue, options(nullable, autoIncrement)});
-        JLabel hint = new JLabel(tr("<html>Ejemplos de longitud: <b>255</b> o <b>10,2</b>. El valor predeterminado es una expresión SQL, por ejemplo <b>0</b>, <b>'texto'</b> o <b>CURRENT_TIMESTAMP</b>.</html>"));
+        JLabel hint = UiLanguage.text(new JLabel(tr("<html>Ejemplos de longitud: <b>255</b> o <b>10,2</b>. El valor predeterminado es una expresión SQL, por ejemplo <b>0</b>, <b>'texto'</b> o <b>CURRENT_TIMESTAMP</b>.</html>")), UiLanguage.key("<html>Ejemplos de longitud: <b>255</b> o <b>10,2</b>. El valor predeterminado es una expresión SQL, por ejemplo <b>0</b>, <b>'texto'</b> o <b>CURRENT_TIMESTAMP</b>.</html>"));
         hint.setForeground(UIManager.getColor("Label.disabledForeground"));
         JPanel content = new JPanel(new BorderLayout(6, 8)); content.add(form, BorderLayout.CENTER); content.add(hint, BorderLayout.SOUTH);
         if (JOptionPane.showConfirmDialog(this, content, editing ? tr("Modificar columna") : tr("Nueva columna"),
@@ -367,7 +368,7 @@ public final class TableWorkbenchPanel extends JPanel {
             selectedColumns.setSelectedIndices(selected.stream().mapToInt(Integer::intValue).toArray());
         } else selectedColumns.setSelectedIndex(0);
         JTextField name = new JTextField(editing ? originalName : "idx_" + item.name() + "_" + columns.get(0), 25);
-        JCheckBox unique = new JCheckBox(tr("Índice único"), editing && tr("Sí").equals(value(indexesModel, selectedRow, 1)));
+        JCheckBox unique = UiLanguage.text(new JCheckBox(tr("Índice único"), editing && tr("Sí").equals(value(indexesModel, selectedRow, 1))), UiLanguage.key("Índice único"));
         JPanel form = form(new String[]{tr("Nombre"), tr("Columnas"), tr("Tipo")},
                 new JComponent[]{name, new JScrollPane(selectedColumns), unique});
         if (JOptionPane.showConfirmDialog(this, form, editing ? tr("Modificar índice") : tr("Crear índice"), JOptionPane.OK_CANCEL_OPTION,
@@ -468,7 +469,7 @@ public final class TableWorkbenchPanel extends JPanel {
     }
 
     private void executeDdl(List<String> statements, String success) {
-        progress.setVisible(true); state.setText(tr("Aplicando cambio de estructura…")); sections.setEnabled(false);
+        progress.setVisible(true); UiLanguage.text(state, UiLanguage.key("Aplicando cambio de estructura…")); sections.setEnabled(false);
         new SwingWorker<Integer, Void>() {
             @Override protected Integer doInBackground() throws Exception {
                 int updated = 0;
@@ -479,7 +480,7 @@ public final class TableWorkbenchPanel extends JPanel {
                 progress.setVisible(false); sections.setEnabled(true);
                 try { get(); state.setText(success); statusConsumer.accept(success + " · " + item.name()); refresh(); }
                 catch (Exception error) {
-                    state.setText(tr("No se aplicó el cambio"));
+                    UiLanguage.text(state, UiLanguage.key("No se aplicó el cambio"));
                     JOptionPane.showMessageDialog(TableWorkbenchPanel.this, rootCause(error).getMessage(),
                             tr("No se pudo modificar la estructura"), JOptionPane.ERROR_MESSAGE);
                 }
@@ -559,7 +560,7 @@ public final class TableWorkbenchPanel extends JPanel {
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gc = new GridBagConstraints(); gc.insets = new Insets(5, 5, 5, 5); gc.fill = GridBagConstraints.HORIZONTAL;
         for (int i = 0; i < labels.length; i++) {
-            gc.gridy = i; gc.gridx = 0; gc.weightx = 0; panel.add(new JLabel(labels[i] + ":"), gc);
+            gc.gridy = i; gc.gridx = 0; gc.weightx = 0; panel.add(UiLanguage.text(new JLabel(), UiLanguage.caption(labels[i]), ":"), gc);
             gc.gridx = 1; gc.weightx = 1; panel.add(fields[i], gc);
         }
         return panel;
@@ -577,7 +578,7 @@ public final class TableWorkbenchPanel extends JPanel {
     private void saveCell(int row, int column, Object oldValue, Object newValue, List<Object> originalRow) {
         dataTable.setEnabled(false);
         progress.setVisible(true);
-        state.setText(tr("Guardando cambio…"));
+        UiLanguage.text(state, UiLanguage.key("Guardando cambio…"));
         String columnName = dataModel.getColumnName(column);
         new SwingWorker<Integer, Void>() {
             @Override protected Integer doInBackground() throws Exception {
@@ -604,12 +605,12 @@ public final class TableWorkbenchPanel extends JPanel {
                     int updated = get();
                     if (updated != 1) throw new SQLException(tr("Se esperaba actualizar una fila, pero el servidor actualizó ") + updated + ".");
                     dataModel.commitCell(row, column, newValue);
-                    state.setText(tr("Cambio guardado"));
+                    UiLanguage.text(state, UiLanguage.key("Cambio guardado"));
                     statusConsumer.accept(qualifiedName + tr(" actualizado"));
                 } catch (Exception error) {
                     dataModel.revertCell(row, column, oldValue);
                     Throwable cause = rootCause(error);
-                    state.setText(tr("No se guardó el cambio"));
+                    UiLanguage.text(state, UiLanguage.key("No se guardó el cambio"));
                     JOptionPane.showMessageDialog(TableWorkbenchPanel.this, cause.getMessage(),
                             tr("No se pudo actualizar la fila"), JOptionPane.ERROR_MESSAGE);
                 } finally {

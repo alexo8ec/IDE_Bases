@@ -1,5 +1,7 @@
 # NexoDB Studio
 
+La versión 0.11.1 aplica el idioma inmediatamente al guardar las preferencias. Actualiza los menús, botones, pestañas y ayudas de las ventanas abiertas sin cerrar conexiones ni modificar consultas, datos o nombres de objetos. También permite volver a español o usar el idioma del sistema durante la misma sesión.
+
 La versión 0.11.0 añade **Preferencias → Idioma y apariencia** con Español, English, idioma del sistema y temas claro, oscuro o según el sistema. El editor SQL adapta su fondo y resaltado al tema sin modificar las consultas. Las preferencias se guardan por usuario.
 
 El actualizador comparte la descarga HTTPS segura con los controladores: reintenta TLS 1.2 y la conexión nativa cuando falla el handshake, mantiene la validación de certificados y la comprobación SHA-256, y distingue errores de red, TLS y canal no publicado (HTTP 404). Los manifiestos admiten paquetes por sistema y arquitectura.
@@ -34,7 +36,7 @@ La versión 0.10.4 añade MongoDB mediante su **Atlas SQL Interface** y el contr
 
 La versión 0.10.5 corrige la descarga bajo demanda de controladores JDBC. Usa el servidor canónico de Maven Central, reintenta con TLS 1.2 y, si Java es bloqueado por el proxy o antivirus, utiliza la conexión HTTPS nativa de Windows. PostgreSQL no se incluye previamente: se descarga al pulsar **Verificar / descargar driver** o al iniciar la primera conexión, y se valida con SHA-256 antes de usarlo.
 
-Canal estable de actualizaciones: `https://github.com/alexo8ec/IDE_Bases/releases/latest/download/update-manifest.json`. Los instaladores y manifiestos se publican como archivos de GitHub Releases sin guardar automatizaciones de GitHub Actions dentro del repositorio.
+Canal estable de actualizaciones: `https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/update-manifest.json`. El manifiesto y los dos ZIP vigentes se publican desde `dist` en el repositorio público. Los demás archivos generados permanecen excluidos de Git.
 
 La versión 0.10.3 añadió en el formulario de conexión el botón **Verificar / descargar driver**. Comprueba el archivo, su firma y la clase JDBC sin abrir una conexión; si falta, lo descarga y muestra el progreso. También diferencia los errores de controlador de los rechazos SSL/TLS del servidor.
 

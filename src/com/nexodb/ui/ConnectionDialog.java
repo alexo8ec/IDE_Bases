@@ -23,19 +23,19 @@ public final class ConnectionDialog extends JDialog {
     public record Result(ConnectionProfile profile, char[] password, boolean connect, boolean rememberPassword) {}
 
     private enum TlsMode {
-        AUTOMATIC(tr("Automático (recomendado)")),
-        REQUIRED(tr("Requerir cifrado")),
-        VERIFY_FULL(tr("Verificar certificado y servidor")),
-        DISABLED(tr("Sin SSL/TLS (red confiable)"));
+        AUTOMATIC("Automático (recomendado)"),
+        REQUIRED("Requerir cifrado"),
+        VERIFY_FULL("Verificar certificado y servidor"),
+        DISABLED("Sin SSL/TLS (red confiable)" );
 
         private final String label;
         TlsMode(String label) { this.label = label; }
-        @Override public String toString() { return label; }
+        @Override public String toString() { return tr(label); }
     }
 
     private final JTextField name = new JTextField(30);
     private final JComboBox<DatabaseType> type = new JComboBox<>(DatabaseType.values());
-    private final JButton driverAction = new JButton(tr("Verificar / descargar driver"));
+    private final JButton driverAction = UiLanguage.text(new JButton(tr("Verificar / descargar driver")), UiLanguage.key("Verificar / descargar driver"));
     private final JComboBox<AuthenticationMode> authentication = new JComboBox<>(AuthenticationMode.values());
     private final JComboBox<TlsMode> tlsMode = new JComboBox<>(TlsMode.values());
     private final JTextField host = new JTextField(30);
@@ -43,14 +43,14 @@ public final class ConnectionDialog extends JDialog {
     private final JTextField database = new JTextField(30);
     private final JTextField username = new JTextField(30);
     private final JPasswordField password = new JPasswordField(30);
-    private final JCheckBox rememberPassword = new JCheckBox(tr("Recordar de forma segura con Windows"));
+    private final JCheckBox rememberPassword = UiLanguage.text(new JCheckBox(tr("Recordar de forma segura con Windows")), UiLanguage.key("Recordar de forma segura con Windows"));
     private final JLabel headingIcon = new JLabel();
     private final JTextField jdbcUrl = new JTextField(30);
     private final JTextField driverClass = new JTextField(30);
     private final JTextField driverJar = new JTextField(30);
-    private final JToggleButton advancedToggle = new JToggleButton(tr("Configuración avanzada   >"));
+    private final JToggleButton advancedToggle = UiLanguage.text(new JToggleButton(tr("Configuración avanzada   >")), UiLanguage.key("Configuración avanzada   >"));
     private final JPanel advancedPanel = new JPanel(new GridBagLayout());
-    private final JCheckBox readOnly = new JCheckBox(tr("Solo lectura (recomendado para producción)"));
+    private final JCheckBox readOnly = UiLanguage.text(new JCheckBox(tr("Solo lectura (recomendado para producción)")), UiLanguage.key("Solo lectura (recomendado para producción)"));
     private final JLabel status = new JLabel(" ");
     private final JProgressBar driverProgress = new JProgressBar(0, 100);
     private final JLabel authenticationNote = new JLabel();
@@ -66,6 +66,7 @@ public final class ConnectionDialog extends JDialog {
 
     public ConnectionDialog(Window owner, ConnectionProfile profile, SecretStore secretStore) {
         super(owner, profile == null ? tr("Nueva conexión") : tr("Editar conexión"), ModalityType.APPLICATION_MODAL);
+        UiLanguage.title(this, UiLanguage.key(profile == null ? "Nueva conexión" : "Editar conexión"));
         this.profileId = profile == null ? "" : profile.id();
         this.secretStore = secretStore;
         this.hadStoredPassword = profile != null && secretStore.has(profile.id());
@@ -84,7 +85,7 @@ public final class ConnectionDialog extends JDialog {
             populate(profile);
         }
         rememberPassword.setSelected(hadStoredPassword);
-        rememberPassword.setToolTipText(tr("Se cifra con DPAPI para el usuario actual de Windows; nunca se guarda en el perfil."));
+        UiLanguage.tooltip(rememberPassword, UiLanguage.key("Se cifra con DPAPI para el usuario actual de Windows; nunca se guarda en el perfil."));
         updateAuthenticationUi();
         pack();
         setLocationRelativeTo(owner);
@@ -101,7 +102,7 @@ public final class ConnectionDialog extends JDialog {
 
         JPanel heading = new JPanel(new BorderLayout(12, 0));
         headingIcon.setIcon(IconFactory.database((DatabaseType) type.getSelectedItem(), 36));
-        JLabel headingText = new JLabel(tr("<html><b style='font-size:14px'>Configura tu conexión</b><br>Completa los datos básicos; NexoDB se encarga del controlador.</html>"));
+        JLabel headingText = UiLanguage.text(new JLabel(tr("<html><b style='font-size:14px'>Configura tu conexión</b><br>Completa los datos básicos; NexoDB se encarga del controlador.</html>")), UiLanguage.key("<html><b style='font-size:14px'>Configura tu conexión</b><br>Completa los datos básicos; NexoDB se encarga del controlador.</html>"));
         headingText.setForeground(UIManager.getColor("Label.foreground"));
         heading.add(headingIcon, BorderLayout.WEST);
         heading.add(headingText, BorderLayout.CENTER);
@@ -129,7 +130,7 @@ public final class ConnectionDialog extends JDialog {
         JPanel enginePanel = new JPanel(new BorderLayout(6, 0));
         enginePanel.add(type, BorderLayout.CENTER);
         driverAction.setIcon(IconFactory.of(IconFactory.Kind.REFRESH, 15));
-        driverAction.setToolTipText(tr("Verifica el controlador del motor y lo descarga si no está instalado"));
+        UiLanguage.tooltip(driverAction, UiLanguage.key("Verifica el controlador del motor y lo descarga si no está instalado"));
         driverAction.addActionListener(e -> verifyOrDownloadDriver());
         enginePanel.add(driverAction, BorderLayout.EAST);
         addRow(form, gc, tr("Motor"), enginePanel);
@@ -165,7 +166,7 @@ public final class ConnectionDialog extends JDialog {
 
         JPanel urlPanel = new JPanel(new BorderLayout(6, 0));
         urlPanel.add(jdbcUrl, BorderLayout.CENTER);
-        JButton generate = new JButton(tr("Generar"));
+        JButton generate = UiLanguage.text(new JButton(tr("Generar")), UiLanguage.key("Generar"));
         generate.setIcon(IconFactory.of(IconFactory.Kind.REFRESH, 15));
         generate.addActionListener(e -> generateUrl());
         urlPanel.add(generate, BorderLayout.EAST);
@@ -174,7 +175,7 @@ public final class ConnectionDialog extends JDialog {
 
         JPanel jarPanel = new JPanel(new BorderLayout(6, 0));
         jarPanel.add(driverJar, BorderLayout.CENTER);
-        JButton browse = new JButton(tr("Examinar…"));
+        JButton browse = UiLanguage.text(new JButton(tr("Examinar…")), UiLanguage.key("Examinar…"));
         browse.setIcon(IconFactory.of(IconFactory.Kind.FOLDER, 15));
         browse.addActionListener(e -> browseJar());
         jarPanel.add(browse, BorderLayout.EAST);
@@ -205,10 +206,10 @@ public final class ConnectionDialog extends JDialog {
         activity.add(driverProgress, BorderLayout.EAST);
         footer.add(activity, BorderLayout.NORTH);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        JButton test = new JButton(tr("Probar"));
-        JButton save = new JButton(tr("Guardar"));
-        JButton connect = new JButton(tr("Guardar y conectar"));
-        JButton cancel = new JButton(tr("Cancelar"));
+        JButton test = UiLanguage.text(new JButton(tr("Probar")), UiLanguage.key("Probar"));
+        JButton save = UiLanguage.text(new JButton(tr("Guardar")), UiLanguage.key("Guardar"));
+        JButton connect = UiLanguage.text(new JButton(tr("Guardar y conectar")), UiLanguage.key("Guardar y conectar"));
+        JButton cancel = UiLanguage.text(new JButton(tr("Cancelar")), UiLanguage.key("Cancelar"));
         test.setIcon(IconFactory.of(IconFactory.Kind.TEST, 16));
         save.setIcon(IconFactory.of(IconFactory.Kind.SAVE, 16));
         connect.setIcon(IconFactory.of(IconFactory.Kind.CONNECT, 16));
@@ -234,7 +235,7 @@ public final class ConnectionDialog extends JDialog {
     private void addRow(JPanel panel, GridBagConstraints gc, String label, Component component) {
         gc.gridx = 0;
         gc.weightx = 0;
-        panel.add(new JLabel(label + ":"), gc);
+        panel.add(UiLanguage.text(new JLabel(), UiLanguage.caption(label), ":"), gc);
         gc.gridx = 1;
         gc.weightx = 1;
         panel.add(component, gc);
@@ -288,7 +289,7 @@ public final class ConnectionDialog extends JDialog {
         driverProgress.setIndeterminate(true);
         driverProgress.setString(tr("Verificando…"));
         status.setForeground(UIManager.getColor("Label.foreground"));
-        status.setText(tr("Verificando el controlador de ") + engine.displayName() + "…");
+        UiLanguage.text(status, UiLanguage.key("Verificando el controlador de "), engine.displayName(), "…");
         ConnectionProfile profile = profileFromForm();
 
         new SwingWorker<JdbcSession.DriverCheck, Void>() {
@@ -307,7 +308,7 @@ public final class ConnectionDialog extends JDialog {
                     driverProgress.setIndeterminate(false);
                     driverProgress.setValue(value);
                     driverProgress.setString(value + "%");
-                    status.setText(tr("Descargando el controlador oficial de ") + engine.displayName() + "…");
+                    UiLanguage.text(status, UiLanguage.key("Descargando el controlador oficial de "), engine.displayName(), "…");
                 }));
                 JdbcSession.DriverCheck installed = JdbcSession.checkDriver(profile);
                 if (!installed.available()) throw new IllegalStateException(installed.detail());
@@ -321,7 +322,7 @@ public final class ConnectionDialog extends JDialog {
                 try {
                     JdbcSession.DriverCheck check = get();
                     status.setForeground(UIManager.getColor("Label.foreground"));
-                    status.setText(tr("Controlador de ") + engine.displayName() + tr(" listo."));
+                    UiLanguage.text(status, UiLanguage.key("Controlador de "), engine.displayName(), UiLanguage.key(" listo."));
                     String location = check.file() == null ? tr("Incluido dentro de NexoDB Studio") : check.file().getAbsolutePath();
                     JOptionPane.showMessageDialog(ConnectionDialog.this,
                             (downloaded ? tr("El controlador fue descargado, verificado e instalado correctamente.")
@@ -330,7 +331,7 @@ public final class ConnectionDialog extends JDialog {
                             tr("Controlador listo"), JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception error) {
                     status.setForeground(UIManager.getColor("Label.foreground"));
-                    status.setText(tr("No se pudo preparar el controlador."));
+                    UiLanguage.text(status, UiLanguage.key("No se pudo preparar el controlador."));
                     showDriverError(error);
                 }
             }
@@ -480,26 +481,21 @@ public final class ConnectionDialog extends JDialog {
         rememberPassword.setEnabled(!windows && SecretStore.isSupported());
         if (!SecretStore.isSupported()) {
             rememberPassword.setSelected(false);
-            rememberPassword.setText(tr("Guardar contraseña no disponible en este sistema"));
-            rememberPassword.setToolTipText(tr("La contraseña se solicita al conectar y no se guarda en disco."));
+            UiLanguage.text(rememberPassword, UiLanguage.key("Guardar contraseña no disponible en este sistema"));
+            UiLanguage.tooltip(rememberPassword, UiLanguage.key("La contraseña se solicita al conectar y no se guarda en disco."));
         }
         password.setToolTipText(windows
                 ? tr("En este modo se usa la sesión actual de Windows y no se envía contraseña.")
                 : tr("Puede quedar vacía si la cuenta de la base de datos no tiene contraseña."));
         if (engine == DatabaseType.MONGODB) {
-            authenticationNote.setText(tr("<html>MongoDB usa aquí su Atlas SQL Interface compatible con JDBC.<br>")
-                    + tr("Para MongoDB Community nativo se incorporará un explorador de documentos independiente.</html>"));
+            UiLanguage.text(authenticationNote, UiLanguage.key("<html>MongoDB usa aquí su Atlas SQL Interface compatible con JDBC.<br>"), UiLanguage.key("Para MongoDB Community nativo se incorporará un explorador de documentos independiente.</html>"));
         } else if (!SecretStore.isSupported()) {
-            authenticationNote.setText(tr("<html>El usuario es obligatorio; la contraseña puede quedar vacía.<br>")
-                    + tr("La contraseña se solicita al conectar y no se guarda en disco.") + "</html>");
-        } else authenticationNote.setText(windows
-                ? tr("<html>El usuario identifica la cuenta MariaDB (por ejemplo, root).<br>")
-                        + tr("La contraseña no se envía: se usa explícitamente la sesión actual de Windows mediante GSSAPI/SSPI.</html>")
+            UiLanguage.text(authenticationNote, UiLanguage.key("<html>El usuario es obligatorio; la contraseña puede quedar vacía.<br>"), UiLanguage.key("La contraseña se solicita al conectar y no se guarda en disco."), "</html>");
+        } else UiLanguage.text(authenticationNote, (windows
+                ? tr("<html>El usuario identifica la cuenta MariaDB (por ejemplo, root).<br>") + tr("La contraseña no se envía: se usa explícitamente la sesión actual de Windows mediante GSSAPI/SSPI.</html>")
                 : hadStoredPassword && rememberPassword.isSelected() && password.getDocument().getLength() == 0
-                    ? tr("<html>La contraseña guardada está protegida por Windows y no se muestra.<br>")
-                            + tr("Déjala vacía para conservarla, o escribe otra para reemplazarla.</html>")
-                    : tr("<html>El usuario es obligatorio; la contraseña puede quedar vacía.<br>")
-                            + tr("Si eliges recordarla se cifra con Windows y no se guarda en el perfil.</html>"));
+                    ? tr("<html>La contraseña guardada está protegida por Windows y no se muestra.<br>") + tr("Déjala vacía para conservarla, o escribe otra para reemplazarla.</html>")
+                    : tr("<html>El usuario es obligatorio; la contraseña puede quedar vacía.<br>")), UiLanguage.key("Si eliges recordarla se cifra con Windows y no se guarda en el perfil.</html>"));
     }
 
     private void updateTlsUi() {
@@ -532,7 +528,7 @@ public final class ConnectionDialog extends JDialog {
     private void testConnection(JButton button) {
         if (!validateForm()) return;
         button.setEnabled(false);
-        status.setText(tr("Probando conexión…"));
+        UiLanguage.text(status, UiLanguage.key("Probando conexión…"));
         ConnectionProfile profile = profileFromForm();
         char[] secret = password.getPassword();
         if (secret.length == 0 && hadStoredPassword && rememberPassword.isSelected()) {
@@ -540,7 +536,7 @@ public final class ConnectionDialog extends JDialog {
             catch (Exception error) {
                 button.setEnabled(true);
                 status.setForeground(UIManager.getColor("Label.foreground"));
-                status.setText(tr("Windows no pudo recuperar la contraseña protegida."));
+                UiLanguage.text(status, UiLanguage.key("Windows no pudo recuperar la contraseña protegida."));
                 return;
             }
         }
@@ -570,7 +566,7 @@ public final class ConnectionDialog extends JDialog {
                 driverProgress.setVisible(false);
                 try {
                     status.setForeground(UIManager.getColor("Label.foreground"));
-                    status.setText(tr("Conexión correcta: ") + get());
+                    UiLanguage.text(status, UiLanguage.key("Conexión correcta: "), get());
                     if (availableDatabases != null && isDisplayable() && profile.equals(profileFromForm())) {
                         String selected = DatabaseSelectionDialog.choose(ConnectionDialog.this,
                                 profile.username(), availableDatabases);
@@ -578,7 +574,7 @@ public final class ConnectionDialog extends JDialog {
                     }
                 } catch (Exception ex) {
                     status.setForeground(UIManager.getColor("Label.foreground"));
-                    status.setText(tr("No se pudo conectar."));
+                    UiLanguage.text(status, UiLanguage.key("No se pudo conectar."));
                     showConnectionError(ex);
                 }
             }
@@ -617,7 +613,7 @@ public final class ConnectionDialog extends JDialog {
                 tlsMode.setSelectedItem(TlsMode.DISABLED);
                 generateUrl();
                 status.setForeground(UIManager.getColor("Label.foreground"));
-                status.setText(tr("Modo sin SSL/TLS seleccionado. Pulsa Probar para reintentar."));
+                UiLanguage.text(status, UiLanguage.key("Modo sin SSL/TLS seleccionado. Pulsa Probar para reintentar."));
             }
             return;
         }

@@ -34,4 +34,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del actualizador fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de idiomas y temas fallaron.' }
 & java -cp $testClasspath com.nexodb.util.SecureDownloadTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de descarga HTTPS fallaron.' }
+& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.LanguageSwitchTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de cambio de idioma en vivo fallaron.' }
+& java -cp $testClasspath com.nexodb.ui.LanguageWindowTest
+if ($LASTEXITCODE -ne 0) { throw 'La prueba de idioma en la ventana real fallo.' }
 

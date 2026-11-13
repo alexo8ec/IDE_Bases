@@ -43,7 +43,7 @@ La salida nativa Unix queda en `dist/native`. Utiliza un JDK de la misma arquite
 
 ## Preferencias
 
-**Preferencias → Idioma y apariencia** ofrece Español, English y el idioma del sistema, además de Claro, Oscuro y Según el sistema. El tema cambia al guardar. El idioma se aplica al volver a abrir la aplicación, conservando las consultas y conexiones de la sesión actual.
+**Preferencias → Idioma y apariencia** ofrece Español, English y el idioma del sistema, además de Claro, Oscuro y Según el sistema. Ambos cambios se aplican al guardar, conservando las consultas y conexiones de la sesión actual. El cambio de idioma actualiza los textos de la interfaz y mantiene intactos el SQL, los datos de resultados y los nombres de objetos.
 
 Las preferencias se guardan en `%APPDATA%/NexoDB Studio/settings.properties`, `~/Library/Application Support/NexoDB Studio/settings.properties` o `$XDG_CONFIG_HOME/nexodb-studio/settings.properties` (`~/.config` por defecto). El modo del sistema consulta Windows Personalize, AppleInterfaceStyle o el portal de escritorio Linux; en Linux también consulta GNOME/GTK. Si el escritorio no expone su preferencia, utiliza el tema claro y permite elegir oscuro manualmente. Los cambios del sistema se comprueban cada 15 segundos.
 

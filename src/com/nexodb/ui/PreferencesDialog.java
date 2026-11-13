@@ -17,20 +17,24 @@ final class PreferencesDialog {
         select(language, AppSettings.get("language", "es"));
         select(theme, ThemeManager.preference());
         JPanel fields = new JPanel(new GridLayout(0, 2, 12, 12));
-        fields.add(new JLabel(tr("Idioma"))); fields.add(language);
-        fields.add(new JLabel(tr("Apariencia"))); fields.add(theme);
+        fields.add(UiLanguage.text(new JLabel(tr("Idioma")), UiLanguage.key("Idioma"))); fields.add(language);
+        fields.add(UiLanguage.text(new JLabel(tr("Apariencia")), UiLanguage.key("Apariencia"))); fields.add(theme);
         JPanel content = new JPanel(new BorderLayout(12, 18));
         content.add(fields, BorderLayout.CENTER);
-        content.add(new JLabel(tr("El idioma se aplica al volver a abrir NexoDB. El tema cambia al guardar.")), BorderLayout.SOUTH);
+        content.add(UiLanguage.text(new JLabel(tr("El idioma y el tema se aplican al guardar, sin cerrar tus consultas.")), UiLanguage.key("El idioma y el tema se aplican al guardar, sin cerrar tus consultas.")), BorderLayout.SOUTH);
         if (JOptionPane.showConfirmDialog(owner, content, tr("Preferencias"), JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION) {
             try {
-                AppSettings.put("language", ((Option) language.getSelectedItem()).id());
-                ThemeManager.select(((Option) theme.getSelectedItem()).id());
+                apply(((Option) language.getSelectedItem()).id(), ((Option) theme.getSelectedItem()).id());
             } catch (IllegalStateException error) {
                 JOptionPane.showMessageDialog(owner, error.getMessage(), tr("Preferencias"), JOptionPane.WARNING_MESSAGE);
             }
         }
+    }
+    static void apply(String language, String theme, Component... roots) {
+        AppSettings.put("language", language);
+        ThemeManager.select(theme);
+        UiLanguage.change(language, roots);
     }
     private static void select(JComboBox<Option> box, String id) {
         for (int i = 0; i < box.getItemCount(); i++) if (box.getItemAt(i).id().equals(id)) box.setSelectedIndex(i);

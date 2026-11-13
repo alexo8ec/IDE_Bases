@@ -32,7 +32,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
 
 public final class QueryPanel extends JPanel {
-    private static final String SELECT_DATABASE = tr("Seleccione una base…");
+    private static final String SELECT_DATABASE = "Seleccione una base…";
     private static final String RESULT_PROPERTY = "nexodb.queryResult";
     private static final Pattern TABLE_NAME_PATTERN = Pattern.compile(
             "(?is)\\b(?:FROM|UPDATE|INTO|TABLE)\\s+((?:[`\"\\w$-]+\\.)?[`\"\\w$-]+)");
@@ -42,12 +42,12 @@ public final class QueryPanel extends JPanel {
     private final JTabbedPane outputTabs = new JTabbedPane();
     private final JSpinner maxRows = new JSpinner(new SpinnerNumberModel(1000, 1, 100000, 100));
     private final JCheckBox autoCommit = new JCheckBox("Auto-commit", true);
-    private final JButton execute = new JButton(tr("Ejecutar"));
-    private final JButton cancel = new JButton(tr("Cancelar"));
+    private final JButton execute = UiLanguage.text(new JButton(tr("Ejecutar")), UiLanguage.key("Ejecutar"));
+    private final JButton cancel = UiLanguage.text(new JButton(tr("Cancelar")), UiLanguage.key("Cancelar"));
     private final JButton commit = new JButton("Commit");
     private final JButton rollback = new JButton("Rollback");
-    private final JButton export = new JButton(tr("Exportar…"));
-    private final JLabel state = new JLabel(tr("Sin conexión"));
+    private final JButton export = UiLanguage.text(new JButton(tr("Exportar…")), UiLanguage.key("Exportar…"));
+    private final JLabel state = UiLanguage.text(new JLabel(tr("Sin conexión")), UiLanguage.key("Sin conexión"));
     private final JComboBox<String> database = new JComboBox<>();
     private final JProgressBar progress = new JProgressBar();
     private final JPopupMenu completionPopup = new JPopupMenu();
@@ -84,10 +84,10 @@ public final class QueryPanel extends JPanel {
     public void setSession(JdbcSession session) {
         this.session = session;
         if (session == null) {
-            state.setText(tr("Sin conexión"));
+            UiLanguage.text(state, UiLanguage.key("Sin conexión"));
             database.removeAllItems();
         } else {
-            state.setText(session.profile().name() + (session.profile().readOnly() ? tr(" · solo lectura") : ""));
+            UiLanguage.text(state, session.profile().name(), session.profile().readOnly() ? UiLanguage.key(" · solo lectura") : "");
             try { autoCommit.setSelected(session.getAutoCommit()); } catch (SQLException ignored) {}
             loadDatabases();
         }
@@ -193,14 +193,23 @@ public final class QueryPanel extends JPanel {
         toolbar.add(execute);
         toolbar.add(cancel);
         toolbar.addSeparator();
-        toolbar.add(new JLabel(tr("Base: ")));
+        toolbar.add(UiLanguage.text(new JLabel(tr("Base: ")), UiLanguage.key("Base: ")));
         database.setPrototypeDisplayValue("base_de_datos_XX");
         database.setMaximumSize(new Dimension(175, 30));
         database.setEnabled(false);
+        database.setRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean selected, boolean focus) {
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, selected, focus);
+                if ((index == 0 || index == -1 && database.getSelectedIndex() == 0) && SELECT_DATABASE.equals(value)) {
+                    label.setText(tr(SELECT_DATABASE));
+                }
+                return label;
+            }
+        });
         database.addActionListener(e -> changeDatabase());
         toolbar.add(database);
         toolbar.addSeparator();
-        toolbar.add(new JLabel(tr("Máx. filas: ")));
+        toolbar.add(UiLanguage.text(new JLabel(tr("Máx. filas: ")), UiLanguage.key("Máx. filas: ")));
         toolbar.add(maxRows);
         toolbar.addSeparator();
         toolbar.add(autoCommit);
@@ -224,7 +233,7 @@ public final class QueryPanel extends JPanel {
     private void styleAction(AbstractButton button, IconFactory.Kind icon, String tooltip) {
         button.setIcon(IconFactory.of(icon, 17));
         button.setIconTextGap(6);
-        button.setToolTipText(tooltip);
+        UiLanguage.tooltip(button, UiLanguage.caption(tooltip));
         button.putClientProperty("JButton.buttonType", "toolBarButton");
         button.setMargin(new Insets(5, 8, 5, 8));
     }
@@ -234,7 +243,7 @@ public final class QueryPanel extends JPanel {
         messages.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         messages.setLineWrap(true);
         messages.setWrapStyleWord(true);
-        outputTabs.addTab(tr("Mensajes"), IconFactory.of(IconFactory.Kind.INFO, 16), messagesScroll);
+        UiLanguage.addTab(outputTabs, new Object[]{UiLanguage.key("Mensajes")}, IconFactory.of(IconFactory.Kind.INFO, 16), messagesScroll);
         outputTabs.addChangeListener(e -> {
             Component selected = outputTabs.getSelectedComponent();
             currentResult = selected instanceof JComponent component

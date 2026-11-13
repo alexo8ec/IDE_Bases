@@ -21,12 +21,13 @@ public final class UserManagerDialog extends JDialog {
     private final DefaultTableModel model = new DefaultTableModel(new Object[]{tr("Usuario"), "Host", "Plugin"}, 0) {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
-    private final JTable users = new JTable(model);
+    private final JTable users = UiLanguage.headers(new JTable(model));
     private final JProgressBar progress = new JProgressBar();
-    private final JLabel status = new JLabel(tr("Cargando usuarios…"));
+    private final JLabel status = UiLanguage.text(new JLabel(tr("Cargando usuarios…")), UiLanguage.key("Cargando usuarios…"));
 
     public UserManagerDialog(Window owner, JdbcSession session) {
         super(owner, tr("Administrar usuarios"), ModalityType.APPLICATION_MODAL);
+        UiLanguage.title(this, UiLanguage.key("Administrar usuarios"));
         this.session = session;
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setMinimumSize(new Dimension(720, 480));
@@ -41,7 +42,7 @@ public final class UserManagerDialog extends JDialog {
     private JComponent buildContent() {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(new EmptyBorder(12, 14, 12, 14));
-        JLabel title = new JLabel(tr("Usuarios de MySQL / MariaDB"), IconFactory.of(IconFactory.Kind.USER, 22), JLabel.LEFT);
+        JLabel title = UiLanguage.text(new JLabel(tr("Usuarios de MySQL / MariaDB"), IconFactory.of(IconFactory.Kind.USER, 22), JLabel.LEFT), UiLanguage.key("Usuarios de MySQL / MariaDB"));
         title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
         root.add(title, BorderLayout.NORTH);
         users.setAutoCreateRowSorter(true);
@@ -77,7 +78,7 @@ public final class UserManagerDialog extends JDialog {
     }
 
     private JButton button(String text, IconFactory.Kind icon, java.awt.event.ActionListener action) {
-        JButton button = new JButton(text, IconFactory.of(icon, 16));
+        JButton button = UiLanguage.text(new JButton(text, IconFactory.of(icon, 16)), UiLanguage.caption(text));
         button.addActionListener(action);
         return button;
     }
@@ -93,7 +94,7 @@ public final class UserManagerDialog extends JDialog {
         }, rows -> {
             model.setRowCount(0);
             for (Object[] row : rows) model.addRow(row);
-            status.setText(rows.size() + tr(" cuentas cargadas"));
+            UiLanguage.text(status, (rows.size()), UiLanguage.key(" cuentas cargadas"));
         });
     }
 
@@ -134,10 +135,10 @@ public final class UserManagerDialog extends JDialog {
         JPanel privileges = new JPanel(new GridLayout(0, 2, 6, 4));
         List<JCheckBox> checks = new ArrayList<>();
         for (String name : names) { JCheckBox check = new JCheckBox(name); checks.add(check); privileges.add(check); }
-        JCheckBox grantOption = new JCheckBox(tr("Permitir delegar permisos (GRANT OPTION)"));
+        JCheckBox grantOption = UiLanguage.text(new JCheckBox(tr("Permitir delegar permisos (GRANT OPTION)")), UiLanguage.key("Permitir delegar permisos (GRANT OPTION)"));
         JPanel form = new JPanel();
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.add(new JLabel(tr("Base de datos:"))); form.add(database); form.add(Box.createVerticalStrut(8)); form.add(privileges); form.add(grantOption);
+        form.add(UiLanguage.text(new JLabel(tr("Base de datos:")), UiLanguage.key("Base de datos:"))); form.add(database); form.add(Box.createVerticalStrut(8)); form.add(privileges); form.add(grantOption);
         if (JOptionPane.showConfirmDialog(this, form, tr("Asignar permisos a ") + selected.display(),
                 JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
         List<String> chosen = new ArrayList<>();
@@ -165,7 +166,7 @@ public final class UserManagerDialog extends JDialog {
             JTextArea area = new JTextArea(text, 15, 75);
             area.setEditable(false); area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
             JOptionPane.showMessageDialog(this, new JScrollPane(area), tr("Permisos de ") + selected.display(), JOptionPane.INFORMATION_MESSAGE);
-            status.setText(tr("Permisos cargados"));
+            UiLanguage.text(status, UiLanguage.key("Permisos cargados"));
         });
     }
 
@@ -193,7 +194,7 @@ public final class UserManagerDialog extends JDialog {
             @Override protected void done() {
                 progress.setVisible(false);
                 try { done.accept(get()); }
-                catch (Exception error) { status.setText(tr("Operación fallida")); showError(rootCause(error)); }
+                catch (Exception error) { UiLanguage.text(status, UiLanguage.key("Operación fallida")); showError(rootCause(error)); }
             }
         }.execute();
     }
@@ -223,7 +224,7 @@ public final class UserManagerDialog extends JDialog {
         GridBagConstraints c = new GridBagConstraints();
         c.insets = new Insets(5, 5, 5, 5); c.fill = GridBagConstraints.HORIZONTAL;
         for (int i = 0; i < labels.length; i++) {
-            c.gridx = 0; c.gridy = i; c.weightx = 0; panel.add(new JLabel(labels[i]), c);
+            c.gridx = 0; c.gridy = i; c.weightx = 0; panel.add(UiLanguage.text(new JLabel(), UiLanguage.caption(labels[i])), c);
             c.gridx = 1; c.weightx = 1; panel.add(fields[i], c);
         }
         return panel;
