@@ -5,21 +5,15 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.*;
 import java.awt.*;
-import java.util.Arrays;
-import java.util.HashSet;
+import com.nexodb.util.SqlVocabulary;
 import java.util.Locale;
 import java.util.Set;
 
 /** Lightweight SQL editor with keyword casing and syntax colors. */
 public final class SqlEditorPane extends JTextPane {
-    private static final Set<String> KEYWORDS = new HashSet<>(Arrays.asList((
-            "SELECT FROM WHERE INSERT INTO VALUES UPDATE SET DELETE CREATE ALTER DROP TABLE DATABASE SCHEMA VIEW INDEX "
-            + "PRIMARY KEY FOREIGN REFERENCES UNIQUE NOT NULL DEFAULT AUTO_INCREMENT AS DISTINCT ALL AND OR NOT IN IS LIKE BETWEEN "
-            + "JOIN INNER LEFT RIGHT FULL OUTER CROSS ON UNION INTERSECT EXCEPT GROUP BY ORDER HAVING LIMIT OFFSET ASC DESC "
-            + "CASE WHEN THEN ELSE END EXISTS ANY SOME WITH RECURSIVE USE SHOW DESCRIBE EXPLAIN CALL PROCEDURE FUNCTION TRIGGER EVENT "
-            + "BEGIN COMMIT ROLLBACK TRANSACTION GRANT REVOKE IF NULL TRUE FALSE CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP "
-            + "COUNT SUM AVG MIN MAX CAST CONVERT OVER PARTITION ROWS RANGE FETCH FIRST ONLY RETURNING MERGE MATCHED"
-    ).split("\\s+")));
+    private Set<String> keywords = SqlVocabulary.base();
+
+    public void setKeywords(Set<String> words) { keywords=Set.copyOf(words);highlightTimer.restart(); }
 
     private final Style defaultStyle;
     private final Style keywordStyle;
@@ -33,6 +27,8 @@ public final class SqlEditorPane extends JTextPane {
     public SqlEditorPane() {
         StyledDocument document = getStyledDocument();
         defaultStyle = addStyle("default", null);
+        StyleConstants.setFontFamily(defaultStyle,Font.MONOSPACED);
+        StyleConstants.setFontSize(defaultStyle,14);
         StyleConstants.setForeground(defaultStyle, new Color(0x172033));
         keywordStyle = addStyle("keyword", defaultStyle);
         StyleConstants.setForeground(keywordStyle, new Color(0x155EEF));
@@ -121,8 +117,8 @@ public final class SqlEditorPane extends JTextPane {
                     int end = quotedEnd(text, i, c);
                     doc.setCharacterAttributes(i, end - i, stringStyle, true); i = end; continue;
                 }
-                if (c == '`') {
-                    int end = quotedEnd(text, i, c);
+                if (c == '`' || c == '[') {
+                    int end = quotedEnd(text, i, c=='['?']':c);
                     doc.setCharacterAttributes(i, end - i, identifierStyle, true); i = end; continue;
                 }
                 if (Character.isDigit(c)) {
@@ -131,7 +127,7 @@ public final class SqlEditorPane extends JTextPane {
                 }
                 if (isWord(c)) {
                     int end = i + 1; while (end < text.length() && isWord(text.charAt(end))) end++;
-                    if (KEYWORDS.contains(text.substring(i, end).toUpperCase(Locale.ROOT))) doc.setCharacterAttributes(i, end - i, keywordStyle, true);
+                    if (keywords.contains(text.substring(i, end).toUpperCase(Locale.ROOT))) doc.setCharacterAttributes(i, end - i, keywordStyle, true);
                     i = end; continue;
                 }
                 i++;
@@ -180,12 +176,12 @@ public final class SqlEditorPane extends JTextPane {
             if (start == end || !isCode(value, start)) return;
             String word = value.substring(start, end);
             String upper = word.toUpperCase(Locale.ROOT);
-            if (KEYWORDS.contains(upper) && !word.equals(upper)) fb.replace(start, end - start, upper, null);
+            if (keywords.contains(upper) && !word.equals(upper)) fb.replace(start, end - start, upper, null);
         }
     }
 
     private static boolean isCode(String text, int position) {
-        boolean single = false, doub = false, backtick = false, line = false, block = false;
+        boolean single = false, doub = false, backtick = false, bracket = false, line = false, block = false;
         for (int i = 0; i < position; i++) {
             char c = text.charAt(i), next = i + 1 < position ? text.charAt(i + 1) : '\0';
             if (line) { if (c == '\n') line = false; continue; }
@@ -193,13 +189,15 @@ public final class SqlEditorPane extends JTextPane {
             if (single) { if (c == '\\') i++; else if (c == '\'') single = false; continue; }
             if (doub) { if (c == '\\') i++; else if (c == '"') doub = false; continue; }
             if (backtick) { if (c == '`') backtick = false; continue; }
+            if (bracket) { if (c == ']') { if(next==']')i++;else bracket=false; } continue; }
             if (c == '-' && next == '-') { line = true; i++; }
             else if (c == '#') line = true;
             else if (c == '/' && next == '*') { block = true; i++; }
             else if (c == '\'') single = true;
             else if (c == '"') doub = true;
             else if (c == '`') backtick = true;
+            else if (c == '[') bracket = true;
         }
-        return !single && !doub && !backtick && !line && !block;
+        return !single && !doub && !backtick && !bracket && !line && !block;
     }
 }

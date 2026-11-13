@@ -8,6 +8,7 @@ import com.nexodb.db.SqlColumnCompletion;
 import com.nexodb.util.DataExporter;
 import com.nexodb.util.SqlText;
 import com.nexodb.util.SqlDraftStore;
+import com.nexodb.util.SqlVocabulary;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -34,15 +35,17 @@ import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
 
 public final class QueryPanel extends JPanel {
-    private static final Set<String> SQL_KEYWORDS = Set.of(("SELECT FROM WHERE JOIN LEFT RIGHT INNER OUTER ON AS INSERT INTO VALUES UPDATE SET DELETE "
-            + "CREATE ALTER DROP TABLE VIEW INDEX PRIMARY KEY FOREIGN REFERENCES GROUP BY ORDER HAVING LIMIT OFFSET "
-            + "DISTINCT UNION ALL CASE WHEN THEN ELSE END AND OR NOT NULL IS LIKE IN EXISTS BETWEEN ASC DESC "
-            + "USE CALL SHOW DESCRIBE EXPLAIN COUNT SUM AVG MIN MAX COMMIT ROLLBACK").split(" "));
+    private Set<String> sqlKeywords = SqlVocabulary.base();
     private static final String SELECT_DATABASE = "Seleccione una base…";
     private static final String RESULT_PROPERTY = "nexodb.queryResult";
     private static final Pattern TABLE_NAME_PATTERN = Pattern.compile(
             "(?is)\\b(?:FROM|UPDATE|INTO|TABLE)\\s+((?:[`\"\\w$-]+\\.)?[`\"\\w$-]+)");
-    private final SqlEditorPane editor = new SqlEditorPane();
+    private SqlEditorPane editor;
+    private final JTabbedPane queryTabs = new JTabbedPane();
+    private final List<SqlEditorPane> queryEditors = new ArrayList<>();
+    private int activeQuery;
+    private int querySequence;
+    private boolean changingQuery;
     private final JTextArea messages = new JTextArea();
     private final JScrollPane messagesScroll = new JScrollPane(messages);
     private final JTabbedPane outputTabs = new JTabbedPane();
@@ -69,6 +72,7 @@ public final class QueryPanel extends JPanel {
     private QueryResult currentResult;
     private SwingWorker<List<StatementOutcome>, Void> worker;
     private boolean savingResult;
+    private boolean queryRunning;
     private SqlColumnCompletion columnCompletion;
     private SwingWorker<List<String>,Void> columnWorker;
     private final Set<String> columnWords = new LinkedHashSet<>();
@@ -93,29 +97,73 @@ public final class QueryPanel extends JPanel {
         completionTimer.setRepeats(false);
         addSqlKeywords();
         setBorder(new EmptyBorder(0, 8, 8, 8));
-        configureEditor();
         configureCompletionPopup();
         add(buildToolbar(), BorderLayout.NORTH);
-        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JScrollPane(editor), buildOutput());
+        JPanel queries=new JPanel(new BorderLayout());queries.add(queryTabs,BorderLayout.CENTER);
+        JButton newQuery=new JButton("+");UiLanguage.tooltip(newQuery,UiLanguage.key("Nueva consulta (Ctrl+N)"));
+        newQuery.addActionListener(event->openNewQuery(""));queryTabs.putClientProperty("JTabbedPane.trailingComponent",newQuery);
+        queryTabs.addChangeListener(event->changeQuery());
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, queries, buildOutput());
         split.setResizeWeight(0.55);
         split.setDividerLocation(350);
         add(split, BorderLayout.CENTER);
-        if(drafts!=null){
-            try{drafts.load().ifPresent(draft->{restoringDraft=true;try{editor.restoreText(draft.text());editor.setCaretPosition(draft.caret());}finally{restoringDraft=false;}});}catch(Exception error){statusConsumer.accept(tr("No se pudo recuperar el borrador SQL."));}
-            editor.getDocument().addDocumentListener(new DocumentListener(){private void changed(){scheduleDraft();}public void insertUpdate(DocumentEvent event){changed();}public void removeUpdate(DocumentEvent event){changed();}public void changedUpdate(DocumentEvent event){}});
-            editor.addCaretListener(event->scheduleDraft());
-        }
+        restoringDraft=true;changingQuery=true;
+        try {
+            if(drafts!=null)drafts.loadWorkspace().ifPresent(workspace->{
+                for(SqlDraftStore.Draft draft:workspace.tabs()){
+                    String text=withoutStartupHeader(draft.text());SqlEditorPane pane=addQuery(text);
+                    pane.setCaretPosition(Math.max(0,Math.min(text.length(),draft.caret()-(draft.text().length()-text.length()))));
+                }
+                activeQuery=workspace.activeTab();
+            });
+        }catch(Exception error){statusConsumer.accept(tr("No se pudo recuperar el borrador SQL."));}
+        finally{if(queryEditors.isEmpty())addQuery("");editor=queryEditors.get(activeQuery);queryTabs.setSelectedIndex(activeQuery);changingQuery=false;restoringDraft=false;}
         updateActions();
     }
+    private static String withoutStartupHeader(String text){
+        for(String help:List.of("-- Selecciona una consulta o coloca el cursor dentro de ella y presiona Ctrl+Enter.","-- Select a query or place the cursor inside it and press Ctrl+Enter.")){
+            String prefix="-- NexoDB Studio\n"+help+"\n\n";
+            if(text.startsWith(prefix))return text.substring(prefix.length());
+            prefix=prefix.replace("\n","\r\n");if(text.startsWith(prefix))return text.substring(prefix.length());
+        }
+        return text;
+    }
+    private SqlEditorPane addQuery(String sql){
+        SqlEditorPane pane=new SqlEditorPane();configureEditor(pane);pane.setKeywords(sqlKeywords);pane.restoreText(sql);
+        queryEditors.add(pane);JScrollPane scroll=new JScrollPane(pane);int number=++querySequence;
+        UiLanguage.addTab(queryTabs,new Object[]{UiLanguage.key("Consulta")," ",number},IconFactory.of(IconFactory.Kind.SQL,14),scroll);
+        JPanel label=new JPanel(new FlowLayout(FlowLayout.LEFT,3,0));label.setOpaque(false);
+        label.add(UiLanguage.text(new JLabel(),UiLanguage.key("Consulta")," ",number));
+        JButton close=new JButton("×");close.setMargin(new Insets(0,4,0,4));close.setFocusable(false);
+        UiLanguage.tooltip(close,UiLanguage.key("Cerrar consulta"));close.addActionListener(event->closeQuery(pane));label.add(close);
+        queryTabs.setTabComponentAt(queryEditors.size()-1,label);
+        pane.getDocument().addDocumentListener(new DocumentListener(){public void insertUpdate(DocumentEvent e){scheduleDraft();}public void removeUpdate(DocumentEvent e){scheduleDraft();}public void changedUpdate(DocumentEvent e){}});
+        pane.addCaretListener(event->scheduleDraft());return pane;
+    }
+    private boolean canChangeQuery(){return !savingResult&&!queryRunning&&finishResultEditing()&&confirmDiscardResults();}
+    private void changeQuery(){
+        if(changingQuery||queryTabs.getSelectedIndex()<0)return;
+        int selected=queryTabs.getSelectedIndex();if(selected==activeQuery)return;
+        if(!canChangeQuery()){changingQuery=true;try{queryTabs.setSelectedIndex(activeQuery);}finally{changingQuery=false;}return;}
+        editor=queryEditors.get(selected);activeQuery=selected;completionGeneration++;completionTimer.stop();completionPopup.setVisible(false);
+        clearResultTabs();messages.setText("");scheduleDraft();editor.requestFocusInWindow();
+    }
+    private void closeQuery(SqlEditorPane pane){
+        if(!canChangeQuery())return;
+        if(!pane.getText().isBlank()&&JOptionPane.showConfirmDialog(this,tr("¿Cerrar esta consulta? El texto de las otras pestañas se conservará."),tr("Cerrar consulta"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;
+        int index=queryEditors.indexOf(pane);if(index<0)return;changingQuery=true;
+        try{queryEditors.remove(index);queryTabs.removeTabAt(index);if(queryEditors.isEmpty())addQuery("");activeQuery=Math.min(index,queryEditors.size()-1);editor=queryEditors.get(activeQuery);queryTabs.setSelectedIndex(activeQuery);}
+        finally{changingQuery=false;}clearResultTabs();messages.setText("");scheduleDraft();
+    }
     private void scheduleDraft(){if(drafts!=null&&!restoringDraft){draftDirty=true;draftTimer.restart();}}
-    private SqlDraftStore.Draft draftSnapshot(){return new SqlDraftStore.Draft(editor.getText(),editor.getCaretPosition());}
+    private SqlDraftStore.Workspace draftSnapshot(){return new SqlDraftStore.Workspace(queryEditors.stream().map(pane->new SqlDraftStore.Draft(pane.getText(),pane.getCaretPosition())).toList(),activeQuery);}
     private void saveDraftAsync(){
-        if(drafts==null||!draftDirty)return;SqlDraftStore.Draft snapshot=draftSnapshot();draftDirty=false;
-        draftWriter.submit(()->{try{drafts.save(snapshot);}catch(Exception error){SwingUtilities.invokeLater(()->{draftDirty=true;statusConsumer.accept(tr("No se pudieron guardar automáticamente las consultas."));});}});
+        if(drafts==null||!draftDirty)return;SqlDraftStore.Workspace snapshot=draftSnapshot();draftDirty=false;
+        draftWriter.submit(()->{try{drafts.saveWorkspace(snapshot);}catch(Exception error){SwingUtilities.invokeLater(()->{draftDirty=true;statusConsumer.accept(tr("No se pudieron guardar automáticamente las consultas."));});}});
     }
     public boolean saveDraftBeforeClose(){
-        draftTimer.stop();if(drafts==null)return true;SqlDraftStore.Draft snapshot=draftSnapshot();
-        try{draftWriter.submit(()->{drafts.save(snapshot);return null;}).get(5,java.util.concurrent.TimeUnit.SECONDS);draftDirty=false;return true;}
+        draftTimer.stop();if(drafts==null)return true;SqlDraftStore.Workspace snapshot=draftSnapshot();
+        try{draftWriter.submit(()->{drafts.saveWorkspace(snapshot);return null;}).get(5,java.util.concurrent.TimeUnit.SECONDS);draftDirty=false;return true;}
         catch(Exception error){return JOptionPane.showConfirmDialog(this,tr("No se pudo guardar el texto de las consultas. ¿Salir sin guardar el borrador?"),tr("Consultas sin guardar"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)==JOptionPane.YES_OPTION;}
     }
 
@@ -123,6 +171,7 @@ public final class QueryPanel extends JPanel {
         if (this.session != session) for (int i=0;i<outputTabs.getTabCount();i++)
             if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && panel.isShowing()) panel.finishEditing();
         this.session = session;
+        sqlKeywords=SqlVocabulary.base();for(SqlEditorPane pane:queryEditors)pane.setKeywords(sqlKeywords);
         completionGeneration++;completionCatalogGeneration++;
         if(columnWorker!=null)columnWorker.cancel(true);
         columnCompletion=session==null?null:new SqlColumnCompletion(session);
@@ -139,15 +188,20 @@ public final class QueryPanel extends JPanel {
     }
 
     public void insertSql(String sql) {
-        if (!editor.getText().isBlank() && !editor.getText().endsWith("\n")) editor.append("\n\n");
-        editor.append(sql);
-        editor.requestFocusInWindow();
-        editor.setCaretPosition(editor.getDocument().getLength());
+        openNewQuery(sql);
+    }
+
+    /** Generated SQL always receives an independent buffer and is never executed here. */
+    public boolean openNewQuery(String sql){
+        if(!canChangeQuery())return false;
+        changingQuery=true;
+        try{editor=addQuery(sql);activeQuery=queryEditors.size()-1;queryTabs.setSelectedIndex(activeQuery);editor.setCaretPosition(0);}
+        finally{changingQuery=false;}
+        completionGeneration++;completionPopup.setVisible(false);clearResultTabs();messages.setText("");scheduleDraft();editor.requestFocusInWindow();return true;
     }
 
     public void runSql(String sql) {
-        insertSql(sql);
-        executeSql();
+        if(openNewQuery(sql))executeSql();
     }
 
     public void executeCurrent() { executeSql(); }
@@ -175,14 +229,16 @@ public final class QueryPanel extends JPanel {
         databaseChangeConsumer = consumer == null ? name -> {} : consumer;
     }
 
-    private void configureEditor() {
+    private void configureEditor(SqlEditorPane editor) {
         editor.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 14));
         editor.setMargin(new Insets(12, 14, 12, 14));
         editor.setTabSize(4);
         editor.setLineWrap(false);
-        editor.setText(tr("-- NexoDB Studio\n-- Selecciona una consulta o coloca el cursor dentro de ella y presiona Ctrl+Enter.\n\n"));
+        UiLanguage.tooltip(editor,UiLanguage.key("Ejecutar selección o sentencia actual (F5 o Ctrl+Enter)"));
         InputMap input = editor.getInputMap(JComponent.WHEN_FOCUSED);
         ActionMap actions = editor.getActionMap();
+        input.put(KeyStroke.getKeyStroke(KeyEvent.VK_N,KeyEvent.CTRL_DOWN_MASK),"new-query");
+        actions.put("new-query",new AbstractAction(){@Override public void actionPerformed(ActionEvent e){openNewQuery("");}});
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK), "execute-sql");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0), "execute-sql");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "cancel-sql");
@@ -201,8 +257,8 @@ public final class QueryPanel extends JPanel {
         actions.put("completion-enter", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { completionAcceptOrDefault(DefaultEditorKit.insertBreakAction); }});
         actions.put("completion-tab", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { completionAcceptOrDefault(DefaultEditorKit.insertTabAction); }});
         editor.getDocument().addDocumentListener(new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent e) { completionTimer.restart(); }
-            @Override public void removeUpdate(DocumentEvent e) { completionTimer.restart(); }
+            @Override public void insertUpdate(DocumentEvent e) { if(editor==QueryPanel.this.editor)completionTimer.restart(); }
+            @Override public void removeUpdate(DocumentEvent e) { if(editor==QueryPanel.this.editor)completionTimer.restart(); }
             @Override public void changedUpdate(DocumentEvent e) {}
         });
     }
@@ -300,7 +356,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void executeSql() {
-        if (savingResult || !finishResultEditing() || savingResult || !confirmDiscardResults()) return;
+        if (queryRunning || savingResult || !finishResultEditing() || savingResult || !confirmDiscardResults()) return;
         if (session == null || !session.isOpen()) {
             JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Sin conexión"), JOptionPane.INFORMATION_MESSAGE);
             return;
@@ -331,7 +387,6 @@ public final class QueryPanel extends JPanel {
         JdbcSession executingSession = session;
         worker = new SwingWorker<>() {
             @Override protected List<StatementOutcome> doInBackground() throws Exception {
-                applyUseFromEditor(executingSession);
                 List<StatementOutcome> outcomes = new ArrayList<>();
                 for (int i = 0; i < statements.size() && !isCancelled(); i++) {
                     String statement = statements.get(i);
@@ -544,6 +599,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void setRunning(boolean running) {
+        queryRunning=running;
         execute.setEnabled(!running && session != null);
         cancel.setEnabled(running);
         state.setText(running ? tr("Ejecutando…") : session == null ? tr("Sin conexión") : session.profile().name());
@@ -554,7 +610,7 @@ public final class QueryPanel extends JPanel {
 
     private void updateActions() {
         boolean connected = session != null && session.isOpen();
-        boolean running = savingResult || worker != null && !worker.isDone();
+        boolean running = savingResult || queryRunning;
         execute.setEnabled(connected && !running);
         cancel.setEnabled(connected && !savingResult && running);
         boolean manual = connected && !autoCommit.isSelected();
@@ -586,7 +642,9 @@ public final class QueryPanel extends JPanel {
         database.setEnabled(false);
         JdbcSession target = session;
         new SwingWorker<List<String>, Void>() {
+            private Set<String> vocabulary=SqlVocabulary.base();
             @Override protected List<String> doInBackground() throws Exception {
+                vocabulary=SqlVocabulary.forDatabase(target.connection().getMetaData());
                 if (target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL) {
                     // PostgreSQL setCatalog is a no-op: another database needs a new connection.
                     return List.of(target.connection().getCatalog());
@@ -612,6 +670,7 @@ public final class QueryPanel extends JPanel {
 
             @Override protected void done() {
                 if (session != target) return;
+                sqlKeywords=vocabulary;for(SqlEditorPane pane:queryEditors)pane.setKeywords(sqlKeywords);addSqlKeywords();
                 try {
                     database.addItem(SELECT_DATABASE);
                     for (String name : get()) database.addItem(name);
@@ -653,17 +712,6 @@ public final class QueryPanel extends JPanel {
         }
     }
 
-    private void applyUseFromEditor(JdbcSession executingSession) throws SQLException {
-        Matcher matcher = Pattern.compile("(?im)^\\s*USE\\s+[`\\\"]?([a-zA-Z0-9_$-]+)[`\\\"]?\\s*;?").matcher(editor.getText());
-        String selected = null;
-        while (matcher.find()) selected = matcher.group(1);
-        if (selected != null && !selected.isBlank()) {
-            executingSession.connection().setCatalog(selected);
-            final String active = selected;
-            SwingUtilities.invokeLater(() -> { if(session==executingSession) selectDatabase(active); });
-        }
-    }
-
     private void configureCompletionPopup() {
         completionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         completionList.setVisibleRowCount(10);
@@ -700,7 +748,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void addSqlKeywords() {
-        completionWords.addAll(SQL_KEYWORDS);
+        completionWords.addAll(sqlKeywords);
     }
 
     public void refreshCompletions(){
@@ -849,7 +897,7 @@ public final class QueryPanel extends JPanel {
         boolean column=columnWords.contains(selected);
         String insertion = !column && selected.contains(".") && token.contains(".") ? selected.substring(selected.lastIndexOf('.') + 1) : selected;
         String typed=token.substring(tail);
-        if(column&&columnCompletion!=null&&(!insertion.matches("[\\p{L}_$][\\p{L}\\p{N}_$]*")||SQL_KEYWORDS.contains(insertion.toUpperCase(Locale.ROOT))||typed.startsWith("`")||typed.startsWith("\"")||typed.startsWith("[")))insertion=columnCompletion.identifier(insertion);
+        if(column&&columnCompletion!=null&&(!insertion.matches("[\\p{L}_$][\\p{L}\\p{N}_$]*")||sqlKeywords.contains(insertion.toUpperCase(Locale.ROOT))||typed.startsWith("`")||typed.startsWith("\"")||typed.startsWith("[")))insertion=columnCompletion.identifier(insertion);
         try {
             editor.getDocument().remove(caret - replaceLength, replaceLength);
             editor.getDocument().insertString(caret - replaceLength, insertion, null);
@@ -860,7 +908,7 @@ public final class QueryPanel extends JPanel {
         editor.requestFocusInWindow();
     }
 
-    private static boolean isKeyword(String value) { return value != null && SQL_KEYWORDS.contains(value); }
+    private boolean isKeyword(String value) { return value != null && sqlKeywords.contains(value.toUpperCase(Locale.ROOT)); }
 
     private record StatementOutcome(int index, String sql, QueryResult result, Throwable error) {}
 

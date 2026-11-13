@@ -1,6 +1,28 @@
-﻿{
-    "version":  "0.11.4",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.4-win64.zip",
-    "sha256":  "244158efa1faef83718102314175bf42e450cf6b9f14547f244cd1c198259ea8",
-    "notes":  "Edicion con doble clic, filas marcadas resaltadas y menu de acciones para insertar, duplicar, eliminar, copiar, filtrar y exportar. Las consultas y el cursor se recuperan al abrir. La firma digital de distribucion requiere los certificados del editor."
+{
+  "version": "0.12.0",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.12.0-win64.zip",
+  "sha256": "39c2291a861a9feb99d84b6ccbced03e1df44656f197bcdeaf441ab9ef27f418",
+  "notes": "Consultas independientes para scripts generados, guardado de todas las pestanas, YEAR y DECLARE y vocabulario del servidor, respaldo e importacion SQL MySQL/MariaDB con seleccion y revision previa. Firma digital pendiente de certificados.",
+  "platforms": {
+    "windows-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.12.0-win64.zip",
+      "sha256": "39c2291a861a9feb99d84b6ccbced03e1df44656f197bcdeaf441ab9ef27f418"
+    },
+    "linux-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.12.0-linux-x64.deb",
+      "sha256": "c4dc6248780d86643b46827b6c51f62c656fd1607ebd8de285b09ff79779673a"
+    },
+    "linux-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.12.0-linux-arm64.deb",
+      "sha256": "9187b9fdd4b7f5cd53952df392df829c31b503f8d1344dd5bead494289a9650c"
+    },
+    "macos-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.12.0-macos-x64.zip",
+      "sha256": "a68271bfa8ac3e60a0807c317e2a2efe3966807e9626253798f25efeeecf533c"
+    },
+    "macos-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.12.0-macos-arm64.zip",
+      "sha256": "4652ad6584f9924075960c6d6b7c95979cd9a2ddfb65d55bdff6cd1a30a6c3be"
+    }
+  }
 }

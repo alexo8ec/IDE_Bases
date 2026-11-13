@@ -52,6 +52,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de consultas editables fallaron.' 
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de columnas en autocompletado fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.SqlDraftPersistenceTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de guardado de consultas fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.QueryTabsTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de aislamiento de consultas fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.SqlScriptReaderTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del lector de archivos SQL fallaron.' }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.QueryEditIntegrationTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de escritura y transacciones fallaron.' }

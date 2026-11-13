@@ -299,6 +299,10 @@ public final class MainFrame extends JFrame {
         users.addActionListener(e -> manageUsers());
         refreshObjects.addActionListener(e -> refreshObjects());
         database.add(users);
+        JMenuItem backupSql=UiLanguage.text(new JMenuItem(tr("Respaldo SQL…"),IconFactory.of(IconFactory.Kind.EXPORT)),UiLanguage.key("Respaldo SQL…"));
+        JMenuItem importSql=UiLanguage.text(new JMenuItem(tr("Importar / restaurar SQL…"),IconFactory.of(IconFactory.Kind.DATABASE)),UiLanguage.key("Importar / restaurar SQL…"));
+        backupSql.addActionListener(e->transferSql(false,session,null));importSql.addActionListener(e->transferSql(true,session,null));
+        database.add(backupSql);database.add(importSql);
         database.addSeparator();
         database.add(refreshObjects);
 
@@ -313,6 +317,10 @@ public final class MainFrame extends JFrame {
 
         JMenu query = UiLanguage.text(new JMenu(tr("Consulta")), UiLanguage.key("Consulta"));
         query.setIcon(IconFactory.of(IconFactory.Kind.SQL, 16));
+        JMenuItem newQuery=UiLanguage.text(new JMenuItem(tr("Nueva consulta"),IconFactory.of(IconFactory.Kind.ADD)),UiLanguage.key("Nueva consulta"));
+        newQuery.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N,KeyEvent.CTRL_DOWN_MASK));
+        newQuery.addActionListener(e->{workspaceTabs.setSelectedIndex(0);queryPanel.openNewQuery("");});
+        query.add(newQuery);query.addSeparator();
         JMenuItem executeQuery = UiLanguage.text(new JMenuItem(tr("Ejecutar"), IconFactory.of(IconFactory.Kind.PLAY)), UiLanguage.key("Ejecutar"));
         executeQuery.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0));
         executeQuery.addActionListener(e -> queryPanel.executeCurrent());
@@ -1169,6 +1177,8 @@ public final class MainFrame extends JFrame {
             menu.addSeparator();
             addMenu(menu, tr("Copiar tabla a otra base…"), IconFactory.Kind.COMPARE, e -> copyTable(target, item));
             addMenu(menu, tr("Exportar datos…"), IconFactory.Kind.EXPORT, e -> exportTable(target, item));
+            addMenu(menu,tr("Respaldo SQL…"),IconFactory.Kind.EXPORT,e->transferSql(false,target,item));
+            addMenu(menu,tr("Importar / restaurar SQL…"),IconFactory.Kind.DATABASE,e->transferSql(true,target,item));
             menu.addSeparator();
             addMenu(menu, "SELECT en el editor", IconFactory.Kind.PLAY, e -> insertSelect(target, item));
             if (item.kind() == SchemaItem.Kind.TABLE) {
@@ -1194,12 +1204,16 @@ public final class MainFrame extends JFrame {
                         e -> insertTemplate(target, "CREATE TABLE " + qualifiedNamespace(target, item) + "nueva_tabla (\n    id INT NOT NULL PRIMARY KEY\n);\n"));
             }
         } else if (item.kind() == SchemaItem.Kind.SCHEMA) {
+            addMenu(menu,tr("Respaldo SQL…"),IconFactory.Kind.EXPORT,e->transferSql(false,target,item));
+            addMenu(menu,tr("Importar / restaurar SQL…"),IconFactory.Kind.DATABASE,e->transferSql(true,target,item));
             addMenu(menu, tr("Usar esta base en una consulta"), IconFactory.Kind.DATABASE,
                     e -> activateDatabase(target, item));
             addMenu(menu, tr("Copiar una tabla a otra base…"), IconFactory.Kind.COMPARE,
                     e -> chooseTableToCopy(target, item));
             addMenu(menu, tr("Actualizar objetos"), IconFactory.Kind.REFRESH, e -> refreshConnectionObjects(target));
         } else if (item.kind() == SchemaItem.Kind.ROOT && target != null) {
+            addMenu(menu,tr("Respaldo SQL…"),IconFactory.Kind.EXPORT,e->transferSql(false,target,null));
+            addMenu(menu,tr("Importar / restaurar SQL…"),IconFactory.Kind.DATABASE,e->transferSql(true,target,null));
             addMenu(menu, tr("Usar esta conexión"), IconFactory.Kind.CONNECT, e -> activateSession(target));
             addMenu(menu, tr("Actualizar objetos"), IconFactory.Kind.REFRESH, e -> refreshConnectionObjects(target));
         }
@@ -1317,6 +1331,24 @@ public final class MainFrame extends JFrame {
 
     private void insertSelect(JdbcSession target, SchemaItem item) {
         insertTemplate(target, "SELECT *\nFROM " + qualifiedName(target, item) + ";\n");
+    }
+
+    private void transferSql(boolean importing,JdbcSession target,SchemaItem item){
+        if(target==null||!target.isOpen()){JOptionPane.showMessageDialog(this,tr("Conecta primero una base de datos."));return;}
+        ConnectionProfile profile=target.profile();
+        if(!com.nexodb.db.SqlBackupService.supported(profile.type())){JOptionPane.showMessageDialog(this,tr("El respaldo y la restauración SQL completos están disponibles para MySQL y MariaDB."));return;}
+        if(importing&&profile.readOnly()){JOptionPane.showMessageDialog(this,tr("Esta conexión es de solo lectura. Edita la conexión y desactiva Solo lectura antes de importar SQL."));return;}
+        char[] password=null;
+        try{
+            if(secretStore.has(profile.id()))password=secretStore.load(profile.id());
+            else if(profile.authenticationMode()==com.nexodb.model.AuthenticationMode.WINDOWS)password=new char[0];
+            else{JPasswordField field=new JPasswordField(24);if(JOptionPane.showConfirmDialog(this,new Object[]{tr("Contraseña para abrir una conexión independiente:"),profile.name(),field},tr("Operación SQL"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;password=field.getPassword();}
+            String selected=target==session?queryPanel.activeDatabase():java.util.Objects.toString(target.connection().getCatalog(),"");String table="";
+            if(item!=null){if(item.kind()==SchemaItem.Kind.SCHEMA)selected=item.name();else if(item.catalog()!=null&&!item.catalog().isBlank())selected=item.catalog();if(item.kind()==SchemaItem.Kind.TABLE||item.kind()==SchemaItem.Kind.VIEW)table=item.name();}
+            SqlTransferDialog dialog=new SqlTransferDialog(this,profile,password,importing,selected,table);
+            dialog.setVisible(true);
+            if(dialog.restored())refreshConnectionObjects(target);
+        }catch(Exception error){showError(tr("Operación SQL"),error);}finally{if(password!=null)Arrays.fill(password,'\0');}
     }
 
     private void insertTemplate(JdbcSession target, String sql) {
