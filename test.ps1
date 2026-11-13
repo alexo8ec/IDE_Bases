@@ -46,4 +46,14 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de seleccion persistente fallaron.
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de resultado de conexion fallaron.' }
 & java -cp $testClasspath com.nexodb.ui.ComparisonWindowTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de casillas en la ventana de comparacion fallo.' }
+& java -cp $testClasspath com.nexodb.db.QueryEditSqlTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de consultas editables fallaron.' }
+& java -cp $testClasspath com.nexodb.db.SqlColumnCompletionTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de columnas en autocompletado fallaron.' }
+if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
+    & java -cp $testClasspath com.nexodb.db.QueryEditIntegrationTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de escritura y transacciones fallaron.' }
+    & java -cp $testClasspath com.nexodb.ui.QueryGridIntegrationTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de la cuadricula editable fallaron.' }
+}
 

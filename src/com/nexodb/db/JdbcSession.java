@@ -299,7 +299,8 @@ public final class JdbcSession implements AutoCloseable {
             if (hasResult) {
                 try (ResultSet resultSet = statement.getResultSet()) {
                     QueryResult result = QueryResult.from(resultSet, maxRows);
-                    return result.withElapsed(elapsedMillis(started));
+                    var eligibility = QueryEditSupport.describe(connection, profile.type(), sql, resultSet.getMetaData());
+                    return result.withEditing(eligibility).withElapsed(elapsedMillis(started));
                 }
             }
             return QueryResult.update(statement.getUpdateCount(), elapsedMillis(started));

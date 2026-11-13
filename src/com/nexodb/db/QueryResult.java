@@ -6,7 +6,11 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-public record QueryResult(List<String> columns, List<List<Object>> rows, int updateCount, long elapsedMillis, boolean truncated) {
+public record QueryResult(List<String> columns, List<List<Object>> rows, int updateCount, long elapsedMillis, boolean truncated,
+                          QueryEditSupport.Eligibility editing) {
+    public QueryResult(List<String> columns, List<List<Object>> rows, int updateCount, long elapsedMillis, boolean truncated) {
+        this(columns, rows, updateCount, elapsedMillis, truncated, null);
+    }
     public static QueryResult from(ResultSet resultSet, int maxRows) throws SQLException {
         ResultSetMetaData metadata = resultSet.getMetaData();
         int columnCount = metadata.getColumnCount();
@@ -34,7 +38,11 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
     }
 
     public QueryResult withElapsed(long elapsed) {
-        return new QueryResult(columns, rows, updateCount, elapsed, truncated);
+        return new QueryResult(columns, rows, updateCount, elapsed, truncated, editing);
+    }
+
+    public QueryResult withEditing(QueryEditSupport.Eligibility eligibility) {
+        return new QueryResult(columns, rows, updateCount, elapsedMillis, truncated, eligibility);
     }
 
     public boolean hasRows() { return !columns.isEmpty(); }

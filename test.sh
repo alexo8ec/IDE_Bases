@@ -15,6 +15,9 @@ javac --release 17 -encoding UTF-8 -cp "$classpath" -d "$test_classes" "${source
 for test in util.SqlTextTest CoreTest db.JdbcSessionTest db.PostgresSupportTest \
   ui.CompletionInteractionTest db.ZeroDateTest util.SecretStoreTest util.DataExporterTest \
   db.DriverDownloadServiceTest update.UpdateServiceTest ui.AppearanceTest util.SecureDownloadTest ui.LanguageSwitchTest \
-  db.SchemaMetadataReaderTest ui.ComparisonSelectionTest ui.ConnectionFeedbackTest; do
+  db.SchemaMetadataReaderTest ui.ComparisonSelectionTest ui.ConnectionFeedbackTest db.QueryEditSqlTest db.SqlColumnCompletionTest; do
   java -Djava.awt.headless=true -cp "$test_classes:$classpath" "com.nexodb.$test"
 done
+if [[ -f "$root/build/h2-test.jar" ]]; then
+  java -Djava.awt.headless=true -cp "$test_classes:$classpath" com.nexodb.db.QueryEditIntegrationTest
+fi

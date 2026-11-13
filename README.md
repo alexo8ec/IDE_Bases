@@ -1,5 +1,15 @@
 # NexoDB Studio
 
+Para publicar con identidad verificable, consulta la [guía de firma Windows y notarización macOS](docs/signing.md). Los paquetes generados sin certificados permanecen sin firma y pueden mostrar advertencias del sistema. La firma no garantiza eliminar inmediatamente las alertas de reputación de SmartScreen.
+
+La versión **0.11.3** convierte los resultados de consultas en una cuadrícula con barra de acciones: **Editar, Guardar, Descartar, NULL y Recargar**. Las celdas modificadas se resaltan y se guardan juntas al pulsar Guardar; respeta el modo Auto-commit y las transacciones manuales. La edición requiere un SELECT de una tabla física con todas las columnas de su clave primaria. Un cambio concurrente provoca la reversión del lote, conservando los cambios pendientes para corregirlos o descartarlos.
+
+Las casillas iniciales permiten marcar filas; las cabeceras seleccionan columnas completas. El menú contextual ofrece copia de filas/columnas, filtros por valor o por columna, ordenación y acceso al editor para agregar/eliminar campos de la tabla. Estos cambios de estructura se revisan en su formulario y la eliminación solicita confirmación. Las filas marcadas conservan su identidad al ordenar o filtrar.
+
+El autocompletado SQL incluye las columnas de las tablas utilizadas en SELECT, WHERE, UPDATE/SET e INSERT. Reconoce `tabla.` y `alias.`, carga los metadatos en segundo plano y conserva una caché breve por conexión y base. **Actualizar objetos** y los cambios de estructura invalidan la caché. Mantiene Ctrl+Espacio y la aceptación con clic, Enter o Tab.
+
+Para reproducir las pruebas de escritura y de la cuadrícula en Windows, ejecuta `./tools/test-query-edit.ps1`: descarga un controlador H2 oficial verificado y ejecuta las pruebas exclusivamente sobre bases temporales en memoria, sin utilizar perfiles de conexión guardados.
+
 La versión **0.11.2** añade selección por casillas de tablas y vistas antes de comparar esquemas, con búsqueda y acciones Todas/Ninguna. La comparación solo lee y compara los objetos marcados. Conserva las bases por conexión y las tablas seleccionadas durante la sesión, incluso al cerrar y volver a abrir la comparación. La lectura de columnas se agrupa para evitar una consulta por tabla y las conexiones independientes se leen en paralelo. La prueba de conexión muestra un resultado destacado, con servidor, base utilizada y tiempo de respuesta.
 
 Esta entrega incluye instalador **EXE para Windows x64**, **DEB para Linux x64 y ARM64**, y **aplicación macOS con instalador `.command` para Intel y Apple Silicon**. Los cinco paquetes incluyen Java 17 para su sistema y arquitectura. Consulta los nombres e instrucciones en la [guía de distribución](docs/multiplatform.md). Los paquetes de macOS no están firmados ni notarizados.

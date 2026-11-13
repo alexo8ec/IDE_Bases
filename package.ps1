@@ -1,10 +1,15 @@
 param(
     [string]$UpdateBaseUrl = '',
-    [string]$UpdateManifestUrl = ''
+    [string]$UpdateManifestUrl = '',
+    [string]$CertificateThumbprint = $env:NEXODB_SIGN_CERT_THUMBPRINT,
+    [switch]$RequireSigning
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $projectRoot 'tools/CodeSigning.ps1')
+if ($RequireSigning -and -not $CertificateThumbprint) { throw 'La distribucion publica requiere un certificado de firma. Configura NEXODB_SIGN_CERT_THUMBPRINT.' }
+$signer = if ($CertificateThumbprint) { Get-NexoSigner $CertificateThumbprint } else { $null }
 $version = (Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'VERSION')).Trim()
 & (Join-Path $projectRoot 'build.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -83,6 +88,7 @@ foreach ($legacyName in @('NexoDB-Studio-0.1.0-win64.zip', 'NexoDB-Studio-0.2.0-
     $legacyZipPath = Join-Path $distRoot $legacyName
     if (Test-Path $legacyZipPath) { Remove-Item -LiteralPath $legacyZipPath -Force }
 }
+if ($signer) { Invoke-NexoSignFile $signer (Join-Path $appRoot 'NexoDB Studio.exe') }
 $zipPath = Join-Path $distRoot ("NexoDB-Studio-$version-win64.zip")
 if (Test-Path $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
 Compress-Archive -Path (Join-Path $appRoot '*') -DestinationPath $zipPath -CompressionLevel Optimal

@@ -1,10 +1,15 @@
 param(
     [string]$DownloadBaseUrl = '',
-    [string]$UpdateManifestUrl = ''
+    [string]$UpdateManifestUrl = '',
+    [string]$CertificateThumbprint = $env:NEXODB_SIGN_CERT_THUMBPRINT,
+    [switch]$RequireSigning
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $projectRoot 'tools/CodeSigning.ps1')
+if ($RequireSigning -and -not $CertificateThumbprint) { throw 'La distribucion publica requiere un certificado de firma. Configura NEXODB_SIGN_CERT_THUMBPRINT.' }
+$signer = if ($CertificateThumbprint) { Get-NexoSigner $CertificateThumbprint } else { $null }
 $version = (Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'VERSION')).Trim()
 $wixRoot = Join-Path $projectRoot '.tools\wix314'
 $wixArchive = Join-Path $projectRoot '.tools\wix314-binaries.zip'
@@ -24,7 +29,7 @@ if (-not (Test-Path (Join-Path $wixRoot 'candle.exe'))) {
     Expand-Archive -LiteralPath $wixArchive -DestinationPath $wixRoot -Force
 }
 
-& (Join-Path $projectRoot 'package.ps1') -UpdateBaseUrl $DownloadBaseUrl -UpdateManifestUrl $embeddedManifestUrl
+& (Join-Path $projectRoot 'package.ps1') -UpdateBaseUrl $DownloadBaseUrl -UpdateManifestUrl $embeddedManifestUrl -CertificateThumbprint $CertificateThumbprint -RequireSigning:$RequireSigning
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $staging = Join-Path $projectRoot 'build\installer-input'
@@ -49,9 +54,7 @@ try {
         --vendor 'Alex Mite Salazar' `
         --copyright 'Copyright © 2026 Alex Mite Salazar' `
         --description 'Cliente profesional y universal de bases de datos' `
-        --input $staging `
-        --main-jar 'nexodb-studio.jar' `
-        --main-class 'com.nexodb.App' `
+        --app-image (Join-Path $projectRoot "dist/$version/NexoDB Studio") `
         --icon $iconPath `
         --dest $installerRoot `
         --install-dir 'NexoDB Studio' `
@@ -61,17 +64,7 @@ try {
         --win-menu-group 'NexoDB Studio' `
         --win-shortcut `
         --win-shortcut-prompt `
-        --win-upgrade-uuid '8b7eafbb-43c1-4b70-a75c-fc964e02ea6e' `
-        --add-modules 'java.desktop,java.sql,java.prefs,java.naming,java.net.http,java.security.jgss,jdk.security.auth,jdk.crypto.ec' `
-        --java-options '-Dfile.encoding=UTF-8' `
-        --java-options '-Djava.net.useSystemProxies=true' `
-        --java-options '-Dsun.java2d.d3d=false' `
-        --java-options '-Dsun.java2d.opengl=false' `
-        --java-options '-Dsun.security.jgss.native=true' `
-        --java-options "-Dnexodb.updateManifest=$embeddedManifestUrl" `
-        --java-options '-Xms16m' `
-        --java-options '-Xmx256m' `
-        --java-options '-XX:+UseSerialGC'
+        --win-upgrade-uuid '8b7eafbb-43c1-4b70-a75c-fc964e02ea6e'
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el instalador de Windows.' }
 } finally {
     $env:PATH = $previousPath
@@ -80,6 +73,7 @@ try {
 $installer = Get-ChildItem -LiteralPath $installerRoot -Filter '*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 $portable = Join-Path $projectRoot "dist\NexoDB-Studio-$version-win64.zip"
 if (-not $installer) { throw 'No se encontró el instalador generado.' }
+if ($signer) { Invoke-NexoSignFile $signer $installer.FullName }
 $installerHash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 $portableHash = (Get-FileHash -LiteralPath $portable -Algorithm SHA256).Hash.ToLowerInvariant()
 $base = $DownloadBaseUrl.TrimEnd('/')

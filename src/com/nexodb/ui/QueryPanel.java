@@ -4,6 +4,7 @@ import static com.nexodb.util.I18n.tr;
 
 import com.nexodb.db.JdbcSession;
 import com.nexodb.db.QueryResult;
+import com.nexodb.db.SqlColumnCompletion;
 import com.nexodb.util.DataExporter;
 import com.nexodb.util.SqlText;
 
@@ -32,6 +33,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
 
 public final class QueryPanel extends JPanel {
+    private static final Set<String> SQL_KEYWORDS = Set.of(("SELECT FROM WHERE JOIN LEFT RIGHT INNER OUTER ON AS INSERT INTO VALUES UPDATE SET DELETE "
+            + "CREATE ALTER DROP TABLE VIEW INDEX PRIMARY KEY FOREIGN REFERENCES GROUP BY ORDER HAVING LIMIT OFFSET "
+            + "DISTINCT UNION ALL CASE WHEN THEN ELSE END AND OR NOT NULL IS LIKE IN EXISTS BETWEEN ASC DESC "
+            + "USE CALL SHOW DESCRIBE EXPLAIN COUNT SUM AVG MIN MAX COMMIT ROLLBACK").split(" "));
     private static final String SELECT_DATABASE = "Seleccione una base…";
     private static final String RESULT_PROPERTY = "nexodb.queryResult";
     private static final Pattern TABLE_NAME_PATTERN = Pattern.compile(
@@ -62,6 +67,12 @@ public final class QueryPanel extends JPanel {
     private JdbcSession session;
     private QueryResult currentResult;
     private SwingWorker<List<StatementOutcome>, Void> worker;
+    private boolean savingResult;
+    private SqlColumnCompletion columnCompletion;
+    private SwingWorker<List<String>,Void> columnWorker;
+    private final Set<String> columnWords = new LinkedHashSet<>();
+    private long completionGeneration, completionCatalogGeneration;
+    private QueryResultPanel.ColumnEditor columnEditor;
 
     public QueryPanel(Consumer<String> statusConsumer, Consumer<Boolean> busyConsumer) {
         super(new BorderLayout());
@@ -82,7 +93,13 @@ public final class QueryPanel extends JPanel {
     }
 
     public void setSession(JdbcSession session) {
+        if (this.session != session) for (int i=0;i<outputTabs.getTabCount();i++)
+            if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && panel.isShowing()) panel.finishEditing();
         this.session = session;
+        completionGeneration++;completionCatalogGeneration++;
+        if(columnWorker!=null)columnWorker.cancel(true);
+        columnCompletion=session==null?null:new SqlColumnCompletion(session);
+        columnWords.clear();completionWords.clear();addSqlKeywords();completionPopup.setVisible(false);
         if (session == null) {
             UiLanguage.text(state, UiLanguage.key("Sin conexión"));
             database.removeAllItems();
@@ -108,6 +125,7 @@ public final class QueryPanel extends JPanel {
 
     public void executeCurrent() { executeSql(); }
     public void cancelCurrent() { cancelSql(); }
+    void setColumnEditor(QueryResultPanel.ColumnEditor editor){columnEditor=editor;}
 
     public void selectDatabase(String name) {
         if (name == null || name.isBlank() || session == null) return;
@@ -255,6 +273,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void executeSql() {
+        if (savingResult || !finishResultEditing() || savingResult || !confirmDiscardResults()) return;
         if (session == null || !session.isOpen()) {
             JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Sin conexión"), JOptionPane.INFORMATION_MESSAGE);
             return;
@@ -282,14 +301,15 @@ public final class QueryPanel extends JPanel {
         if (!incompleteTail.isBlank()) {
             appendMessage(tr("Sentencia omitida"), tr("El texto final no termina en punto y coma:\n") + preview(incompleteTail));
         }
+        JdbcSession executingSession = session;
         worker = new SwingWorker<>() {
             @Override protected List<StatementOutcome> doInBackground() throws Exception {
-                applyUseFromEditor();
+                applyUseFromEditor(executingSession);
                 List<StatementOutcome> outcomes = new ArrayList<>();
                 for (int i = 0; i < statements.size() && !isCancelled(); i++) {
                     String statement = statements.get(i);
                     try {
-                        outcomes.add(new StatementOutcome(i + 1, statement, session.execute(statement, limit), null));
+                        outcomes.add(new StatementOutcome(i + 1, statement, executingSession.execute(statement, limit), null));
                     } catch (Exception error) {
                         outcomes.add(new StatementOutcome(i + 1, statement, null, rootCause(error)));
                     }
@@ -316,7 +336,7 @@ public final class QueryPanel extends JPanel {
                         } else if (outcome.result().hasRows()) {
                             QueryResult result = outcome.result();
                             totalRows += result.rows().size();
-                            addResultTab(resultTabName(outcome.sql(), outcome.index()), result);
+                            addResultTab(resultTabName(outcome.sql(), outcome.index()), result, executingSession, outcome.sql(), limit);
                             resultTabs++;
                             String suffix = result.truncated() ? tr(" (límite alcanzado)") : "";
                             appendMessage(tr("Resultado ") + outcome.index(), result.rows().size() + tr(" filas") + suffix
@@ -355,9 +375,13 @@ public final class QueryPanel extends JPanel {
     }
 
     private void transaction(boolean doCommit) {
-        if (session == null) return;
+        if (session == null || savingResult || !finishResultEditing() || savingResult) return;
+        if(doCommit && hasPendingResultChanges()) {
+            JOptionPane.showMessageDialog(this,tr("Pulsa Guardar en los resultados antes de hacer Commit."),tr("Cambios pendientes"),JOptionPane.INFORMATION_MESSAGE);return;
+        }
         try {
             if (doCommit) session.commit(); else session.rollback();
+            for (int i=0;i<outputTabs.getTabCount();i++) if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && panel.origin()==session) panel.transactionFinished(!doCommit);
             appendMessage(doCommit ? "Commit" : "Rollback", tr("Transacción completada."));
         } catch (SQLException e) {
             appendMessage("Error", e.getMessage());
@@ -366,8 +390,10 @@ public final class QueryPanel extends JPanel {
 
     private void changeAutoCommit() {
         if (session == null) return;
+        if(savingResult || !finishResultEditing() || savingResult){try{autoCommit.setSelected(session.getAutoCommit());}catch(SQLException ignored){}return;}
         try {
             session.setAutoCommit(autoCommit.isSelected());
+            if(autoCommit.isSelected())for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && panel.origin()==session)panel.transactionFinished(false);
         } catch (SQLException e) {
             autoCommit.setSelected(!autoCommit.isSelected());
             appendMessage("Error", e.getMessage());
@@ -376,6 +402,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void exportData() {
+        if(outputTabs.getSelectedComponent() instanceof QueryResultPanel panel)currentResult=panel.result();
         if (currentResult == null || !currentResult.hasRows()) return;
         String tableName = outputTabs.getTitleAt(outputTabs.getSelectedIndex());
         ExportChooser.Request request = ExportChooser.choose(this, tableName);
@@ -413,16 +440,20 @@ public final class QueryPanel extends JPanel {
         updateActions();
     }
 
-    private void addResultTab(String requestedName, QueryResult result) {
+    private void addResultTab(String requestedName, QueryResult result, JdbcSession origin, String sql, int limit) {
         ResultTableModel model = new ResultTableModel();
         model.setResult(result);
         JTable resultTable = createResultTable(model);
         resizeColumns(resultTable);
-        JScrollPane scroll = new JScrollPane(resultTable);
-        scroll.putClientProperty(RESULT_PROPERTY, result);
+        QueryResultPanel panel = new QueryResultPanel(origin,result,model,resultTable,sql,limit, saving -> {
+            savingResult=saving;progress.setVisible(saving);busyConsumer.accept(saving);updateActions();
+        },statusConsumer,this::resizeColumns);
+        panel.putClientProperty(RESULT_PROPERTY, result);
+        panel.setColumnEditor(columnEditor);
+        panel.setAvailable(session, false);
         int messagesIndex = outputTabs.indexOfComponent(messagesScroll);
         outputTabs.insertTab(uniqueTabName(requestedName), IconFactory.of(IconFactory.Kind.TABLE, 16),
-                scroll, result.rows().size() + tr(" filas"), Math.max(0, messagesIndex));
+                panel, result.rows().size() + tr(" filas"), Math.max(0, messagesIndex));
     }
 
     private void addUpdateTab(String requestedName, int count, long elapsed) {
@@ -495,15 +526,31 @@ public final class QueryPanel extends JPanel {
 
     private void updateActions() {
         boolean connected = session != null && session.isOpen();
-        boolean running = worker != null && !worker.isDone();
+        boolean running = savingResult || worker != null && !worker.isDone();
         execute.setEnabled(connected && !running);
-        cancel.setEnabled(connected && running);
+        cancel.setEnabled(connected && !savingResult && running);
         boolean manual = connected && !autoCommit.isSelected();
         commit.setEnabled(manual && !running);
         rollback.setEnabled(manual && !running);
         autoCommit.setEnabled(connected && !running);
         export.setEnabled(currentResult != null && currentResult.hasRows());
         database.setEnabled(connected && !running && database.getItemCount() > 1);
+        for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel)panel.setAvailable(session,running);
+    }
+
+    private boolean finishResultEditing() {
+        for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && !panel.finishEditing())return false;
+        return true;
+    }
+
+    private boolean hasPendingResultChanges(){
+        for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && panel.origin()==session && panel.hasChanges())return true;
+        return false;
+    }
+    public boolean confirmDiscardResults(){
+        if(savingResult)return false;
+        for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && !panel.confirmDiscard())return false;
+        return true;
     }
 
     private void loadDatabases() {
@@ -578,14 +625,14 @@ public final class QueryPanel extends JPanel {
         }
     }
 
-    private void applyUseFromEditor() throws SQLException {
+    private void applyUseFromEditor(JdbcSession executingSession) throws SQLException {
         Matcher matcher = Pattern.compile("(?im)^\\s*USE\\s+[`\\\"]?([a-zA-Z0-9_$-]+)[`\\\"]?\\s*;?").matcher(editor.getText());
         String selected = null;
         while (matcher.find()) selected = matcher.group(1);
         if (selected != null && !selected.isBlank()) {
-            session.connection().setCatalog(selected);
+            executingSession.connection().setCatalog(selected);
             final String active = selected;
-            SwingUtilities.invokeLater(() -> selectDatabase(active));
+            SwingUtilities.invokeLater(() -> { if(session==executingSession) selectDatabase(active); });
         }
     }
 
@@ -598,7 +645,7 @@ public final class QueryPanel extends JPanel {
         completionList.setCellRenderer(new DefaultListCellRenderer() {
             @Override public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean selected, boolean focus) {
                 JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, selected, focus);
-                label.setIcon(IconFactory.of(isKeyword(String.valueOf(value)) ? IconFactory.Kind.SQL : IconFactory.Kind.TABLE, 15));
+                label.setIcon(IconFactory.of(columnWords.contains(String.valueOf(value)) ? IconFactory.Kind.COLUMN : isKeyword(String.valueOf(value)) ? IconFactory.Kind.SQL : IconFactory.Kind.TABLE, 15));
                 label.setBorder(new EmptyBorder(2, 5, 2, 8));
                 return label;
             }
@@ -625,17 +672,21 @@ public final class QueryPanel extends JPanel {
     }
 
     private void addSqlKeywords() {
-        for (String keyword : ("SELECT FROM WHERE JOIN LEFT RIGHT INNER OUTER ON AS INSERT INTO VALUES UPDATE SET DELETE "
-                + "CREATE ALTER DROP TABLE VIEW INDEX PRIMARY KEY FOREIGN REFERENCES GROUP BY ORDER HAVING LIMIT OFFSET "
-                + "DISTINCT UNION ALL CASE WHEN THEN ELSE END AND OR NOT NULL IS LIKE IN EXISTS BETWEEN ASC DESC "
-                + "USE CALL SHOW DESCRIBE EXPLAIN COUNT SUM AVG MIN MAX COMMIT ROLLBACK").split(" ")) {
-            if (!keyword.isBlank()) completionWords.add(keyword);
-        }
+        completionWords.addAll(SQL_KEYWORDS);
+    }
+
+    public void refreshCompletions(){
+        if(columnCompletion!=null)columnCompletion.clear();
+        if(!activeDatabase().isBlank())loadCompletionObjects(activeDatabase());
     }
 
     private void loadCompletionObjects(String selectedDatabase) {
         if (session == null || selectedDatabase == null || selectedDatabase.isBlank()) return;
         JdbcSession target = session;
+        long request=++completionCatalogGeneration;
+        completionGeneration++;columnWords.clear();completionWords.clear();addSqlKeywords();
+        for(int i=1;i<database.getItemCount();i++)completionWords.add(database.getItemAt(i));
+        if(columnCompletion!=null)columnCompletion.clear();
         boolean postgres = target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL;
         busyConsumer.accept(true);
         new SwingWorker<List<String>, Void>() {
@@ -660,7 +711,7 @@ public final class QueryPanel extends JPanel {
 
             @Override protected void done() {
                 try {
-                    if (session != target) return;
+                    if (session != target || request!=completionCatalogGeneration || !selectedDatabase.equals(activeDatabase())) return;
                     for (String name : get()) {
                         completionWords.add(name);
                         if (!postgres) completionWords.add(selectedDatabase + "." + name);
@@ -677,17 +728,41 @@ public final class QueryPanel extends JPanel {
         if (!editor.isFocusOwner()) return;
         String token = completionToken();
         String prefix = token.contains(".") ? token.substring(token.lastIndexOf('.') + 1) : token;
-        final String filterPrefix = prefix.replace("`", "").toLowerCase(Locale.ROOT);
-        if (!forced && filterPrefix.length() < 2) { completionPopup.setVisible(false); return; }
+        final String filterPrefix = prefix.replace("`", "").replace("\"", "").replace("[", "").toLowerCase(Locale.ROOT);
+        int caret=editor.getCaretPosition();String text=editor.getText();
+        if (!SqlColumnCompletion.inCode(text.substring(0,caret)) || !forced && filterPrefix.length() < 2 && !token.contains(".")) { completionPopup.setVisible(false);completionGeneration++;return; }
+        boolean tablePosition=Pattern.compile("(?is)\\b(?:FROM|JOIN|UPDATE|INTO)\\s+[^\\s,()]*$").matcher(text.substring(0,caret)).find();
+        boolean qualified=token.contains(".")&&!tablePosition;
+        columnWords.clear();renderCompletions(filterPrefix,List.of(),qualified);
+        if(tablePosition||columnCompletion==null)return;
+        long request=++completionGeneration;
+        if(columnWorker!=null)columnWorker.cancel(true);
+        JdbcSession target=session;SqlColumnCompletion provider=columnCompletion;
+        String statement=SqlText.currentStatement(text,caret),db=activeDatabase();
+        String qualifier=qualified?token.substring(0,token.lastIndexOf('.')):"";
+        List<String> known=List.copyOf(completionWords);
+        columnWorker=new SwingWorker<>(){
+            protected List<String> doInBackground()throws Exception{return provider.columns(statement,qualifier,db,known);}
+            protected void done(){
+                if(isCancelled()||request!=completionGeneration||session!=target||caret!=editor.getCaretPosition()||!text.equals(editor.getText())||!editor.isFocusOwner())return;
+                try{List<String> columns=get();columnWords.clear();columnWords.addAll(columns);renderCompletions(filterPrefix,columns,qualified);}catch(Exception ignored){}
+            }
+        };
+        columnWorker.execute();
+    }
+
+    private void renderCompletions(String filterPrefix,List<String> columns,boolean qualified) {
         completionModel.clear();
-        List<String> matches = completionWords.stream()
+        Set<String> matches=new LinkedHashSet<>();
+        columns.stream().filter(value->filterPrefix.isEmpty()||value.toLowerCase(Locale.ROOT).startsWith(filterPrefix)).sorted(String.CASE_INSENSITIVE_ORDER).forEach(matches::add);
+        if(!qualified)completionWords.stream()
                 .filter(value -> filterPrefix.isEmpty() || value.toLowerCase(Locale.ROOT).startsWith(filterPrefix))
                 .sorted((a, b) -> {
                     boolean ak = isKeyword(a), bk = isKeyword(b);
                     if (ak != bk) return ak ? -1 : 1;
                     return a.compareToIgnoreCase(b);
-                }).limit(60).toList();
-        for (String match : matches) completionModel.addElement(match);
+                }).limit(60).forEach(matches::add);
+        for (String match : matches.stream().limit(60).toList()) completionModel.addElement(match);
         if (completionModel.isEmpty()) { completionPopup.setVisible(false); return; }
         completionList.setSelectedIndex(0);
         int visibleRows = Math.max(1, Math.min(10, completionModel.size()));
@@ -708,7 +783,7 @@ public final class QueryPanel extends JPanel {
         int start = caret;
         while (start > 0) {
             char c = text.charAt(start - 1);
-            if (!(Character.isLetterOrDigit(c) || c == '_' || c == '$' || c == '.' || c == '`')) break;
+            if (!(Character.isLetterOrDigit(c) || c == '_' || c == '$' || c == '.' || c == '`' || c == '"' || c == '[' || c == ']')) break;
             start--;
         }
         return text.substring(start, caret);
@@ -743,7 +818,10 @@ public final class QueryPanel extends JPanel {
         String token = completionToken();
         int tail = token.lastIndexOf('.') + 1;
         int replaceLength = token.length() - tail;
-        String insertion = selected.contains(".") && token.contains(".") ? selected.substring(selected.lastIndexOf('.') + 1) : selected;
+        boolean column=columnWords.contains(selected);
+        String insertion = !column && selected.contains(".") && token.contains(".") ? selected.substring(selected.lastIndexOf('.') + 1) : selected;
+        String typed=token.substring(tail);
+        if(column&&columnCompletion!=null&&(!insertion.matches("[\\p{L}_$][\\p{L}\\p{N}_$]*")||SQL_KEYWORDS.contains(insertion.toUpperCase(Locale.ROOT))||typed.startsWith("`")||typed.startsWith("\"")||typed.startsWith("[")))insertion=columnCompletion.identifier(insertion);
         try {
             editor.getDocument().remove(caret - replaceLength, replaceLength);
             editor.getDocument().insertString(caret - replaceLength, insertion, null);
@@ -754,7 +832,7 @@ public final class QueryPanel extends JPanel {
         editor.requestFocusInWindow();
     }
 
-    private static boolean isKeyword(String value) { return value != null && value.equals(value.toUpperCase(Locale.ROOT)); }
+    private static boolean isKeyword(String value) { return value != null && SQL_KEYWORDS.contains(value); }
 
     private record StatementOutcome(int index, String sql, QueryResult result, Throwable error) {}
 

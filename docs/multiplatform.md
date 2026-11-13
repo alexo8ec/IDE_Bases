@@ -1,18 +1,18 @@
 # Distribución para Windows, Linux y macOS
 
-NexoDB Studio 0.11.2 utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas.
+NexoDB Studio 0.11.3 utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas.
 
-## Archivos de instalación 0.11.2
+## Archivos de instalación 0.11.3
 
 Todos incluyen Java 17 para su sistema y arquitectura. Se generan directamente en `dist`, sin copias en otra carpeta de publicación.
 
 | Sistema | Archivo | Instalación |
 | --- | --- | --- |
-| Windows x64 | [NexoDB Studio-0.11.2.exe](../dist/installer/NexoDB%20Studio-0.11.2.exe) | Ejecutar el instalador |
-| Debian/Ubuntu x64 | [NexoDB-Studio-0.11.2-linux-x64.deb](../dist/NexoDB-Studio-0.11.2-linux-x64.deb) | `sudo apt install ./NexoDB-Studio-0.11.2-linux-x64.deb` |
-| Debian/Ubuntu ARM64 | [NexoDB-Studio-0.11.2-linux-arm64.deb](../dist/NexoDB-Studio-0.11.2-linux-arm64.deb) | `sudo apt install ./NexoDB-Studio-0.11.2-linux-arm64.deb` |
-| macOS Intel | [NexoDB-Studio-0.11.2-macos-x64.zip](../dist/NexoDB-Studio-0.11.2-macos-x64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
-| macOS Apple Silicon | [NexoDB-Studio-0.11.2-macos-arm64.zip](../dist/NexoDB-Studio-0.11.2-macos-arm64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
+| Windows x64 | [NexoDB Studio-0.11.3.exe](../dist/installer/NexoDB%20Studio-0.11.3.exe) | Ejecutar el instalador |
+| Debian/Ubuntu x64 | [NexoDB-Studio-0.11.3-linux-x64.deb](../dist/NexoDB-Studio-0.11.3-linux-x64.deb) | `sudo apt install ./NexoDB-Studio-0.11.3-linux-x64.deb` |
+| Debian/Ubuntu ARM64 | [NexoDB-Studio-0.11.3-linux-arm64.deb](../dist/NexoDB-Studio-0.11.3-linux-arm64.deb) | `sudo apt install ./NexoDB-Studio-0.11.3-linux-arm64.deb` |
+| macOS Intel | [NexoDB-Studio-0.11.3-macos-x64.zip](../dist/NexoDB-Studio-0.11.3-macos-x64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
+| macOS Apple Silicon | [NexoDB-Studio-0.11.3-macos-arm64.zip](../dist/NexoDB-Studio-0.11.3-macos-arm64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
 
 En macOS también puedes arrastrar `NexoDB Studio.app` a Aplicaciones. El comando instala en `~/Applications`. La aplicación no tiene firma Developer ID ni notarización; macOS puede solicitar autorización para abrirla. Estos ZIP contienen una aplicación macOS y su instalador por usuario; no son DMG ni PKG.
 
@@ -29,7 +29,7 @@ El generador descarga los runtimes nativos oficiales de Eclipse Temurin para cad
 
 ## Paquete universal disponible
 
-`python tools/package-universal.py` genera `dist/NexoDB-Studio-0.11.2-universal.zip` a partir de la compilación existente. Incluye el JAR de producción y sus dependencias, los controladores MySQL/MariaDB, los lanzadores y un instalador para el usuario actual. **Requiere Java 17 o superior instalado en el equipo de destino.**
+`python tools/package-universal.py` genera `dist/NexoDB-Studio-0.11.3-universal.zip` a partir de la compilación existente. Incluye el JAR de producción y sus dependencias, los controladores MySQL/MariaDB, los lanzadores y un instalador para el usuario actual. **Requiere Java 17 o superior instalado en el equipo de destino.**
 
 En Linux o macOS, extrae el ZIP y ejecuta dentro de la carpeta extraída:
 
@@ -82,12 +82,12 @@ El manifiesto admite paquetes por sistema y arquitectura. Genera el manifiesto *
 
 ```sh
 python3 tools/create-update-manifest.py \
-  --base-url https://servidor.example/nexodb/0.11.2 \
-  --windows-x64 dist/NexoDB-Studio-0.11.2-win64.zip \
-  --linux-x64 dist/NexoDB-Studio-0.11.2-linux-x64.deb \
-  --linux-arm64 dist/NexoDB-Studio-0.11.2-linux-arm64.deb \
-  --macos-x64 dist/NexoDB-Studio-0.11.2-macos-x64.zip \
-  --macos-arm64 dist/NexoDB-Studio-0.11.2-macos-arm64.zip
+  --base-url https://servidor.example/nexodb/0.11.3 \
+  --windows-x64 dist/NexoDB-Studio-0.11.3-win64.zip \
+  --linux-x64 dist/NexoDB-Studio-0.11.3-linux-x64.deb \
+  --linux-arm64 dist/NexoDB-Studio-0.11.3-linux-arm64.deb \
+  --macos-x64 dist/NexoDB-Studio-0.11.3-macos-x64.zip \
+  --macos-arm64 dist/NexoDB-Studio-0.11.3-macos-arm64.zip
 ```
 
 Ajusta los nombres a los archivos reales; los nombres DEB/RPM dependen de `jpackage`. El generador admite también `--linux-arm64`, `--macos-x64` y `--windows-arm64`, sin suponer que existen. Conserva los campos Windows de primer nivel para clientes antiguos. Publica el manifiesto junto con los paquetes en un servidor HTTPS accesible sin iniciar sesión. Las instalaciones nuevas seleccionan exclusivamente su plataforma.

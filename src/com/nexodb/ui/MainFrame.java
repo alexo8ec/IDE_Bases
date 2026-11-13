@@ -82,6 +82,10 @@ public final class MainFrame extends JFrame {
         queryPanel.setDatabaseChangeConsumer(database -> {
             if (!objectSearch.getText().isBlank()) searchObjects();
         });
+        queryPanel.setColumnEditor((origin,target,column,delete)->{
+            TableWorkbenchPanel panel=openTable(origin,target.table(),TableWorkbenchPanel.COLUMNS);
+            if(panel!=null)panel.requestColumnAction(column,delete);
+        });
         setJMenuBar(buildMenu());
         setContentPane(buildContent());
         configureProfiles();
@@ -758,6 +762,7 @@ public final class MainFrame extends JFrame {
 
     private void disconnect() {
         if (session == null) return;
+        if(!queryPanel.confirmDiscardResults())return;
         JdbcSession closing = session;
         sessions.remove(closing.profile().id());
         closeSpecificSession(closing);
@@ -840,6 +845,7 @@ public final class MainFrame extends JFrame {
 
     private void refreshObjects() {
         if (session == null) return;
+        queryPanel.refreshCompletions();
         refreshConnectionObjects(session);
     }
 
@@ -1271,24 +1277,26 @@ public final class MainFrame extends JFrame {
         }.execute();
     }
 
-    private void openTable(JdbcSession target, SchemaItem item, int section) {
-        if (target == null || !target.isOpen()) return;
+    private TableWorkbenchPanel openTable(JdbcSession target, SchemaItem item, int section) {
+        if (target == null || !target.isOpen()) return null;
         activateSession(target);
         for (int i = 1; i < workspaceTabs.getTabCount(); i++) {
             Component component = workspaceTabs.getComponentAt(i);
             if (component instanceof TableWorkbenchPanel panel && panel.session() == target && panel.item().equals(item)) {
                 panel.selectSection(section);
                 workspaceTabs.setSelectedIndex(i);
-                return;
+                return panel;
             }
         }
         TableWorkbenchPanel panel = new TableWorkbenchPanel(target, item, qualifiedName(target, item), this::setStatus);
+        panel.setStructureChanged(queryPanel::refreshCompletions);
         panel.selectSection(section);
         String tabTitle = target.profile().name() + " · " + item.name();
         workspaceTabs.addTab(tabTitle, IconFactory.of(item.kind() == SchemaItem.Kind.VIEW ? IconFactory.Kind.VIEW : IconFactory.Kind.TABLE, 16), panel);
         int index = workspaceTabs.indexOfComponent(panel);
         workspaceTabs.setTabComponentAt(index, closableTab(tabTitle, panel));
         workspaceTabs.setSelectedComponent(panel);
+        return panel;
     }
 
     private Component closableTab(String title, Component component) {
@@ -1374,6 +1382,8 @@ public final class MainFrame extends JFrame {
     }
 
     private String qualifiedName(JdbcSession target, SchemaItem item) {
+        if(target!=null&&target.profile().type()==DatabaseType.SQLSERVER&&item.catalog()!=null&&!item.catalog().isBlank())
+            return quoteIdentifier(target,item.catalog())+"."+(item.schema()==null||item.schema().isBlank()?"":quoteIdentifier(target,item.schema()))+"."+quoteIdentifier(target,item.name());
         String namespace;
         if (target != null && (target.profile().type() == DatabaseType.MYSQL || target.profile().type() == DatabaseType.MARIADB)) {
             namespace = item.catalog() != null && !item.catalog().isBlank() ? item.catalog() : item.schema();
@@ -1492,6 +1502,7 @@ public final class MainFrame extends JFrame {
     }
 
     private void exitApplication() {
+        if(!queryPanel.confirmDiscardResults())return;
         closeAllSessions();
         dispose();
     }
