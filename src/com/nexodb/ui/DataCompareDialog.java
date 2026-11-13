@@ -55,17 +55,32 @@ public final class DataCompareDialog extends JDialog {
     private final JButton generate = UiLanguage.text(new JButton(tr("Abrir script en editor"), IconFactory.of(IconFactory.Kind.SQL, 16)), UiLanguage.key("Abrir script en editor"));
     private final JButton saveScript = UiLanguage.text(new JButton(tr("Guardar .sql"), IconFactory.of(IconFactory.Kind.SAVE, 16)), UiLanguage.key("Guardar .sql"));
     private Comparison comparison;
+    private final ComparisonChoices choices;
+    private final ComparisonDatabaseSelector databaseSelector;
+    private final ComparisonDatabaseSelector.Side sourceDatabases, targetDatabases;
+    private boolean comparing, disposed, choosing;
+    private long selectionRevision;
+    private JdbcSession comparisonTarget;
 
     public DataCompareDialog(Window owner, JdbcSession activeSession, List<JdbcSession> sessions, BiConsumer<JdbcSession, String> scriptConsumer) {
+        this(owner, activeSession, sessions, scriptConsumer, new ComparisonChoices());
+    }
+    public DataCompareDialog(Window owner, JdbcSession activeSession, List<JdbcSession> sessions, BiConsumer<JdbcSession, String> scriptConsumer, ComparisonChoices choices) {
         super(owner, tr("Comparar datos"), ModalityType.APPLICATION_MODAL);
         UiLanguage.title(this, UiLanguage.key("Comparar datos"));
-        this.scriptConsumer = scriptConsumer;
+        this.scriptConsumer = scriptConsumer; this.choices = choices;
+        selectedTables.addAll(choices.tables()); tableSelectionConfigured = choices.tablesConfigured(); includeViews.setSelected(choices.includeViews());
+        if (tableSelectionConfigured) UiLanguage.text(chooseTables, UiLanguage.key("Tablas seleccionadas: "), selectedTables.size());
+        databaseSelector = new ComparisonDatabaseSelector(choices, this::selectionChanged,
+                error -> UiLanguage.text(status, UiLanguage.key("No se pudieron cargar las bases: "), rootCause(error).getMessage()));
+        sourceDatabases = databaseSelector.side(source, true); targetDatabases = databaseSelector.side(target, false);
         for (JdbcSession session : sessions) if (session != null && session.isOpen()) {
             SessionOption option = new SessionOption(session);
             sourceConnection.addItem(option); targetConnection.addItem(option);
         }
-        selectSession(sourceConnection, activeSession);
-        selectOtherSession(targetConnection, activeSession);
+        selectSession(sourceConnection, choices.preferred(true,sessions) == null ? activeSession : choices.preferred(true,sessions));
+        if (choices.preferred(false,sessions) == null) selectOtherSession(targetConnection, activeSession);
+        else selectSession(targetConnection, choices.preferred(false,sessions));
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setMinimumSize(new Dimension(980, 620));
         setSize(1220, 760);
@@ -126,7 +141,7 @@ public final class DataCompareDialog extends JDialog {
             Object rightConnection = targetConnection.getSelectedItem();
             String rightDatabase = (String) target.getSelectedItem();
             sourceConnection.setSelectedItem(rightConnection); targetConnection.setSelectedItem(leftConnection);
-            SwingUtilities.invokeLater(() -> { source.setSelectedItem(rightDatabase); target.setSelectedItem(leftDatabase); });
+            sourceDatabases.load(sourceSession(), rightDatabase); targetDatabases.load(targetSession(), leftDatabase);
         });
         endpoints.add(swap, c);
         c.gridx = 3; endpoints.add(UiLanguage.text(new JLabel(tr("Instancia de destino:")), UiLanguage.key("Instancia de destino:")), c);
@@ -144,11 +159,9 @@ public final class DataCompareDialog extends JDialog {
         c.gridx = 0; c.gridy = 3; c.gridwidth = 5; c.weightx = 1;
         chooseTables.addActionListener(e -> chooseTables());
         endpoints.add(chooseTables, c);
-        source.addActionListener(e -> clearTableSelection());
-        target.addActionListener(e -> clearTableSelection());
-        sourceConnection.addActionListener(e -> { clearTableSelection(); loadDatabases(sourceSession(), source, true); });
-        targetConnection.addActionListener(e -> { clearTableSelection(); loadDatabases(targetSession(), target, false); });
-        includeViews.addActionListener(e -> clearTableSelection());
+        sourceConnection.addActionListener(e -> { loadDatabases(sourceSession(), source, true); });
+        targetConnection.addActionListener(e -> { loadDatabases(targetSession(), target, false); });
+        includeViews.addActionListener(e -> selectionChanged());
         container.add(endpoints, BorderLayout.NORTH);
 
         JPanel options = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 3));
@@ -174,38 +187,20 @@ public final class DataCompareDialog extends JDialog {
         });
     }
 
+    @Override public void dispose() { disposed = true; if (databaseSelector != null) databaseSelector.close(); super.dispose(); }
     private void loadDatabases(JdbcSession endpoint, JComboBox<String> combo, boolean sourceSide) {
-        combo.removeAllItems(); combo.setEnabled(false);
-        if (endpoint == null) return;
-        new SwingWorker<List<String>, Void>() {
-            @Override protected List<String> doInBackground() throws Exception { return databaseNames(endpoint); }
-            @Override protected void done() {
-                try {
-                    for (String name : get()) combo.addItem(name);
-                    String requested = endpoint.profile().database();
-                    if (requested != null && !requested.isBlank()) combo.setSelectedItem(requested);
-                    if (!sourceSide && combo.getSelectedIndex() < 0 && combo.getItemCount() > 0) combo.setSelectedIndex(0);
-                    combo.setEnabled(combo.getItemCount() > 0);
-                    compare.setEnabled(source.getItemCount() > 0 && target.getItemCount() > 0);
-                    UiLanguage.text(status, UiLanguage.key("Selecciona las instancias, las bases y las tablas que deseas comparar."));
-                } catch (Exception error) {
-                    UiLanguage.text(status, UiLanguage.key("No se pudieron cargar las bases: "), rootCause(error).getMessage());
-                }
-            }
-        }.execute();
+        (sourceSide ? sourceDatabases : targetDatabases).load(endpoint);
     }
-
-    private List<String> databaseNames(JdbcSession endpoint) throws SQLException {
-        List<String> names = new ArrayList<>();
-        try (ResultSet rs = endpoint.connection().getMetaData().getCatalogs()) {
-            while (rs.next()) { String value = rs.getString("TABLE_CAT"); if (value != null && !value.isBlank()) names.add(value); }
-        }
-        if (names.isEmpty()) {
-            try (ResultSet rs = endpoint.connection().getMetaData().getSchemas()) {
-                while (rs.next()) { String value = rs.getString("TABLE_SCHEM"); if (value != null && !value.isBlank()) names.add(value); }
-            }
-        }
-        return names.stream().distinct().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+    private void updateActions() {
+        boolean ready = sourceDatabases.ready() && targetDatabases.ready() && !comparing && !choosing;
+        compare.setEnabled(ready); chooseTables.setEnabled(ready);
+    }
+    private void selectionChanged() {
+        selectionRevision++; comparison = null; comparisonTarget = null;
+        generate.setEnabled(false); saveScript.setEnabled(false); scriptPreview.setText("");
+        choices.tables(selectedTables, tableSelectionConfigured, includeViews.isSelected());
+        updateActions();
+        UiLanguage.text(status, UiLanguage.key("Selecciona las instancias, las bases y las tablas que deseas comparar."));
     }
 
     private void compare() {
@@ -221,7 +216,8 @@ public final class DataCompareDialog extends JDialog {
         Options options = new Options(ignoreCase.isSelected(), trimText.isSelected(), nullEqualsEmpty.isSelected(),
                 ignoreLobs.isSelected(), includeViews.isSelected(), ((Number) maxRows.getValue()).intValue(), tableFilter.getText().trim(),
                 Set.copyOf(selectedTables), tableSelectionConfigured);
-        compare.setEnabled(false); generate.setEnabled(false); model.setRowCount(0);
+        long request = selectionRevision;
+        comparing = true; updateActions(); generate.setEnabled(false); model.setRowCount(0);
         saveScript.setEnabled(false); scriptPreview.setText(""); outputTabs.setSelectedIndex(0);
         progress.setValue(0); progress.setString(tr("Preparando…")); progress.setVisible(true);
         UiLanguage.text(status, UiLanguage.key("Comparando "), sourceSession.profile().name(), "/", sourceDb, UiLanguage.key(" con "), targetSession.profile().name(), "/", targetDb, "…");
@@ -230,9 +226,10 @@ public final class DataCompareDialog extends JDialog {
                 return buildComparison(sourceSession, sourceDb, targetSession, targetDb, options, this::setProgress);
             }
             @Override protected void done() {
-                compare.setEnabled(true); progress.setVisible(false);
+                comparing = false; updateActions(); progress.setVisible(false);
+                if (disposed || request != selectionRevision) return;
                 try {
-                    comparison = get();
+                    comparison = get(); comparisonTarget = targetSession;
                     for (TableDifference difference : comparison.tables()) {
                         model.addRow(new Object[]{difference.table(), difference.status(),
                                 difference.sourceRows() < 0 ? "—" : difference.sourceRows(),
@@ -269,6 +266,8 @@ public final class DataCompareDialog extends JDialog {
                 .filter(key -> !options.tableSelectionConfigured() || options.selectedTables().contains(key))
                 .filter(key -> options.tableFilter().isBlank()
                         || key.contains(options.tableFilter().toLowerCase(Locale.ROOT))).toList();
+        if (options.tableSelectionConfigured() && filtered.isEmpty())
+            throw new SQLException(tr("Las tablas seleccionadas no están disponibles en estas bases. Revisa la selección."));
         List<TableDifference> differences = new ArrayList<>();
         StringBuilder script = new StringBuilder();
         int current = 0;
@@ -439,7 +438,7 @@ public final class DataCompareDialog extends JDialog {
 
     private void generateScript() {
         if (comparison == null || comparison.script().isBlank()) return;
-        scriptConsumer.accept(targetSession(), comparison.script());
+        scriptConsumer.accept(comparisonTarget, comparison.script());
         dispose();
     }
 
@@ -457,34 +456,31 @@ public final class DataCompareDialog extends JDialog {
         }
     }
 
-    private void clearTableSelection() {
-        selectedTables.clear();
-        tableSelectionConfigured = false;
-        UiLanguage.text(chooseTables, UiLanguage.key("Seleccionar tablas…"));
-    }
-
     private void chooseTables() {
         JdbcSession sourceSession = sourceSession();
         JdbcSession targetSession = targetSession();
         String sourceDb = (String) source.getSelectedItem();
         String targetDb = (String) target.getSelectedItem();
         if (sourceSession == null || targetSession == null || sourceDb == null || targetDb == null) return;
-        chooseTables.setEnabled(false);
+        long request = selectionRevision;
+        boolean views = includeViews.isSelected();
+        choosing = true; updateActions();
         progress.setIndeterminate(true);
         progress.setString(tr("Cargando tablas…"));
         progress.setVisible(true);
         new SwingWorker<List<String>, Void>() {
             @Override protected List<String> doInBackground() throws Exception {
                 Set<String> names = new LinkedHashSet<>();
-                names.addAll(tableNames(sourceSession, sourceDb, includeViews.isSelected()).values());
-                names.addAll(tableNames(targetSession, targetDb, includeViews.isSelected()).values());
+                names.addAll(tableNames(sourceSession, sourceDb, views).values());
+                names.addAll(tableNames(targetSession, targetDb, views).values());
                 return names.stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
             }
 
             @Override protected void done() {
-                chooseTables.setEnabled(true);
+                choosing = false; updateActions();
                 progress.setVisible(false);
                 progress.setIndeterminate(false);
+                if (disposed || request != selectionRevision) return;
                 try { showTableChooser(get()); }
                 catch (Exception error) {
                     JOptionPane.showMessageDialog(DataCompareDialog.this, rootCause(error).getMessage(),
@@ -495,54 +491,12 @@ public final class DataCompareDialog extends JDialog {
     }
 
     private void showTableChooser(List<String> names) {
-        DefaultListModel<TableChoice> choices = new DefaultListModel<>();
-        for (String name : names) choices.addElement(new TableChoice(name,
-                !tableSelectionConfigured || selectedTables.contains(name.toLowerCase(Locale.ROOT))));
-        JList<TableChoice> list = new JList<>(choices);
-        list.setVisibleRowCount(18);
-        list.setFixedCellHeight(25);
-        list.setCellRenderer((component, value, index, selected, focus) -> {
-            JCheckBox check = new JCheckBox(value.name(), value.selected());
-            check.setOpaque(true);
-            check.setBackground(selected ? component.getSelectionBackground() : component.getBackground());
-            check.setForeground(selected ? component.getSelectionForeground() : component.getForeground());
-            check.setBorder(new EmptyBorder(2, 6, 2, 6));
-            return check;
+        if (names.isEmpty()) { UiLanguage.text(status, UiLanguage.key("La base no contiene tablas.")); return; }
+        var items = names.stream().map(name -> new ComparisonObjectChooser.Item(name.toLowerCase(Locale.ROOT), name)).toList();
+        ComparisonObjectChooser.choose(this, items, selectedTables, tableSelectionConfigured).ifPresent(selected -> {
+            selectedTables.clear(); selectedTables.addAll(selected); tableSelectionConfigured = true;
+            UiLanguage.text(chooseTables, UiLanguage.key("Tablas seleccionadas: "), selectedTables.size()); selectionChanged();
         });
-        list.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mouseClicked(java.awt.event.MouseEvent e) {
-                int index = list.locationToIndex(e.getPoint());
-                if (index >= 0) {
-                    choices.get(index).toggle();
-                    list.repaint(list.getCellBounds(index, index));
-                }
-            }
-        });
-        JButton all = UiLanguage.text(new JButton(tr("Todas")), UiLanguage.key("Todas"));
-        JButton none = UiLanguage.text(new JButton(tr("Ninguna")), UiLanguage.key("Ninguna"));
-        all.addActionListener(e -> { for (int i = 0; i < choices.size(); i++) choices.get(i).setSelected(true); list.repaint(); });
-        none.addActionListener(e -> { for (int i = 0; i < choices.size(); i++) choices.get(i).setSelected(false); list.repaint(); });
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        buttons.add(all); buttons.add(none);
-        JPanel panel = new JPanel(new BorderLayout(5, 5));
-        panel.add(UiLanguage.text(new JLabel(tr("Marca las tablas o vistas que deseas comparar:")), UiLanguage.key("Marca las tablas o vistas que deseas comparar:")), BorderLayout.NORTH);
-        panel.add(new JScrollPane(list), BorderLayout.CENTER);
-        panel.add(buttons, BorderLayout.SOUTH);
-        panel.setPreferredSize(new Dimension(480, 500));
-        if (JOptionPane.showConfirmDialog(this, panel, tr("Seleccionar tablas"), JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
-        selectedTables.clear();
-        for (int i = 0; i < choices.size(); i++) {
-            if (choices.get(i).selected()) selectedTables.add(choices.get(i).name().toLowerCase(Locale.ROOT));
-        }
-        if (selectedTables.isEmpty()) {
-            JOptionPane.showMessageDialog(this, tr("Selecciona al menos una tabla."), tr("Comparar datos"), JOptionPane.INFORMATION_MESSAGE);
-            clearTableSelection();
-            return;
-        }
-        tableSelectionConfigured = true;
-        UiLanguage.text(chooseTables, UiLanguage.key("Tablas seleccionadas: "), selectedTables.size());
-        UiLanguage.text(status, (selectedTables.size()), UiLanguage.key(" tablas seleccionadas para comparar"));
     }
 
     private JdbcSession sourceSession() { SessionOption option = (SessionOption) sourceConnection.getSelectedItem(); return option == null ? null : option.session(); }

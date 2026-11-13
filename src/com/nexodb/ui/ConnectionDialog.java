@@ -21,6 +21,7 @@ import java.util.Arrays;
 
 public final class ConnectionDialog extends JDialog {
     public record Result(ConnectionProfile profile, char[] password, boolean connect, boolean rememberPassword) {}
+    private record ConnectionCheck(String server, String database, long elapsedMillis) {}
 
     private enum TlsMode {
         AUTOMATIC("Automático (recomendado)"),
@@ -528,6 +529,7 @@ public final class ConnectionDialog extends JDialog {
     private void testConnection(JButton button) {
         if (!validateForm()) return;
         button.setEnabled(false);
+        status.setIcon(IconFactory.of(IconFactory.Kind.REFRESH, 18));
         UiLanguage.text(status, UiLanguage.key("Probando conexión…"));
         ConnectionProfile profile = profileFromForm();
         char[] secret = password.getPassword();
@@ -541,9 +543,10 @@ public final class ConnectionDialog extends JDialog {
             }
         }
         char[] testSecret = secret == null ? new char[0] : secret;
-        new SwingWorker<String, Void>() {
+        long started = System.nanoTime();
+        new SwingWorker<ConnectionCheck, Void>() {
             private java.util.List<String> availableDatabases;
-            @Override protected String doInBackground() throws Exception {
+            @Override protected ConnectionCheck doInBackground() throws Exception {
                 try (JdbcSession session = JdbcSession.open(profile, testSecret, value -> SwingUtilities.invokeLater(() -> {
                     driverProgress.setVisible(true);
                     driverProgress.setValue(value);
@@ -555,7 +558,8 @@ public final class ConnectionDialog extends JDialog {
                     if (PostgresSupport.needsDatabaseSelection(profile)) {
                         availableDatabases = PostgresSupport.databases(session.connection());
                     }
-                    return product + " " + version;
+                    return new ConnectionCheck(product + " " + version, session.connection().getCatalog(),
+                            (System.nanoTime() - started) / 1_000_000L);
                 } finally {
                     Arrays.fill(testSecret, '\0');
                 }
@@ -564,9 +568,15 @@ public final class ConnectionDialog extends JDialog {
             @Override protected void done() {
                 button.setEnabled(true);
                 driverProgress.setVisible(false);
+                if (!isDisplayable()) return;
                 try {
+                    ConnectionCheck check = get();
                     status.setForeground(UIManager.getColor("Label.foreground"));
-                    UiLanguage.text(status, UiLanguage.key("Conexión correcta: "), get());
+                    status.setIcon(IconFactory.of(IconFactory.Kind.TEST, 20));
+                    UiLanguage.text(status, UiLanguage.key("Conexión correcta: "), check.server());
+                    JOptionPane.showMessageDialog(ConnectionDialog.this,
+                            ConnectionTestFeedback.success(profile, check.server(), check.database(), check.elapsedMillis()),
+                            tr("Resultado de la prueba de conexión"), JOptionPane.PLAIN_MESSAGE);
                     if (availableDatabases != null && isDisplayable() && profile.equals(profileFromForm())) {
                         String selected = DatabaseSelectionDialog.choose(ConnectionDialog.this,
                                 profile.username(), availableDatabases);
@@ -574,6 +584,7 @@ public final class ConnectionDialog extends JDialog {
                     }
                 } catch (Exception ex) {
                     status.setForeground(UIManager.getColor("Label.foreground"));
+                    status.setIcon(IconFactory.of(IconFactory.Kind.STOP, 20));
                     UiLanguage.text(status, UiLanguage.key("No se pudo conectar."));
                     showConnectionError(ex);
                 }
@@ -617,7 +628,7 @@ public final class ConnectionDialog extends JDialog {
             }
             return;
         }
-        JOptionPane.showMessageDialog(this, message, tr("Error de conexión"), JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(this, ConnectionTestFeedback.failure(message), tr("Error de conexión"), JOptionPane.PLAIN_MESSAGE);
     }
 }
 

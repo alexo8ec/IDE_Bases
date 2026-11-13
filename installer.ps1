@@ -62,7 +62,7 @@ try {
         --win-shortcut `
         --win-shortcut-prompt `
         --win-upgrade-uuid '8b7eafbb-43c1-4b70-a75c-fc964e02ea6e' `
-        --add-modules 'java.desktop,java.sql,java.prefs,java.naming,java.net.http,java.security.jgss,jdk.security.auth' `
+        --add-modules 'java.desktop,java.sql,java.prefs,java.naming,java.net.http,java.security.jgss,jdk.security.auth,jdk.crypto.ec' `
         --java-options '-Dfile.encoding=UTF-8' `
         --java-options '-Djava.net.useSystemProxies=true' `
         --java-options '-Dsun.java2d.d3d=false' `
@@ -90,7 +90,7 @@ $release = [ordered]@{
     contact = 'alexo8ec@hotmail.com'
     installer = [ordered]@{
         file = $installer.Name
-        url = if ($base) { "$base/$($installer.Name.Replace(' ', '%20'))" } else { '' }
+        url = if ($base) { "$base/installer/$($installer.Name.Replace(' ', '%20'))" } else { '' }
         sha256 = $installerHash
     }
     portable = [ordered]@{

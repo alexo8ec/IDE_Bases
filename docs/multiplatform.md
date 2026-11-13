@@ -1,6 +1,31 @@
 # Distribución para Windows, Linux y macOS
 
-NexoDB Studio 0.11.0 utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas.
+NexoDB Studio 0.11.2 utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas.
+
+## Archivos de instalación 0.11.2
+
+Todos incluyen Java 17 para su sistema y arquitectura. Se generan directamente en `dist`, sin copias en otra carpeta de publicación.
+
+| Sistema | Archivo | Instalación |
+| --- | --- | --- |
+| Windows x64 | [NexoDB Studio-0.11.2.exe](../dist/installer/NexoDB%20Studio-0.11.2.exe) | Ejecutar el instalador |
+| Debian/Ubuntu x64 | [NexoDB-Studio-0.11.2-linux-x64.deb](../dist/NexoDB-Studio-0.11.2-linux-x64.deb) | `sudo apt install ./NexoDB-Studio-0.11.2-linux-x64.deb` |
+| Debian/Ubuntu ARM64 | [NexoDB-Studio-0.11.2-linux-arm64.deb](../dist/NexoDB-Studio-0.11.2-linux-arm64.deb) | `sudo apt install ./NexoDB-Studio-0.11.2-linux-arm64.deb` |
+| macOS Intel | [NexoDB-Studio-0.11.2-macos-x64.zip](../dist/NexoDB-Studio-0.11.2-macos-x64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
+| macOS Apple Silicon | [NexoDB-Studio-0.11.2-macos-arm64.zip](../dist/NexoDB-Studio-0.11.2-macos-arm64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
+
+En macOS también puedes arrastrar `NexoDB Studio.app` a Aplicaciones. El comando instala en `~/Applications`. La aplicación no tiene firma Developer ID ni notarización; macOS puede solicitar autorización para abrirla. Estos ZIP contienen una aplicación macOS y su instalador por usuario; no son DMG ni PKG.
+
+El DEB crea la entrada del menú e instala en `/opt/nexodb-studio`. Está destinado a distribuciones que admiten paquetes Debian; para otras distribuciones se puede usar el paquete Java universal con Java 17 instalado, o generar un RPM en el sistema de destino.
+
+Para reproducir los cuatro paquetes Unix desde la compilación existente:
+
+```sh
+python tools/package-platforms.py
+python tools/verify-platforms.py
+```
+
+El generador descarga los runtimes nativos oficiales de Eclipse Temurin para cada arquitectura y verifica sus SHA-256 antes de incorporarlos. Conserva permisos ejecutables, enlaces simbólicos y licencias al construir el DEB o el ZIP. `--download-only` prepara la caché en `build/runtimes`; `--offline` genera los paquetes utilizando esa caché verificada.
 
 ## Paquete universal disponible
 
@@ -28,7 +53,7 @@ En Windows se mantienen los equivalentes PowerShell. Los scripts manejan rutas c
 
 ## Instaladores nativos con Java incluido
 
-Ejecuta `jpackage` en el sistema y arquitectura de destino. Los paquetes nativos no se pueden generar desde Windows para Linux o macOS.
+Los DEB y ZIP macOS descritos arriba se ensamblan desde cualquier sistema con runtimes nativos verificados. Como alternativa, para generar lanzadores de `jpackage`, DMG, PKG o RPM, ejecuta `jpackage` en el sistema y arquitectura de destino.
 
 | Equipo de compilación | Comando | Resultado |
 | --- | --- | --- |

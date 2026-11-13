@@ -3,6 +3,10 @@ package com.nexodb.ui;
 import static com.nexodb.util.I18n.tr;
 
 import com.nexodb.db.JdbcSession;
+import com.nexodb.db.SchemaMetadataReader;
+import com.nexodb.db.SchemaMetadataReader.SchemaDef;
+import com.nexodb.db.SchemaMetadataReader.DbObject;
+import com.nexodb.db.SchemaMetadataReader.ColumnDef;
 import com.nexodb.model.DatabaseType;
 
 import javax.swing.*;
@@ -39,21 +43,42 @@ public final class SchemaCompareDialog extends JDialog {
     private final JLabel status = UiLanguage.text(new JLabel(tr("Selecciona el origen y el destino.")), UiLanguage.key("Selecciona el origen y el destino."));
     private final JProgressBar progress = new JProgressBar();
     private Comparison lastComparison;
+    private final ComparisonChoices choices;
+    private final ComparisonDatabaseSelector databaseSelector;
+    private final ComparisonDatabaseSelector.Side sourceDatabases, targetDatabases;
+    private final JButton chooseObjects = UiLanguage.text(new JButton(tr("Seleccionar tablas…")), UiLanguage.key("Seleccionar tablas…"));
+    private final Set<String> selectedObjects = new LinkedHashSet<>();
+    private boolean selectionConfigured, comparing, disposed, choosing;
+    private long selectionRevision;
+    private JdbcSession comparisonTarget;
+    private final Map<JdbcSession,String> quoteCache = new java.util.IdentityHashMap<>();
 
     public SchemaCompareDialog(Window owner, JdbcSession activeSession, List<JdbcSession> sessions, BiConsumer<JdbcSession, String> scriptConsumer) {
+        this(owner, activeSession, sessions, scriptConsumer, new ComparisonChoices());
+    }
+    public SchemaCompareDialog(Window owner, JdbcSession activeSession, List<JdbcSession> sessions, BiConsumer<JdbcSession, String> scriptConsumer, ComparisonChoices choices) {
         super(owner, tr("Comparar esquemas"), ModalityType.APPLICATION_MODAL);
         UiLanguage.title(this, UiLanguage.key("Comparar esquemas"));
         this.scriptConsumer = scriptConsumer;
+        this.choices = choices;
+        selectedObjects.addAll(choices.tables()); selectionConfigured = choices.tablesConfigured();
+        databaseSelector = new ComparisonDatabaseSelector(choices, this::selectionChanged,
+                error -> UiLanguage.text(status, UiLanguage.key("No se pudieron cargar las bases: "), rootCause(error).getMessage()));
+        sourceDatabases = databaseSelector.side(source, true); targetDatabases = databaseSelector.side(target, false);
         for (JdbcSession session : sessions) if (session != null && session.isOpen()) {
             SessionOption option = new SessionOption(session); sourceConnection.addItem(option); targetConnection.addItem(option);
         }
-        selectSession(sourceConnection, activeSession); selectOtherSession(targetConnection, activeSession);
+        selectSession(sourceConnection, choices.preferred(true, sessions) == null ? activeSession : choices.preferred(true, sessions));
+        if (choices.preferred(false, sessions) == null) selectOtherSession(targetConnection, activeSession);
+        else selectSession(targetConnection, choices.preferred(false, sessions));
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setMinimumSize(new Dimension(850, 560));
         setSize(1040, 680);
         setLocationRelativeTo(owner);
         setContentPane(buildContent());
         configureTable();
+        chooseObjects.addActionListener(event -> chooseObjects());
+        updateSelectionCaption();
         loadDatabases(sourceSession(), source);
         loadDatabases(targetSession(), target);
     }
@@ -104,9 +129,10 @@ public final class SchemaCompareDialog extends JDialog {
         JButton swap = new JButton("⇄", IconFactory.of(IconFactory.Kind.COMPARE, 16));
         UiLanguage.tooltip(swap, UiLanguage.key("Intercambiar origen y destino"));
         swap.addActionListener(e -> {
-            Object left = sourceConnection.getSelectedItem();
-            sourceConnection.setSelectedItem(targetConnection.getSelectedItem());
-            targetConnection.setSelectedItem(left);
+            Object left = sourceConnection.getSelectedItem(), right = targetConnection.getSelectedItem();
+            String leftName = (String) source.getSelectedItem(), rightName = (String) target.getSelectedItem();
+            sourceConnection.setSelectedItem(right); targetConnection.setSelectedItem(left);
+            sourceDatabases.load(sourceSession(), rightName); targetDatabases.load(targetSession(), leftName);
         });
         panel.add(swap, c);
         c.gridx = 3;
@@ -118,6 +144,8 @@ public final class SchemaCompareDialog extends JDialog {
         c.gridx = 1; c.weightx = 1; panel.add(source, c);
         c.gridx = 3; c.weightx = 0; panel.add(UiLanguage.text(new JLabel(tr("Base de destino:")), UiLanguage.key("Base de destino:")), c);
         c.gridx = 4; c.weightx = 1; panel.add(target, c);
+        c.gridy = 2; c.gridx = 0; c.gridwidth = 5;
+        panel.add(chooseObjects, c);
         sourceConnection.addActionListener(e -> loadDatabases(sourceSession(), source));
         targetConnection.addActionListener(e -> loadDatabases(targetSession(), target));
         return panel;
@@ -136,38 +164,49 @@ public final class SchemaCompareDialog extends JDialog {
         results.getColumnModel().getColumn(2).setCellRenderer(new StatusRenderer());
     }
 
+    @Override public void dispose() { disposed = true; if (databaseSelector != null) databaseSelector.close(); super.dispose(); }
     private void loadDatabases(JdbcSession endpoint, JComboBox<String> combo) {
-        combo.removeAllItems(); combo.setEnabled(false);
-        if (endpoint == null) return;
-        new SwingWorker<List<String>, Void>() {
-            @Override protected List<String> doInBackground() throws Exception {
-            List<String> names = new ArrayList<>();
-            DatabaseMetaData metadata = endpoint.connection().getMetaData();
-            try (ResultSet rs = metadata.getCatalogs()) {
-                while (rs.next()) {
-                    String value = rs.getString("TABLE_CAT");
-                    if (value != null && !value.isBlank()) names.add(value);
-                }
+        (combo == source ? sourceDatabases : targetDatabases).load(endpoint);
+    }
+    private void updateActions() {
+        boolean ready = sourceDatabases.ready() && targetDatabases.ready() && !comparing && !choosing;
+        compare.setEnabled(ready); chooseObjects.setEnabled(ready);
+    }
+    private void selectionChanged() {
+        selectionRevision++; lastComparison = null; comparisonTarget = null; generate.setEnabled(false);
+        updateActions();
+        UiLanguage.text(status, UiLanguage.key("Selecciona las instancias y bases que deseas comparar."));
+    }
+    private void updateSelectionCaption() {
+        if (selectionConfigured) UiLanguage.text(chooseObjects, UiLanguage.key("Tablas seleccionadas: "), selectedObjects.size());
+        else UiLanguage.text(chooseObjects, UiLanguage.key("Seleccionar tablas…"));
+    }
+    private void chooseObjects() {
+        JdbcSession left = sourceSession(), right = targetSession();
+        String leftName = (String) source.getSelectedItem(), rightName = (String) target.getSelectedItem();
+        if (left == null || right == null || leftName == null || rightName == null) return;
+        long request = selectionRevision;
+        choosing = true; updateActions(); progress.setVisible(true);
+        new SwingWorker<List<ComparisonObjectChooser.Item>,Void>() {
+            protected List<ComparisonObjectChooser.Item> doInBackground() throws Exception {
+                Map<String,ComparisonObjectChooser.Item> items = new LinkedHashMap<>();
+                for (DbObject object : SchemaMetadataReader.listObjects(left,leftName))
+                    items.put(SchemaMetadataReader.key(object.type(),object.name()), new ComparisonObjectChooser.Item(SchemaMetadataReader.key(object.type(),object.name()), displayType(object.type()) + " · " + object.name()));
+                for (DbObject object : SchemaMetadataReader.listObjects(right,rightName))
+                    items.putIfAbsent(SchemaMetadataReader.key(object.type(),object.name()), new ComparisonObjectChooser.Item(SchemaMetadataReader.key(object.type(),object.name()), displayType(object.type()) + " · " + object.name()));
+                return items.values().stream().sorted(java.util.Comparator.comparing(ComparisonObjectChooser.Item::label, String.CASE_INSENSITIVE_ORDER)).toList();
             }
-            if (names.isEmpty()) {
-                try (ResultSet rs = metadata.getSchemas()) {
-                    while (rs.next()) {
-                        String value = rs.getString("TABLE_SCHEM");
-                        if (value != null && !value.isBlank()) names.add(value);
-                    }
-                }
-            }
-            return names.stream().distinct().sorted(String.CASE_INSENSITIVE_ORDER).toList();
-            }
-            @Override protected void done() {
+            protected void done() {
+                choosing = false; progress.setVisible(false); updateActions();
+                if (disposed || request != selectionRevision) return;
                 try {
-                    for (String name : get()) combo.addItem(name);
-                    String requested = endpoint.profile().database();
-                    if (requested != null && !requested.isBlank()) combo.setSelectedItem(requested);
-                    combo.setEnabled(combo.getItemCount() > 0);
-                    compare.setEnabled(source.getItemCount() > 0 && target.getItemCount() > 0);
-                    UiLanguage.text(status, UiLanguage.key("Selecciona las instancias y bases que deseas comparar."));
-                } catch (Exception error) { UiLanguage.text(status, UiLanguage.key("No se pudieron cargar las bases: "), rootCause(error).getMessage()); }
+                    List<ComparisonObjectChooser.Item> items = get();
+                    if (items.isEmpty()) { UiLanguage.text(status, UiLanguage.key("La base no contiene tablas.")); return; }
+                    ComparisonObjectChooser.choose(SchemaCompareDialog.this, items, selectedObjects, selectionConfigured).ifPresent(selected -> {
+                        selectedObjects.clear(); selectedObjects.addAll(selected); selectionConfigured = true;
+                        choices.tables(selectedObjects, true, true); updateSelectionCaption(); selectionChanged();
+                    });
+                } catch (Exception error) { JOptionPane.showMessageDialog(SchemaCompareDialog.this, rootCause(error).getMessage(), tr("No se pudieron cargar las tablas"), JOptionPane.ERROR_MESSAGE); }
             }
         }.execute();
     }
@@ -182,7 +221,8 @@ public final class SchemaCompareDialog extends JDialog {
             JOptionPane.showMessageDialog(this, tr("Selecciona un origen y un destino diferentes."), tr("Comparar esquemas"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        compare.setEnabled(false);
+        long request = selectionRevision;
+        comparing = true; updateActions();
         generate.setEnabled(false);
         UiLanguage.text(status, UiLanguage.key("Comparando "), sourceName, UiLanguage.key(" con "), targetName, "…");
         progress.setVisible(true);
@@ -193,12 +233,12 @@ public final class SchemaCompareDialog extends JDialog {
             }
 
             @Override protected void done() {
-                compare.setEnabled(true);
-                progress.setVisible(false);
+                comparing = false; updateActions(); progress.setVisible(false);
+                if (disposed || request != selectionRevision) return;
                 try {
-                    lastComparison = get();
+                    lastComparison = get(); comparisonTarget = targetSession;
                     for (Difference difference : lastComparison.differences()) {
-                        model.addRow(new Object[]{difference.type(), difference.name(), difference.status(), difference.detail()});
+                        model.addRow(new Object[]{displayType(difference.type()), difference.name(), difference.status(), difference.detail()});
                     }
                     generate.setEnabled(!lastComparison.script().isBlank());
                     long changes = lastComparison.differences().stream().filter(d -> !d.status().equals(tr("Igual"))).count();
@@ -213,9 +253,12 @@ public final class SchemaCompareDialog extends JDialog {
         }.execute();
     }
 
-    private Comparison buildComparison(JdbcSession sourceSession, String sourceName, JdbcSession targetSession, String targetName) throws SQLException {
-        SchemaDef left = readSchema(sourceSession, sourceName);
-        SchemaDef right = readSchema(targetSession, targetName);
+    private Comparison buildComparison(JdbcSession sourceSession, String sourceName, JdbcSession targetSession, String targetName) throws Exception {
+        Set<String> selected = selectionConfigured ? Set.copyOf(selectedObjects) : null;
+        SchemaMetadataReader.Pair schemas = SchemaMetadataReader.readPair(sourceSession, sourceName, targetSession, targetName, selected);
+        SchemaDef left = schemas.source(), right = schemas.target();
+        if (selectionConfigured && left.objects().isEmpty() && right.objects().isEmpty())
+            throw new IllegalStateException(tr("Las tablas seleccionadas no están disponibles en estas bases. Revisa la selección."));
         List<Difference> differences = new ArrayList<>();
         StringBuilder script = new StringBuilder("-- NexoDB Studio · Sincronización de esquema\n")
                 .append("-- Origen: ").append(sourceName).append("\n")
@@ -238,44 +281,13 @@ public final class SchemaCompareDialog extends JDialog {
                 appendCreateObject(script, sourceSession, sourceName, targetSession, targetName, sourceObject);
                 continue;
             }
-            if (!sourceObject.type().equals(tr("Tabla"))) {
+            if (!sourceObject.type().equals("TABLE")) {
                 differences.add(new Difference(sourceObject.type(), sourceObject.name(), tr("Existe en ambos"), tr("La definición debe revisarse desde SQL / DDL")));
                 continue;
             }
             compareColumns(sourceObject, targetObject, targetSession, targetName, differences, script);
         }
         return new Comparison(differences, script.toString());
-    }
-
-    private SchemaDef readSchema(JdbcSession endpoint, String database) throws SQLException {
-        boolean catalog = endpoint.profile().type() == DatabaseType.MYSQL || endpoint.profile().type() == DatabaseType.MARIADB;
-        Map<String, DbObject> objects = new LinkedHashMap<>();
-        DatabaseMetaData metadata = endpoint.connection().getMetaData();
-        try (ResultSet rs = metadata.getTables(catalog ? database : null, catalog ? null : database,
-                "%", new String[]{"TABLE", "VIEW"})) {
-            while (rs.next()) {
-                String name = rs.getString("TABLE_NAME");
-                String type = "VIEW".equalsIgnoreCase(rs.getString("TABLE_TYPE")) ? tr("Vista") : tr("Tabla");
-                Map<String, ColumnDef> columns = type.equals(tr("Tabla")) ? readColumns(endpoint, database, name, catalog) : Map.of();
-                objects.put(key(type, name), new DbObject(type, name, columns));
-            }
-        }
-        return new SchemaDef(objects);
-    }
-
-    private Map<String, ColumnDef> readColumns(JdbcSession endpoint, String database, String table, boolean catalog) throws SQLException {
-        Map<String, ColumnDef> columns = new LinkedHashMap<>();
-        try (ResultSet rs = endpoint.connection().getMetaData().getColumns(
-                catalog ? database : null, catalog ? null : database, table, "%")) {
-            while (rs.next()) {
-                String name = rs.getString("COLUMN_NAME");
-                ColumnDef definition = new ColumnDef(name, rs.getString("TYPE_NAME"), rs.getInt("COLUMN_SIZE"),
-                        rs.getInt("DECIMAL_DIGITS"), rs.getInt("NULLABLE") != DatabaseMetaData.columnNoNulls,
-                        rs.getString("COLUMN_DEF"), optional(rs, "IS_AUTOINCREMENT"));
-                columns.put(name.toLowerCase(Locale.ROOT), definition);
-            }
-        }
-        return columns;
     }
 
     private void compareColumns(DbObject sourceTable, DbObject targetTable, JdbcSession targetSession, String targetDatabase,
@@ -315,11 +327,11 @@ public final class SchemaCompareDialog extends JDialog {
 
     private void appendCreateObject(StringBuilder script, JdbcSession sourceSession, String sourceDatabase,
                                     JdbcSession targetSession, String targetDatabase, DbObject object) {
-        if (object.type().equals(tr("Tabla")) && sourceSession == targetSession
+        if (object.type().equals("TABLE") && sourceSession == targetSession
                 && (targetSession.profile().type() == DatabaseType.MYSQL || targetSession.profile().type() == DatabaseType.MARIADB)) {
             script.append("CREATE TABLE ").append(qualified(targetSession, targetDatabase, object.name()))
                     .append(" LIKE ").append(qualified(sourceSession, sourceDatabase, object.name())).append(";\n");
-        } else if (object.type().equals(tr("Tabla"))) {
+        } else if (object.type().equals("TABLE")) {
             script.append("CREATE TABLE ").append(qualified(targetSession, targetDatabase, object.name())).append(" (\n");
             int index = 0;
             for (ColumnDef column : object.columns().values()) {
@@ -335,7 +347,7 @@ public final class SchemaCompareDialog extends JDialog {
 
     private void generateScript() {
         if (lastComparison == null || lastComparison.script().isBlank()) return;
-        scriptConsumer.accept(targetSession(), lastComparison.script());
+        scriptConsumer.accept(comparisonTarget, lastComparison.script());
         dispose();
     }
 
@@ -343,8 +355,11 @@ public final class SchemaCompareDialog extends JDialog {
 
     private String quote(JdbcSession endpoint, String identifier) {
         try {
-            String value = endpoint.connection().getMetaData().getIdentifierQuoteString();
-            value = value == null ? "" : value.trim();
+            String value = quoteCache.get(endpoint);
+            if (value == null) {
+                value = endpoint.connection().getMetaData().getIdentifierQuoteString();
+                value = value == null ? "" : value.trim(); quoteCache.put(endpoint, value);
+            }
             return value.isBlank() ? identifier : value + identifier.replace(value, value + value) + value;
         } catch (SQLException ignored) {
             return identifier;
@@ -365,8 +380,6 @@ public final class SchemaCompareDialog extends JDialog {
         selectSession(combo, active);
     }
 
-    private record SchemaDef(Map<String, DbObject> objects) {}
-    private record DbObject(String type, String name, Map<String, ColumnDef> columns) {}
     private record Difference(String type, String name, String status, String detail) {}
     private record Comparison(List<Difference> differences, String script) {}
     private record SessionOption(JdbcSession session) {
@@ -376,21 +389,7 @@ public final class SchemaCompareDialog extends JDialog {
         }
     }
 
-    private record ColumnDef(String name, String type, int size, int decimals, boolean nullable,
-                             String defaultValue, String autoIncrement) {
-        String sqlDefinition() {
-            String upper = type == null ? "" : type.toUpperCase(Locale.ROOT);
-            boolean sized = upper.contains("CHAR") || upper.contains("BINARY") || upper.equals("DECIMAL") || upper.equals("NUMERIC");
-            StringBuilder value = new StringBuilder(type == null ? "" : type);
-            if (sized && size > 0) value.append('(').append(size).append(decimals > 0 ? "," + decimals : "").append(')');
-            value.append(nullable ? " NULL" : " NOT NULL");
-            if (defaultValue != null) value.append(" DEFAULT ").append(defaultValue);
-            if ("YES".equalsIgnoreCase(autoIncrement)) value.append(" AUTO_INCREMENT");
-            return value.toString();
-        }
-
-        String normalized() { return sqlDefinition().replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT); }
-    }
+    private static String displayType(String type) { return type.equals("TABLE") ? tr("Tabla") : type.equals("VIEW") ? tr("Vista") : type; }
 
     private static final class StatusRenderer extends DefaultTableCellRenderer {
         @Override public Component getTableCellRendererComponent(JTable table, Object value, boolean selected,

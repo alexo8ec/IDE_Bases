@@ -1,28 +1,6 @@
-{
-  "version": "0.11.1",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.1-win64.zip",
-  "sha256": "d5635f823652f020ce321783adb90b1612eabda3c7e535fbb5bc57bd9c84c65a",
-  "notes": "NexoDB Studio 0.11.1: el idioma se aplica inmediatamente al guardar las preferencias. Actualiza menus, botones, pestanas y ayudas sin cerrar conexiones ni modificar consultas, datos o nombres de objetos.",
-  "platforms": {
-    "windows-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.1-win64.zip",
-      "sha256": "d5635f823652f020ce321783adb90b1612eabda3c7e535fbb5bc57bd9c84c65a"
-    },
-    "linux-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.1-universal.zip",
-      "sha256": "10f7c99b80c1660b6fdee828858467d790b5dae1aaca551a9f608e6f184f55d0"
-    },
-    "linux-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.1-universal.zip",
-      "sha256": "10f7c99b80c1660b6fdee828858467d790b5dae1aaca551a9f608e6f184f55d0"
-    },
-    "macos-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.1-universal.zip",
-      "sha256": "10f7c99b80c1660b6fdee828858467d790b5dae1aaca551a9f608e6f184f55d0"
-    },
-    "macos-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.1-universal.zip",
-      "sha256": "10f7c99b80c1660b6fdee828858467d790b5dae1aaca551a9f608e6f184f55d0"
-    }
-  }
+﻿{
+    "version":  "0.11.2",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.2-win64.zip",
+    "sha256":  "35fa7bb9650743d3a27642167ab15a633914a6e8dc8b4f7abe0782c9db96db3b",
+    "notes":  "Actualizador HTTPS con TLS 1.2 y conexion nativa segura, idiomas espanol/ingles, temas claro/oscuro/sistema y distribucion Java para Windows, Linux y macOS."
 }

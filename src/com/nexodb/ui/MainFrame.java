@@ -69,6 +69,8 @@ public final class MainFrame extends JFrame {
     private int busyDepth;
     private int searchGeneration;
     private boolean checkingUpdates;
+    private final ComparisonChoices schemaChoices = new ComparisonChoices();
+    private final ComparisonChoices dataChoices = new ComparisonChoices();
 
     public MainFrame() {
         super("NexoDB Studio");
@@ -1454,7 +1456,7 @@ public final class MainFrame extends JFrame {
             JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Comparar esquemas"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        new SchemaCompareDialog(this, session, new ArrayList<>(sessions.values()), this::insertTemplate).showDialog();
+        new SchemaCompareDialog(this, session, new ArrayList<>(sessions.values()), this::insertTemplate, schemaChoices).showDialog();
     }
 
     private void compareData() {
@@ -1462,7 +1464,7 @@ public final class MainFrame extends JFrame {
             JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Comparar datos"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        new DataCompareDialog(this, session, new ArrayList<>(sessions.values()), this::insertTemplate).showDialog();
+        new DataCompareDialog(this, session, new ArrayList<>(sessions.values()), this::insertTemplate, dataChoices).showDialog();
     }
 
     private void manageUsers() {

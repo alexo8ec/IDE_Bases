@@ -49,7 +49,7 @@ New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
     --main-class 'com.nexodb.App' `
     --icon $iconPath `
     --dest $packageRoot `
-    --add-modules 'java.desktop,java.sql,java.prefs,java.naming,java.net.http,java.security.jgss,jdk.security.auth' `
+    --add-modules 'java.desktop,java.sql,java.prefs,java.naming,java.net.http,java.security.jgss,jdk.security.auth,jdk.crypto.ec' `
     --java-options '-Dfile.encoding=UTF-8' `
     --java-options '-Djava.net.useSystemProxies=true' `
     --java-options '-Dsun.java2d.d3d=false' `

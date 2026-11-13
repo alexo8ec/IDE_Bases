@@ -152,6 +152,7 @@ public final class JdbcSession implements AutoCloseable {
     static Properties connectionProperties(ConnectionProfile profile, char[] password) {
         Properties props = new Properties();
         props.setProperty("user", profile.username());
+        if (profile.type() == DatabaseType.MYSQL) props.setProperty("useInformationSchema", "true");
         if (profile.authenticationMode() == AuthenticationMode.DATABASE) {
             props.setProperty("password", password == null ? "" : new String(password));
         }

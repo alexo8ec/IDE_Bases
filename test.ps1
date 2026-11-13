@@ -38,4 +38,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de descarga HTTPS fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de cambio de idioma en vivo fallaron.' }
 & java -cp $testClasspath com.nexodb.ui.LanguageWindowTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de idioma en la ventana real fallo.' }
+& java -cp $testClasspath com.nexodb.db.SchemaMetadataReaderTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de lectura de esquemas fallaron.' }
+& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ComparisonSelectionTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de seleccion persistente fallaron.' }
+& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ConnectionFeedbackTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de resultado de conexion fallaron.' }
+& java -cp $testClasspath com.nexodb.ui.ComparisonWindowTest
+if ($LASTEXITCODE -ne 0) { throw 'La prueba de casillas en la ventana de comparacion fallo.' }
 

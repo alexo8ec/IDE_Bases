@@ -16,7 +16,7 @@ import java.util.function.IntConsumer;
 import java.util.prefs.Preferences;
 
 public final class UpdateService {
-    public static final String CURRENT_VERSION = "0.11.1";
+    public static final String CURRENT_VERSION = "0.11.2";
     private static volatile String sessionManifestUrl = "";
 
     public record UpdateInfo(String version, String downloadUrl, String sha256, String notes) {}
