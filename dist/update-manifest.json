@@ -1,6 +1,6 @@
 ﻿{
     "version":  "0.11.2",
     "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.2-win64.zip",
-    "sha256":  "35fa7bb9650743d3a27642167ab15a633914a6e8dc8b4f7abe0782c9db96db3b",
+    "sha256":  "1f27ec02c8559ed5bccf28b7e024ea30acf3cf8adfac43716b5e2f6790773ac5",
     "notes":  "Actualizador HTTPS con TLS 1.2 y conexion nativa segura, idiomas espanol/ingles, temas claro/oscuro/sistema y distribucion Java para Windows, Linux y macOS."
 }

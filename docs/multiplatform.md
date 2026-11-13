@@ -29,7 +29,7 @@ El generador descarga los runtimes nativos oficiales de Eclipse Temurin para cad
 
 ## Paquete universal disponible
 
-`python tools/package-universal.py` genera `dist/NexoDB-Studio-0.11.0-universal.zip` a partir de la compilación existente. Incluye el JAR de producción y sus dependencias, los controladores MySQL/MariaDB, los lanzadores y un instalador para el usuario actual. **Requiere Java 17 o superior instalado en el equipo de destino.**
+`python tools/package-universal.py` genera `dist/NexoDB-Studio-0.11.2-universal.zip` a partir de la compilación existente. Incluye el JAR de producción y sus dependencias, los controladores MySQL/MariaDB, los lanzadores y un instalador para el usuario actual. **Requiere Java 17 o superior instalado en el equipo de destino.**
 
 En Linux o macOS, extrae el ZIP y ejecuta dentro de la carpeta extraída:
 
@@ -82,10 +82,12 @@ El manifiesto admite paquetes por sistema y arquitectura. Genera el manifiesto *
 
 ```sh
 python3 tools/create-update-manifest.py \
-  --base-url https://servidor.example/nexodb/0.11.0 \
-  --windows-x64 dist/NexoDB-Studio-0.11.0-win64.zip \
-  --linux-x64 dist/native/nexodb-studio_0.11.0_amd64.deb \
-  --macos-arm64 "dist/native/NexoDB Studio-0.11.0.dmg"
+  --base-url https://servidor.example/nexodb/0.11.2 \
+  --windows-x64 dist/NexoDB-Studio-0.11.2-win64.zip \
+  --linux-x64 dist/NexoDB-Studio-0.11.2-linux-x64.deb \
+  --linux-arm64 dist/NexoDB-Studio-0.11.2-linux-arm64.deb \
+  --macos-x64 dist/NexoDB-Studio-0.11.2-macos-x64.zip \
+  --macos-arm64 dist/NexoDB-Studio-0.11.2-macos-arm64.zip
 ```
 
 Ajusta los nombres a los archivos reales; los nombres DEB/RPM dependen de `jpackage`. El generador admite también `--linux-arm64`, `--macos-x64` y `--windows-arm64`, sin suponer que existen. Conserva los campos Windows de primer nivel para clientes antiguos. Publica el manifiesto junto con los paquetes en un servidor HTTPS accesible sin iniciar sesión. Las instalaciones nuevas seleccionan exclusivamente su plataforma.
@@ -94,4 +96,4 @@ Windows mantiene el actualizador de reemplazo para el portable instalado. En Lin
 
 ## Verificación de esta entrega
 
-La compilación Java, las pruebas y las capturas de los temas se verifican en Windows. Las pruebas incluyen HTTPS local con certificados, errores HTTP, límites de tamaño, integridad de descargas, persistencia de preferencias, traducción del editor y cambios de tema sin modificar el SQL. Los scripts Unix se validan sintácticamente. La instalación nativa y la detección del tema en equipos Linux/macOS requieren una verificación en esos equipos antes de anunciar paquetes nativos probados.
+La compilación Java, las pruebas y las capturas de los temas se verifican en Windows. Las pruebas incluyen HTTPS local con certificados, errores HTTP, límites de tamaño, integridad de descargas, persistencia de preferencias, traducción del editor y cambios de tema sin modificar el SQL. Los scripts Unix se validan sintácticamente. Las pruebas de comparación verifican la selección por casillas en la ventana real, las respuestas antiguas descartadas, las bases recordadas por conexión, la lectura de 251 tablas con dos llamadas a metadatos y la lectura paralela de conexiones independientes. Las comprobaciones de los DEB y ZIP macOS validan SHA-256, arquitectura del binario nativo, permisos ejecutables, enlaces, versión de la aplicación y licencias. No se ejecutaron los paquetes en un equipo Linux o macOS; la instalación y la detección del tema deben comprobarse allí. El runtime reducido Windows incluye `jdk.crypto.ec` para habilitar los algoritmos EC usados por TLS; `tools/RuntimeTlsCheck.java` permite verificar ese proveedor y HTTPS directamente con el runtime distribuido.

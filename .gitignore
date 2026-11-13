@@ -12,4 +12,5 @@
 /.tools/
 /.github/
 *.log
+__pycache__/
 
