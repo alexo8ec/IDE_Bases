@@ -1,14 +1,14 @@
 # Distribución para Windows, Linux y macOS
 
-NexoDB Studio 0.11.3 utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas.
+NexoDB Studio 0.11.4 utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas.
 
 ## Archivos disponibles
 
-Todos incluyen Java 17 para su sistema y arquitectura. Se generan directamente en `dist`, sin copias en otra carpeta de publicación. Windows está disponible en 0.11.3; los últimos paquetes Linux/macOS construidos son 0.11.2. Los paquetes existentes están sin firma: la distribución macOS 0.11.3 firmada queda pendiente de Developer ID y notarización. Consulta la [guía de firma](signing.md).
+Todos incluyen Java 17 para su sistema y arquitectura. Se generan directamente en `dist`, sin copias en otra carpeta de publicación. Windows se ha compilado en 0.11.4; los últimos paquetes Linux/macOS construidos son 0.11.2. Los paquetes existentes están sin firma: la nueva distribución macOS firmada queda pendiente de Developer ID y notarización. Consulta la [guía de firma](signing.md).
 
 | Sistema | Archivo | Instalación |
 | --- | --- | --- |
-| Windows x64 | [NexoDB Studio-0.11.3.exe](../dist/installer/NexoDB%20Studio-0.11.3.exe) | Ejecutar el instalador |
+| Windows x64 | [NexoDB Studio-0.11.4.exe](../dist/installer/NexoDB%20Studio-0.11.4.exe) | Ejecutar el instalador |
 | Debian/Ubuntu x64 | [NexoDB-Studio-0.11.2-linux-x64.deb](../dist/NexoDB-Studio-0.11.2-linux-x64.deb) | `sudo apt install ./NexoDB-Studio-0.11.2-linux-x64.deb` |
 | Debian/Ubuntu ARM64 | [NexoDB-Studio-0.11.2-linux-arm64.deb](../dist/NexoDB-Studio-0.11.2-linux-arm64.deb) | `sudo apt install ./NexoDB-Studio-0.11.2-linux-arm64.deb` |
 | macOS Intel | [NexoDB-Studio-0.11.2-macos-x64.zip](../dist/NexoDB-Studio-0.11.2-macos-x64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
