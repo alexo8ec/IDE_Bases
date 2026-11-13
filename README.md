@@ -1,5 +1,9 @@
 # NexoDB Studio
 
+La versión **0.11.4** activa la edición de resultados con doble clic o F2. Las casillas resaltan toda la fila, conservando su identidad al ordenar o filtrar. El clic derecho, la flecha de la celda o el botón ▾ abren un menú con inserción, duplicación, eliminación de filas marcadas, guardado/cancelación, NULL, cadena vacía, valor predeterminado, filtros, copia y exportación. Las operaciones permanecen pendientes hasta Guardar; el lote se aplica en una transacción y las eliminaciones se confirman antes de ejecutarse.
+
+El editor guarda automáticamente todo el texto SQL, incluidas las sentencias no ejecutadas, y recupera su contenido y posición del cursor en el siguiente inicio. Guarda un borrador local por usuario junto a las preferencias; utiliza UTF-8 y reemplazo atómico. También guarda antes de cerrar o instalar una actualización. Recuperar el texto no abre conexiones ni ejecuta consultas.
+
 Para publicar con identidad verificable, consulta la [guía de firma Windows y notarización macOS](docs/signing.md). Los paquetes generados sin certificados permanecen sin firma y pueden mostrar advertencias del sistema. La firma no garantiza eliminar inmediatamente las alertas de reputación de SmartScreen.
 
 La versión **0.11.3** convierte los resultados de consultas en una cuadrícula con barra de acciones: **Editar, Guardar, Descartar, NULL y Recargar**. Las celdas modificadas se resaltan y se guardan juntas al pulsar Guardar; respeta el modo Auto-commit y las transacciones manuales. La edición requiere un SELECT de una tabla física con todas las columnas de su clave primaria. Un cambio concurrente provoca la reversión del lote, conservando los cambios pendientes para corregirlos o descartarlos.

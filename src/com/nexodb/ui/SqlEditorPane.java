@@ -156,6 +156,11 @@ public final class SqlEditorPane extends JTextPane {
 
     private static boolean isWord(char c) { return Character.isLetterOrDigit(c) || c == '_' || c == '$'; }
 
+    public void restoreText(String text){
+        AbstractDocument document=(AbstractDocument)getDocument();DocumentFilter filter=document.getDocumentFilter();
+        try{document.setDocumentFilter(null);setText(text);}finally{document.setDocumentFilter(filter);}
+    }
+
     private final class KeywordFilter extends DocumentFilter {
         @Override public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr) throws BadLocationException {
             fb.insertString(offset, string, attr);

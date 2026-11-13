@@ -49,10 +49,23 @@ public final class QueryGridIntegrationTest {
             });await(()->!busy.get());
             equal("Edited",session.execute("SELECT name FROM people WHERE id=2",10).rows().get(0).get(0));
             SwingUtilities.invokeAndWait(()->{
+                var actions=field(panel,"grid",ResultGridActions.class);JPopupMenu menu=invoke(actions,"menu",new Class[]{boolean.class},false);menuItem(menu,"Insertar nueva fila").doClick();
+                JTable table=field(panel,"table",JTable.class);ResultTableModel model=field(panel,"model",ResultTableModel.class);
+                equal(true,table.isEditing());((JTextField)table.getEditorComponent()).setText("4");table.getCellEditor().stopCellEditing();model.setValueAt("Delta",3,1);
+                menuItem(invoke(actions,"menu",new Class[]{boolean.class},false),"Guardar cambios").doClick();
+            });await(()->!busy.get());equal(4,session.execute("SELECT * FROM people",10).rows().size());
+            SwingUtilities.invokeAndWait(()->{
+                JTable rows=find(panel,"query-row-selector",JTable.class);rows.setValueAt(true,3,0);var actions=field(panel,"grid",ResultGridActions.class);
+                menuItem(invoke(actions,"menu",new Class[]{boolean.class},false),"Eliminar filas seleccionadas").doClick();equal(true,field(panel,"model",ResultTableModel.class).isDeleted(3));
+            });equal(4,session.execute("SELECT * FROM people",10).rows().size());
+            SwingUtilities.invokeAndWait(()->{acceptConfirmation();menuItem(invoke(field(panel,"grid",ResultGridActions.class),"menu",new Class[]{boolean.class},false),"Guardar cambios").doClick();});
+            await(()->!busy.get());equal(3,session.execute("SELECT * FROM people",10).rows().size());
+            SwingUtilities.invokeAndWait(()->{
                 JTable table=field(panel,"table",JTable.class);ResultTableModel model=field(panel,"model",ResultTableModel.class);
                 JTextField filter=field(panel,"filter",JTextField.class);filter.setText("Carol");equal(1,table.getRowCount());
                 JTable rows=find(panel,"query-row-selector",JTable.class);rows.setValueAt(true,0,0);
                 for(int column=0;column<table.getColumnCount();column++)equal(true,table.isCellSelected(0,column));
+                snapshot(panel,"query-grid-checked-row.png");
                 ResultGridActions actions=field(panel,"grid",ResultGridActions.class);equal(List.of(2),actions.selectedRows());
                 filter.setText("");table.getRowSorter().toggleSortOrder(0);table.getRowSorter().toggleSortOrder(0);
                 equal(List.of(2),actions.selectedRows());equal("Carol\ttwo",ResultGridActions.text(model,actions.selectedRows(),List.of(1,2)));
@@ -104,6 +117,8 @@ public final class QueryGridIntegrationTest {
         }finally{SwingUtilities.invokeAndWait(()->{field(p,"completionTimer",javax.swing.Timer.class).stop();window.get().dispose();});}
     }
     private static AbstractButton button(Container root,String name){return find(root,name,AbstractButton.class);}
+    private static void acceptConfirmation(){javax.swing.Timer timer=new javax.swing.Timer(30,null);timer.addActionListener(event->{for(Window window:Window.getWindows())if(window.isShowing()&&window instanceof JDialog){JOptionPane pane=findPane(window);if(pane!=null){pane.setValue(JOptionPane.YES_OPTION);timer.stop();return;}}});timer.start();}
+    private static JOptionPane findPane(Component root){if(root instanceof JOptionPane pane)return pane;if(root instanceof Container c)for(Component child:c.getComponents()){JOptionPane pane=findPane(child);if(pane!=null)return pane;}return null;}
     private static JMenuItem menuItem(JPopupMenu root,String text){for(Component component:root.getComponents())if(component instanceof JMenuItem item&&text.equals(item.getText()))return item;throw new AssertionError("Missing menu action: "+text);}
     private static Component menuImage(JPopupMenu menu){menu.setSize(menu.getPreferredSize());menu.doLayout();return menu;}
     private static <T extends Component>T find(Component root,String name,Class<T> type){if(name.equals(root.getName())&&type.isInstance(root))return type.cast(root);if(root instanceof Container c)for(Component child:c.getComponents()){T found=find(child,name,type);if(found!=null)return found;}return null;}

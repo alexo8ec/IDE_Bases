@@ -101,7 +101,7 @@ public final class QueryPanel extends JPanel {
         split.setDividerLocation(350);
         add(split, BorderLayout.CENTER);
         if(drafts!=null){
-            try{drafts.load().ifPresent(draft->{restoringDraft=true;try{editor.setText(draft.text());editor.setCaretPosition(draft.caret());}finally{restoringDraft=false;}});}catch(Exception error){statusConsumer.accept(tr("No se pudo recuperar el borrador SQL."));}
+            try{drafts.load().ifPresent(draft->{restoringDraft=true;try{editor.restoreText(draft.text());editor.setCaretPosition(draft.caret());}finally{restoringDraft=false;}});}catch(Exception error){statusConsumer.accept(tr("No se pudo recuperar el borrador SQL."));}
             editor.getDocument().addDocumentListener(new DocumentListener(){private void changed(){scheduleDraft();}public void insertUpdate(DocumentEvent event){changed();}public void removeUpdate(DocumentEvent event){changed();}public void changedUpdate(DocumentEvent event){}});
             editor.addCaretListener(event->scheduleDraft());
         }

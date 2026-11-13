@@ -98,7 +98,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = 'Actualizador HTTPS con TLS 1.2 y conexion nativa segura, idiomas espanol/ingles, temas claro/oscuro/sistema y distribucion Java para Windows, Linux y macOS.'
+    notes = 'Edicion con doble clic, filas marcadas resaltadas y menu de acciones para insertar, duplicar, eliminar, copiar, filtrar y exportar. Las consultas y el cursor se recuperan al abrir. La firma digital de distribucion requiere los certificados del editor.'
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\NexoDB Studio.exe"

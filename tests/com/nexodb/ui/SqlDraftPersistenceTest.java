@@ -12,7 +12,7 @@ public final class SqlDraftPersistenceTest {
     public static void main(String[] args)throws Exception {
         Path folder=Files.createTempDirectory("nexodb-draft-test-");Path file=folder.resolve("draft.properties");
         SqlDraftStore store=new SqlDraftStore(file);
-        equal(Optional.empty(),store.load());String sql="-- mañana: áéíóú\nSELECT * FROM ct_ventas;\n\nUPDATE ejemplo SET texto='línea\\n=valor';\n";
+        equal(Optional.empty(),store.load());String sql="-- mañana: áéíóú\nSELECT * FROM ct_ventas;\n\nUPDATE ejemplo SET texto='línea\\n=valor';\nselect ";
         store.save(new SqlDraftStore.Draft(sql,19));equal(new SqlDraftStore.Draft(sql,19),new SqlDraftStore(file).load().orElseThrow());
         AtomicReference<QueryPanel> restored=new AtomicReference<>();AtomicInteger operations=new AtomicInteger();
         SwingUtilities.invokeAndWait(()->{QueryPanel panel=new QueryPanel(text->{},busy->operations.incrementAndGet(),store);restored.set(panel);equal(sql,editor(panel).getText());equal(19,editor(panel).getCaretPosition());editor(panel).append("\nSELECT 'sin ejecutar';");});
