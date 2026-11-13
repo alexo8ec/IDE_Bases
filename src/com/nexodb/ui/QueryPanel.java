@@ -1,5 +1,7 @@
 package com.nexodb.ui;
 
+import static com.nexodb.util.I18n.tr;
+
 import com.nexodb.db.JdbcSession;
 import com.nexodb.db.QueryResult;
 import com.nexodb.util.DataExporter;
@@ -30,7 +32,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
 
 public final class QueryPanel extends JPanel {
-    private static final String SELECT_DATABASE = "Seleccione una base…";
+    private static final String SELECT_DATABASE = tr("Seleccione una base…");
     private static final String RESULT_PROPERTY = "nexodb.queryResult";
     private static final Pattern TABLE_NAME_PATTERN = Pattern.compile(
             "(?is)\\b(?:FROM|UPDATE|INTO|TABLE)\\s+((?:[`\"\\w$-]+\\.)?[`\"\\w$-]+)");
@@ -40,12 +42,12 @@ public final class QueryPanel extends JPanel {
     private final JTabbedPane outputTabs = new JTabbedPane();
     private final JSpinner maxRows = new JSpinner(new SpinnerNumberModel(1000, 1, 100000, 100));
     private final JCheckBox autoCommit = new JCheckBox("Auto-commit", true);
-    private final JButton execute = new JButton("Ejecutar");
-    private final JButton cancel = new JButton("Cancelar");
+    private final JButton execute = new JButton(tr("Ejecutar"));
+    private final JButton cancel = new JButton(tr("Cancelar"));
     private final JButton commit = new JButton("Commit");
     private final JButton rollback = new JButton("Rollback");
-    private final JButton export = new JButton("Exportar…");
-    private final JLabel state = new JLabel("Sin conexión");
+    private final JButton export = new JButton(tr("Exportar…"));
+    private final JLabel state = new JLabel(tr("Sin conexión"));
     private final JComboBox<String> database = new JComboBox<>();
     private final JProgressBar progress = new JProgressBar();
     private final JPopupMenu completionPopup = new JPopupMenu();
@@ -82,10 +84,10 @@ public final class QueryPanel extends JPanel {
     public void setSession(JdbcSession session) {
         this.session = session;
         if (session == null) {
-            state.setText("Sin conexión");
+            state.setText(tr("Sin conexión"));
             database.removeAllItems();
         } else {
-            state.setText(session.profile().name() + (session.profile().readOnly() ? " · solo lectura" : ""));
+            state.setText(session.profile().name() + (session.profile().readOnly() ? tr(" · solo lectura") : ""));
             try { autoCommit.setSelected(session.getAutoCommit()); } catch (SQLException ignored) {}
             loadDatabases();
         }
@@ -131,10 +133,9 @@ public final class QueryPanel extends JPanel {
     private void configureEditor() {
         editor.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 14));
         editor.setMargin(new Insets(12, 14, 12, 14));
-        editor.setBackground(new Color(0xFAFCFF));
         editor.setTabSize(4);
         editor.setLineWrap(false);
-        editor.setText("-- NexoDB Studio\n-- Selecciona una consulta o coloca el cursor dentro de ella y presiona Ctrl+Enter.\n\n");
+        editor.setText(tr("-- NexoDB Studio\n-- Selecciona una consulta o coloca el cursor dentro de ella y presiona Ctrl+Enter.\n\n"));
         InputMap input = editor.getInputMap(JComponent.WHEN_FOCUSED);
         ActionMap actions = editor.getActionMap();
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK), "execute-sql");
@@ -178,11 +179,11 @@ public final class QueryPanel extends JPanel {
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
         toolbar.setBorder(new EmptyBorder(7, 2, 7, 2));
-        styleAction(execute, IconFactory.Kind.PLAY, "Ejecutar selección o sentencia actual (F5 o Ctrl+Enter)");
-        styleAction(cancel, IconFactory.Kind.STOP, "Cancelar la consulta en ejecución (Esc)");
-        styleAction(commit, IconFactory.Kind.COMMIT, "Confirmar la transacción");
-        styleAction(rollback, IconFactory.Kind.ROLLBACK, "Revertir la transacción");
-        styleAction(export, IconFactory.Kind.EXPORT, "Exportar a CSV, TSV, JSON, XML, HTML o SQL (Ctrl+S)");
+        styleAction(execute, IconFactory.Kind.PLAY, tr("Ejecutar selección o sentencia actual (F5 o Ctrl+Enter)"));
+        styleAction(cancel, IconFactory.Kind.STOP, tr("Cancelar la consulta en ejecución (Esc)"));
+        styleAction(commit, IconFactory.Kind.COMMIT, tr("Confirmar la transacción"));
+        styleAction(rollback, IconFactory.Kind.ROLLBACK, tr("Revertir la transacción"));
+        styleAction(export, IconFactory.Kind.EXPORT, tr("Exportar a CSV, TSV, JSON, XML, HTML o SQL (Ctrl+S)"));
         execute.addActionListener(e -> executeSql());
         cancel.addActionListener(e -> cancelSql());
         commit.addActionListener(e -> transaction(true));
@@ -192,14 +193,14 @@ public final class QueryPanel extends JPanel {
         toolbar.add(execute);
         toolbar.add(cancel);
         toolbar.addSeparator();
-        toolbar.add(new JLabel("Base: "));
+        toolbar.add(new JLabel(tr("Base: ")));
         database.setPrototypeDisplayValue("base_de_datos_XX");
         database.setMaximumSize(new Dimension(175, 30));
         database.setEnabled(false);
         database.addActionListener(e -> changeDatabase());
         toolbar.add(database);
         toolbar.addSeparator();
-        toolbar.add(new JLabel("Máx. filas: "));
+        toolbar.add(new JLabel(tr("Máx. filas: ")));
         toolbar.add(maxRows);
         toolbar.addSeparator();
         toolbar.add(autoCommit);
@@ -233,7 +234,7 @@ public final class QueryPanel extends JPanel {
         messages.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         messages.setLineWrap(true);
         messages.setWrapStyleWord(true);
-        outputTabs.addTab("Mensajes", IconFactory.of(IconFactory.Kind.INFO, 16), messagesScroll);
+        outputTabs.addTab(tr("Mensajes"), IconFactory.of(IconFactory.Kind.INFO, 16), messagesScroll);
         outputTabs.addChangeListener(e -> {
             Component selected = outputTabs.getSelectedComponent();
             currentResult = selected instanceof JComponent component
@@ -246,7 +247,7 @@ public final class QueryPanel extends JPanel {
 
     private void executeSql() {
         if (session == null || !session.isOpen()) {
-            JOptionPane.showMessageDialog(this, "Conecta primero una base de datos.", "Sin conexión", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Sin conexión"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         String selected = editor.getSelectedText();
@@ -268,9 +269,9 @@ public final class QueryPanel extends JPanel {
         }
         int limit = ((Number) maxRows.getValue()).intValue();
         clearResultTabs();
-        appendMessage("Ejecutando " + statements.size() + (statements.size() == 1 ? " sentencia" : " sentencias"), preview(sql));
+        appendMessage(tr("Ejecutando ") + statements.size() + (statements.size() == 1 ? tr(" sentencia") : tr(" sentencias")), preview(sql));
         if (!incompleteTail.isBlank()) {
-            appendMessage("Sentencia omitida", "El texto final no termina en punto y coma:\n" + preview(incompleteTail));
+            appendMessage(tr("Sentencia omitida"), tr("El texto final no termina en punto y coma:\n") + preview(incompleteTail));
         }
         worker = new SwingWorker<>() {
             @Override protected List<StatementOutcome> doInBackground() throws Exception {
@@ -290,7 +291,7 @@ public final class QueryPanel extends JPanel {
             @Override protected void done() {
                 setRunning(false);
                 if (isCancelled()) {
-                    statusConsumer.accept("Consulta cancelada");
+                    statusConsumer.accept(tr("Consulta cancelada"));
                     return;
                 }
                 try {
@@ -301,31 +302,31 @@ public final class QueryPanel extends JPanel {
                     for (StatementOutcome outcome : outcomes) {
                         if (outcome.error() != null) {
                             errors++;
-                            appendMessage("Error en sentencia " + outcome.index(), preview(outcome.sql()) + "\n" + outcome.error().getMessage());
+                            appendMessage(tr("Error en sentencia ") + outcome.index(), preview(outcome.sql()) + "\n" + outcome.error().getMessage());
                             addMessageTab("Error " + outcome.index(), outcome.error().getMessage());
                         } else if (outcome.result().hasRows()) {
                             QueryResult result = outcome.result();
                             totalRows += result.rows().size();
                             addResultTab(resultTabName(outcome.sql(), outcome.index()), result);
                             resultTabs++;
-                            String suffix = result.truncated() ? " (límite alcanzado)" : "";
-                            appendMessage("Resultado " + outcome.index(), result.rows().size() + " filas" + suffix
-                                    + " en " + result.elapsedMillis() + " ms");
+                            String suffix = result.truncated() ? tr(" (límite alcanzado)") : "";
+                            appendMessage(tr("Resultado ") + outcome.index(), result.rows().size() + tr(" filas") + suffix
+                                    + tr(" en ") + result.elapsedMillis() + " ms");
                         } else {
                             QueryResult result = outcome.result();
-                            appendMessage("Sentencia " + outcome.index(), result.updateCount() + " filas afectadas en "
+                            appendMessage(tr("Sentencia ") + outcome.index(), result.updateCount() + tr(" filas afectadas en ")
                                     + result.elapsedMillis() + " ms");
-                            addUpdateTab("Sentencia " + outcome.index(), result.updateCount(), result.elapsedMillis());
+                            addUpdateTab(tr("Sentencia ") + outcome.index(), result.updateCount(), result.elapsedMillis());
                         }
                     }
                     if (outputTabs.getTabCount() > 1) outputTabs.setSelectedIndex(0);
                     else outputTabs.setSelectedComponent(messagesScroll);
-                    statusConsumer.accept(outcomes.size() + " sentencias · " + totalRows + " filas · " + errors + " errores");
+                    statusConsumer.accept(outcomes.size() + tr(" sentencias · ") + totalRows + tr(" filas · ") + errors + tr(" errores"));
                 } catch (Exception ex) {
                     Throwable cause = rootCause(ex);
                     appendMessage("Error", cause.getMessage());
                     outputTabs.setSelectedIndex(1);
-                    statusConsumer.accept("Error al ejecutar la consulta");
+                    statusConsumer.accept(tr("Error al ejecutar la consulta"));
                 }
             }
         };
@@ -338,9 +339,9 @@ public final class QueryPanel extends JPanel {
         try {
             session.cancel();
             worker.cancel(true);
-            appendMessage("Cancelada", "La consulta fue cancelada.");
+            appendMessage(tr("Cancelada"), tr("La consulta fue cancelada."));
         } catch (SQLException e) {
-            appendMessage("Error al cancelar", e.getMessage());
+            appendMessage(tr("Error al cancelar"), e.getMessage());
         }
     }
 
@@ -348,7 +349,7 @@ public final class QueryPanel extends JPanel {
         if (session == null) return;
         try {
             if (doCommit) session.commit(); else session.rollback();
-            appendMessage(doCommit ? "Commit" : "Rollback", "Transacción completada.");
+            appendMessage(doCommit ? "Commit" : "Rollback", tr("Transacción completada."));
         } catch (SQLException e) {
             appendMessage("Error", e.getMessage());
         }
@@ -374,7 +375,7 @@ public final class QueryPanel extends JPanel {
         export.setEnabled(false);
         progress.setVisible(true);
         busyConsumer.accept(true);
-        statusConsumer.accept("Exportando " + tableName + "…");
+        statusConsumer.accept(tr("Exportando ") + tableName + "…");
         new SwingWorker<Void, Void>() {
             @Override protected Void doInBackground() throws Exception {
                 DataExporter.write(result, request.path(), request.format(), tableName);
@@ -386,10 +387,10 @@ public final class QueryPanel extends JPanel {
                 updateActions();
                 try {
                     get();
-                    statusConsumer.accept(request.format() + " exportado: " + request.path().getFileName());
+                    statusConsumer.accept(request.format() + tr(" exportado: ") + request.path().getFileName());
                 } catch (Exception error) {
                     Throwable cause = error.getCause() == null ? error : error.getCause();
-                    JOptionPane.showMessageDialog(QueryPanel.this, cause.getMessage(), "No se pudo exportar", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(QueryPanel.this, cause.getMessage(), tr("No se pudo exportar"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();
@@ -412,12 +413,12 @@ public final class QueryPanel extends JPanel {
         scroll.putClientProperty(RESULT_PROPERTY, result);
         int messagesIndex = outputTabs.indexOfComponent(messagesScroll);
         outputTabs.insertTab(uniqueTabName(requestedName), IconFactory.of(IconFactory.Kind.TABLE, 16),
-                scroll, result.rows().size() + " filas", Math.max(0, messagesIndex));
+                scroll, result.rows().size() + tr(" filas"), Math.max(0, messagesIndex));
     }
 
     private void addUpdateTab(String requestedName, int count, long elapsed) {
         JLabel label = new JLabel("<html><div style='text-align:center'><b>" + count
-                + " filas afectadas</b><br>Completado en " + elapsed + " ms</div></html>", JLabel.CENTER);
+                + tr(" filas afectadas</b><br>Completado en ") + elapsed + " ms</div></html>", JLabel.CENTER);
         label.setBorder(new EmptyBorder(30, 30, 30, 30));
         JScrollPane panel = new JScrollPane(label);
         int messagesIndex = outputTabs.indexOfComponent(messagesScroll);
@@ -426,7 +427,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void addMessageTab(String requestedName, String message) {
-        JTextArea text = new JTextArea(message == null ? "Error desconocido" : message);
+        JTextArea text = new JTextArea(message == null ? tr("Error desconocido") : message);
         text.setEditable(false);
         text.setLineWrap(true);
         text.setWrapStyleWord(true);
@@ -439,7 +440,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private String uniqueTabName(String requested) {
-        String base = requested == null || requested.isBlank() ? "Resultado" : requested;
+        String base = requested == null || requested.isBlank() ? tr("Resultado") : requested;
         String candidate = base;
         int suffix = 2;
         while (tabExists(candidate)) candidate = base + " (" + suffix++ + ")";
@@ -453,12 +454,12 @@ public final class QueryPanel extends JPanel {
 
     private static String resultTabName(String sql, int index) {
         Matcher matcher = TABLE_NAME_PATTERN.matcher(sql);
-        if (!matcher.find()) return "Resultado " + index;
+        if (!matcher.find()) return tr("Resultado ") + index;
         String name = matcher.group(1);
         int dot = name.lastIndexOf('.');
         if (dot >= 0) name = name.substring(dot + 1);
         name = name.replace("`", "").replace("\"", "");
-        return name.isBlank() ? "Resultado " + index : name;
+        return name.isBlank() ? tr("Resultado ") + index : name;
     }
 
     private void resizeColumns(JTable table) {
@@ -477,7 +478,7 @@ public final class QueryPanel extends JPanel {
     private void setRunning(boolean running) {
         execute.setEnabled(!running && session != null);
         cancel.setEnabled(running);
-        state.setText(running ? "Ejecutando…" : session == null ? "Sin conexión" : session.profile().name());
+        state.setText(running ? tr("Ejecutando…") : session == null ? tr("Sin conexión") : session.profile().name());
         progress.setVisible(running);
         busyConsumer.accept(running);
         updateActions();
@@ -549,22 +550,22 @@ public final class QueryPanel extends JPanel {
         if (SELECT_DATABASE.equals(selected)) {
             try { session.connection().setCatalog(null); } catch (SQLException ignored) {}
             state.setText(session.profile().name());
-            statusConsumer.accept("Selecciona una base de datos");
+            statusConsumer.accept(tr("Selecciona una base de datos"));
             databaseChangeConsumer.accept("");
             return;
         }
         try {
             if (session.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL
                     && !selected.equals(session.connection().getCatalog())) {
-                throw new SQLException("Para abrir otra base PostgreSQL, conecta de nuevo dejando Base vacía y selecciónala en la lista.");
+                throw new SQLException(tr("Para abrir otra base PostgreSQL, conecta de nuevo dejando Base vacía y selecciónala en la lista."));
             }
             session.connection().setCatalog(selected);
             state.setText(session.profile().name() + " · " + selected);
-            statusConsumer.accept("Base activa: " + selected);
+            statusConsumer.accept(tr("Base activa: ") + selected);
             loadCompletionObjects(selected);
             databaseChangeConsumer.accept(selected);
         } catch (SQLException error) {
-            appendMessage("No se pudo seleccionar la base", error.getMessage());
+            appendMessage(tr("No se pudo seleccionar la base"), error.getMessage());
         }
     }
 
@@ -610,7 +611,7 @@ public final class QueryPanel extends JPanel {
         completionPopup.setFocusable(false);
         completionPopup.setRequestFocusEnabled(false);
         completionPopup.setLightWeightPopupEnabled(true);
-        completionPopup.setBorder(BorderFactory.createLineBorder(new Color(0x94A3B8)));
+        completionPopup.setBorder(UIManager.getBorder("PopupMenu.border"));
         completionPopup.add(completionScroll);
     }
 

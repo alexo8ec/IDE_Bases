@@ -1,5 +1,7 @@
 package com.nexodb.ui;
 
+import static com.nexodb.util.I18n.tr;
+
 import com.nexodb.db.JdbcSession;
 import com.nexodb.db.PostgresSupport;
 import com.nexodb.db.QueryResult;
@@ -46,7 +48,7 @@ public final class MainFrame extends JFrame {
     private final UpdateService updateService = new UpdateService();
     private final DefaultListModel<ConnectionProfile> profileModel = new DefaultListModel<>();
     private final JList<ConnectionProfile> profileList = new JList<>(profileModel);
-    private final LazyNode objectRoot = new LazyNode(new SchemaItem(SchemaItem.Kind.ROOT, "", "", "Conexiones activas", ""), true, null);
+    private final LazyNode objectRoot = new LazyNode(new SchemaItem(SchemaItem.Kind.ROOT, "", "", tr("Conexiones activas"), ""), true, null);
     private final DefaultTreeModel objectModel = new DefaultTreeModel(objectRoot);
     private final JTree objectTree = new JTree(objectModel);
     private final JTextField objectSearch = new JTextField();
@@ -54,18 +56,19 @@ public final class MainFrame extends JFrame {
     private final JList<SchemaItem> searchResults = new JList<>(searchResultModel);
     private final CardLayout objectCards = new CardLayout();
     private final JPanel objectCenter = new JPanel(objectCards);
-    private final JLabel status = new JLabel("Listo");
+    private final JLabel status = new JLabel(tr("Listo"));
     private final JProgressBar busyBar = new JProgressBar();
     private final QueryPanel queryPanel = new QueryPanel(this::setStatus, this::setBusy);
     private final JTabbedPane workspaceTabs = new JTabbedPane();
-    private final JButton connectButton = new JButton("Conectar");
-    private final JButton disconnectButton = new JButton("Desconectar");
-    private final JButton refreshButton = new JButton("Actualizar objetos");
-    private final JButton compareButton = new JButton("Comparar esquemas");
+    private final JButton connectButton = new JButton(tr("Conectar"));
+    private final JButton disconnectButton = new JButton(tr("Desconectar"));
+    private final JButton refreshButton = new JButton(tr("Actualizar objetos"));
+    private final JButton compareButton = new JButton(tr("Comparar esquemas"));
     private final Map<String, JdbcSession> sessions = new LinkedHashMap<>();
     private JdbcSession session;
     private int busyDepth;
     private int searchGeneration;
+    private boolean checkingUpdates;
 
     public MainFrame() {
         super("NexoDB Studio");
@@ -107,13 +110,13 @@ public final class MainFrame extends JFrame {
         root.add(buildMainToolbar(), BorderLayout.NORTH);
 
         JTabbedPane navigator = new JTabbedPane();
-        navigator.addTab("Conexiones", IconFactory.of(IconFactory.Kind.CONNECTIONS), buildProfilesPanel());
-        navigator.addTab("Objetos", IconFactory.of(IconFactory.Kind.OBJECTS), buildObjectsPanel());
+        navigator.addTab(tr("Conexiones"), IconFactory.of(IconFactory.Kind.CONNECTIONS), buildProfilesPanel());
+        navigator.addTab(tr("Objetos"), IconFactory.of(IconFactory.Kind.OBJECTS), buildObjectsPanel());
         navigator.putClientProperty("JTabbedPane.tabType", "card");
         navigator.setMinimumSize(new Dimension(250, 0));
         navigator.setPreferredSize(new Dimension(310, 0));
 
-        workspaceTabs.addTab("Consulta SQL", IconFactory.of(IconFactory.Kind.SQL, 16), queryPanel);
+        workspaceTabs.addTab(tr("Consulta SQL"), IconFactory.of(IconFactory.Kind.SQL, 16), queryPanel);
         workspaceTabs.putClientProperty("JTabbedPane.tabType", "card");
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, navigator, workspaceTabs);
         split.setDividerLocation(310);
@@ -132,7 +135,7 @@ public final class MainFrame extends JFrame {
         progressHolder.add(busyBar);
         statusBar.add(progressHolder, BorderLayout.CENTER);
         JLabel version = new JLabel("NexoDB Studio " + UpdateService.CURRENT_VERSION);
-        version.setForeground(Color.GRAY);
+        version.setForeground(UIManager.getColor("Label.disabledForeground"));
         statusBar.add(version, BorderLayout.EAST);
         root.add(statusBar, BorderLayout.SOUTH);
         return root;
@@ -142,12 +145,12 @@ public final class MainFrame extends JFrame {
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
         toolbar.setBorder(new EmptyBorder(7, 10, 7, 10));
-        JButton add = new JButton("Nueva conexión");
-        styleToolbarButton(add, IconFactory.Kind.ADD, "Crear un nuevo perfil de conexión");
-        styleToolbarButton(connectButton, IconFactory.Kind.CONNECT, "Conectar el perfil seleccionado");
-        styleToolbarButton(disconnectButton, IconFactory.Kind.DISCONNECT, "Cerrar la conexión activa");
-        styleToolbarButton(refreshButton, IconFactory.Kind.REFRESH, "Actualizar bases, esquemas y tablas");
-        styleToolbarButton(compareButton, IconFactory.Kind.COMPARE, "Comparar dos bases de datos de la conexión activa");
+        JButton add = new JButton(tr("Nueva conexión"));
+        styleToolbarButton(add, IconFactory.Kind.ADD, tr("Crear un nuevo perfil de conexión"));
+        styleToolbarButton(connectButton, IconFactory.Kind.CONNECT, tr("Conectar el perfil seleccionado"));
+        styleToolbarButton(disconnectButton, IconFactory.Kind.DISCONNECT, tr("Cerrar la conexión activa"));
+        styleToolbarButton(refreshButton, IconFactory.Kind.REFRESH, tr("Actualizar bases, esquemas y tablas"));
+        styleToolbarButton(compareButton, IconFactory.Kind.COMPARE, tr("Comparar dos bases de datos de la conexión activa"));
         add.addActionListener(e -> newConnection());
         connectButton.addActionListener(e -> connectSelected());
         disconnectButton.addActionListener(e -> disconnect());
@@ -173,9 +176,9 @@ public final class MainFrame extends JFrame {
         profileList.putClientProperty("List.selectionArc", 10);
         panel.add(new JScrollPane(profileList), BorderLayout.CENTER);
         JPanel actions = new JPanel(new GridLayout(1, 3, 5, 0));
-        JButton add = new JButton("Nueva");
-        JButton edit = new JButton("Editar");
-        JButton delete = new JButton("Eliminar");
+        JButton add = new JButton(tr("Nueva"));
+        JButton edit = new JButton(tr("Editar"));
+        JButton delete = new JButton(tr("Eliminar"));
         add.setIcon(IconFactory.of(IconFactory.Kind.ADD, 16));
         edit.setIcon(IconFactory.of(IconFactory.Kind.EDIT, 16));
         delete.setIcon(IconFactory.of(IconFactory.Kind.DELETE, 16));
@@ -196,10 +199,10 @@ public final class MainFrame extends JFrame {
     private JComponent buildObjectsPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        objectSearch.putClientProperty("JTextField.placeholderText", "Buscar objetos en la base activa…");
+        objectSearch.putClientProperty("JTextField.placeholderText", tr("Buscar objetos en la base activa…"));
         objectSearch.putClientProperty("JTextField.leadingIcon", IconFactory.of(IconFactory.Kind.SEARCH, 16));
         JButton clearSearch = new JButton("×");
-        clearSearch.setToolTipText("Limpiar búsqueda (Esc)");
+        clearSearch.setToolTipText(tr("Limpiar búsqueda (Esc)"));
         clearSearch.setFocusable(false);
         clearSearch.setBorderPainted(false);
         clearSearch.setContentAreaFilled(false);
@@ -212,7 +215,7 @@ public final class MainFrame extends JFrame {
         };
         objectSearch.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "clear-object-search");
         objectSearch.getActionMap().put("clear-object-search", clearSearchAction);
-        objectSearch.setToolTipText("Busca tablas, vistas, procedimientos, funciones, triggers y eventos en la base seleccionada");
+        objectSearch.setToolTipText(tr("Busca tablas, vistas, procedimientos, funciones, triggers y eventos en la base seleccionada"));
         panel.add(objectSearch, BorderLayout.NORTH);
         objectCenter.add(new JScrollPane(objectTree), "tree");
         searchResults.setCellRenderer(new SearchResultRenderer());
@@ -242,8 +245,8 @@ public final class MainFrame extends JFrame {
             @Override public void mouseClicked(MouseEvent e) {
                 SchemaItem selected = searchResults.getSelectedValue();
                 if (e.getClickCount() == 2 && selected != null
-                        && !selected.name().equals("Buscando…") && !selected.name().equals("Sin resultados")
-                        && !selected.name().equals("Error al buscar")) {
+                        && !selected.name().equals(tr("Buscando…")) && !selected.name().equals(tr("Sin resultados"))
+                        && !selected.name().equals(tr("Error al buscar"))) {
                     if (selected.kind() == SchemaItem.Kind.TABLE || selected.kind() == SchemaItem.Kind.VIEW) {
                         openTable(session, selected, TableWorkbenchPanel.DATA);
                     } else if (isProgrammableObject(selected.kind())) {
@@ -254,7 +257,7 @@ public final class MainFrame extends JFrame {
         });
         searchResults.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "clear-object-search");
         searchResults.getActionMap().put("clear-object-search", clearSearchAction);
-        JButton refresh = new JButton("Actualizar");
+        JButton refresh = new JButton(tr("Actualizar"));
         refresh.setIcon(IconFactory.of(IconFactory.Kind.REFRESH, 16));
         refresh.addActionListener(e -> refreshObjects());
         panel.add(refresh, BorderLayout.SOUTH);
@@ -263,12 +266,12 @@ public final class MainFrame extends JFrame {
 
     private JMenuBar buildMenu() {
         JMenuBar bar = new JMenuBar();
-        JMenu file = new JMenu("Archivo");
+        JMenu file = new JMenu(tr("Archivo"));
         file.setIcon(IconFactory.of(IconFactory.Kind.FOLDER, 16));
-        JMenuItem newConnection = new JMenuItem("Nueva conexión…");
-        JMenuItem connect = new JMenuItem("Conectar");
-        JMenuItem disconnect = new JMenuItem("Desconectar");
-        JMenuItem exit = new JMenuItem("Salir");
+        JMenuItem newConnection = new JMenuItem(tr("Nueva conexión…"));
+        JMenuItem connect = new JMenuItem(tr("Conectar"));
+        JMenuItem disconnect = new JMenuItem(tr("Desconectar"));
+        JMenuItem exit = new JMenuItem(tr("Salir"));
         newConnection.setIcon(IconFactory.of(IconFactory.Kind.ADD));
         connect.setIcon(IconFactory.of(IconFactory.Kind.CONNECT));
         disconnect.setIcon(IconFactory.of(IconFactory.Kind.DISCONNECT));
@@ -283,41 +286,45 @@ public final class MainFrame extends JFrame {
         file.addSeparator();
         file.add(exit);
 
-        JMenu database = new JMenu("Base de datos");
+        JMenu database = new JMenu(tr("Base de datos"));
         database.setIcon(IconFactory.of(IconFactory.Kind.DATABASE, 16));
-        JMenuItem users = new JMenuItem("Administrar usuarios…", IconFactory.of(IconFactory.Kind.USER));
-        JMenuItem refreshObjects = new JMenuItem("Actualizar objetos", IconFactory.of(IconFactory.Kind.REFRESH));
+        JMenuItem users = new JMenuItem(tr("Administrar usuarios…"), IconFactory.of(IconFactory.Kind.USER));
+        JMenuItem refreshObjects = new JMenuItem(tr("Actualizar objetos"), IconFactory.of(IconFactory.Kind.REFRESH));
         users.addActionListener(e -> manageUsers());
         refreshObjects.addActionListener(e -> refreshObjects());
         database.add(users);
         database.addSeparator();
         database.add(refreshObjects);
 
-        JMenu comparison = new JMenu("Comparación");
+        JMenu comparison = new JMenu(tr("Comparación"));
         comparison.setIcon(IconFactory.of(IconFactory.Kind.COMPARE, 16));
-        JMenuItem compareSchemas = new JMenuItem("Nueva comparación de esquemas…", IconFactory.of(IconFactory.Kind.COMPARE));
-        JMenuItem compareData = new JMenuItem("Nueva comparación de datos…", IconFactory.of(IconFactory.Kind.TABLE));
+        JMenuItem compareSchemas = new JMenuItem(tr("Nueva comparación de esquemas…"), IconFactory.of(IconFactory.Kind.COMPARE));
+        JMenuItem compareData = new JMenuItem(tr("Nueva comparación de datos…"), IconFactory.of(IconFactory.Kind.TABLE));
         compareSchemas.addActionListener(e -> compareSchemas());
         compareData.addActionListener(e -> compareData());
         comparison.add(compareSchemas);
         comparison.add(compareData);
 
-        JMenu query = new JMenu("Consulta");
+        JMenu query = new JMenu(tr("Consulta"));
         query.setIcon(IconFactory.of(IconFactory.Kind.SQL, 16));
-        JMenuItem executeQuery = new JMenuItem("Ejecutar", IconFactory.of(IconFactory.Kind.PLAY));
+        JMenuItem executeQuery = new JMenuItem(tr("Ejecutar"), IconFactory.of(IconFactory.Kind.PLAY));
         executeQuery.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0));
         executeQuery.addActionListener(e -> queryPanel.executeCurrent());
-        JMenuItem cancelQuery = new JMenuItem("Cancelar", IconFactory.of(IconFactory.Kind.STOP));
+        JMenuItem cancelQuery = new JMenuItem(tr("Cancelar"), IconFactory.of(IconFactory.Kind.STOP));
         cancelQuery.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0));
         cancelQuery.addActionListener(e -> queryPanel.cancelCurrent());
         query.add(executeQuery);
         query.add(cancelQuery);
 
-        JMenu help = new JMenu("Ayuda");
+        JMenu help = new JMenu(tr("Ayuda"));
+        JMenu view = new JMenu(com.nexodb.util.I18n.tr("Preferencias"));
+        JMenuItem preferences = new JMenuItem(com.nexodb.util.I18n.tr("Idioma y apariencia…"), IconFactory.of(IconFactory.Kind.SETTINGS));
+        preferences.addActionListener(e -> PreferencesDialog.show(this));
+        view.add(preferences);
         help.setIcon(IconFactory.of(IconFactory.Kind.INFO, 16));
-        JMenuItem updates = new JMenuItem("Buscar actualizaciones…");
-        JMenuItem updateChannel = new JMenuItem("Canal de actualizaciones (administrador)…");
-        JMenuItem about = new JMenuItem("Acerca de NexoDB Studio");
+        JMenuItem updates = new JMenuItem(tr("Buscar actualizaciones…"));
+        JMenuItem updateChannel = new JMenuItem(tr("Canal de actualizaciones (administrador)…"));
+        JMenuItem about = new JMenuItem(tr("Acerca de NexoDB Studio"));
         updates.setIcon(IconFactory.of(IconFactory.Kind.UPDATE));
         updateChannel.setIcon(IconFactory.of(IconFactory.Kind.SETTINGS));
         about.setIcon(IconFactory.of(IconFactory.Kind.INFO));
@@ -332,6 +339,7 @@ public final class MainFrame extends JFrame {
         bar.add(database);
         bar.add(query);
         bar.add(comparison);
+        bar.add(view);
         bar.add(help);
         return bar;
     }
@@ -341,15 +349,15 @@ public final class MainFrame extends JFrame {
         details.setContentType("text/html");
         details.setText("<html><body style='font-family:Segoe UI;font-size:11px'>"
                 + "<b style='font-size:15px'>NexoDB Studio " + UpdateService.CURRENT_VERSION + "</b><br>"
-                + "Cliente universal de bases de datos mediante JDBC.<br><br>"
-                + "<b>Creador:</b> Alex Mite Salazar<br>"
-                + "<b>Correo:</b> alexo8ec@hotmail.com<br><br>"
-                + "MySQL y MariaDB incluyen sus controladores oficiales.<br>Las contraseñas no se guardan."
+                + tr("Cliente universal de bases de datos mediante JDBC.<br><br>")
+                + tr("<b>Creador:</b> Alex Mite Salazar<br>")
+                + tr("<b>Correo:</b> alexo8ec@hotmail.com<br><br>")
+                + tr("MySQL y MariaDB incluyen sus controladores oficiales.<br>Las contraseñas no se guardan.")
                 + "</body></html>");
         details.setEditable(false);
         details.setOpaque(false);
         details.setBorder(new EmptyBorder(8, 8, 8, 8));
-        JOptionPane.showMessageDialog(this, details, "Acerca de NexoDB Studio", JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(this, details, tr("Acerca de NexoDB Studio"), JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void styleToolbarButton(AbstractButton button, IconFactory.Kind icon, String tooltip) {
@@ -372,15 +380,15 @@ public final class MainFrame extends JFrame {
         url.putClientProperty("JTextField.placeholderText", "https://servidor.example/nexodb/update-manifest.json");
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        JLabel explanation = new JLabel("<html><b>Las actualizaciones normales no requieren configurar nada.</b><br>"
-                + "Esta opción es para quien publica NexoDB en un servidor propio. Debe apuntar directamente<br>"
-                + "al archivo <code>update-manifest.json</code> mediante HTTPS.</html>");
+        JLabel explanation = new JLabel(tr("<html><b>Las actualizaciones normales no requieren configurar nada.</b><br>")
+                + tr("Esta opción es para quien publica NexoDB en un servidor propio. Debe apuntar directamente<br>")
+                + tr("al archivo <code>update-manifest.json</code> mediante HTTPS.</html>"));
         explanation.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel fieldLabel = new JLabel("Dirección del manifiesto:");
+        JLabel fieldLabel = new JLabel(tr("Dirección del manifiesto:"));
         fieldLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         url.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel verification = new JLabel("<html>NexoDB comprobará la versión y la firma SHA-256 antes de instalar.</html>");
-        verification.setForeground(Color.GRAY);
+        JLabel verification = new JLabel(tr("<html>NexoDB comprobará la versión y la firma SHA-256 antes de instalar.</html>"));
+        verification.setForeground(UIManager.getColor("Label.disabledForeground"));
         verification.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(explanation);
         panel.add(Box.createVerticalStrut(12));
@@ -389,32 +397,34 @@ public final class MainFrame extends JFrame {
         panel.add(url);
         panel.add(Box.createVerticalStrut(7));
         panel.add(verification);
-        int answer = JOptionPane.showConfirmDialog(this, panel, "Canal de actualizaciones", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        int answer = JOptionPane.showConfirmDialog(this, panel, tr("Canal de actualizaciones"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (answer != JOptionPane.OK_OPTION) return;
         try {
             updateService.setManifestUrl(url.getText());
             if (url.getText().isBlank()) {
-                setStatus("Canal de actualizaciones desactivado");
+                setStatus(tr("Canal predeterminado de actualizaciones restaurado"));
             } else {
-                setStatus("Canal de actualizaciones guardado");
+                setStatus(tr("Canal de actualizaciones guardado"));
                 checkForUpdates(true);
             }
         } catch (Exception error) {
-            showError("Canal no válido", rootCause(error));
+            showError(tr("Canal no válido"), rootCause(error));
         }
     }
 
     private void checkForUpdates(boolean manual) {
+        if (checkingUpdates) return;
         if (updateService.getManifestUrl().isBlank()) {
             if (manual) JOptionPane.showMessageDialog(this,
                     "Esta copia todavía no tiene un canal público de actualizaciones.\n\n"
                             + "El administrador debe publicar update-manifest.json y el ZIP en un servidor HTTPS, "
                             + "y generar NexoDB con esa dirección. La configuración manual está en Ayuda → "
                             + "Canal de actualizaciones (administrador).",
-                    "Canal aún no publicado", JOptionPane.INFORMATION_MESSAGE);
+                    tr("Canal aún no publicado"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        setStatus("Buscando actualizaciones…");
+        setStatus(tr("Buscando actualizaciones…"));
+        checkingUpdates = true;
         new SwingWorker<UpdateService.UpdateInfo, Void>() {
             @Override protected UpdateService.UpdateInfo doInBackground() throws Exception { return updateService.check(); }
 
@@ -422,24 +432,27 @@ public final class MainFrame extends JFrame {
                 try {
                     UpdateService.UpdateInfo update = get();
                     if (UpdateService.isNewer(update.version(), UpdateService.CURRENT_VERSION)) {
-                        setStatus("Actualización " + update.version() + " disponible");
+                        setStatus(tr("Actualización ") + update.version() + tr(" disponible"));
                         offerUpdate(update);
                     } else {
-                        setStatus("NexoDB Studio está actualizado");
+                        setStatus(tr("NexoDB Studio está actualizado"));
                         if (manual) JOptionPane.showMessageDialog(MainFrame.this,
-                                "Ya tienes la versión más reciente (" + UpdateService.CURRENT_VERSION + ").",
-                                "Sin actualizaciones", JOptionPane.INFORMATION_MESSAGE);
+                                tr("Ya tienes la versión más reciente (") + UpdateService.CURRENT_VERSION + ").",
+                                tr("Sin actualizaciones"), JOptionPane.INFORMATION_MESSAGE);
                     }
                 } catch (Exception error) {
-                    setStatus("No se pudo comprobar la actualización");
-                    if (manual) showError("No se pudo buscar actualizaciones", rootCause(error));
+                    setStatus(tr("No se pudo comprobar la actualización"));
+                    if (manual) JOptionPane.showMessageDialog(MainFrame.this,
+                            UpdateService.explainError(error), tr("No se pudo buscar actualizaciones"), JOptionPane.WARNING_MESSAGE);
+                } finally {
+                    checkingUpdates = false;
                 }
             }
         }.execute();
     }
 
     private void offerUpdate(UpdateService.UpdateInfo update) {
-        JTextArea notes = new JTextArea(update.notes().isBlank() ? "Nueva versión disponible." : update.notes());
+        JTextArea notes = new JTextArea(update.notes().isBlank() ? tr("Nueva versión disponible.") : update.notes());
         notes.setEditable(false);
         notes.setLineWrap(true);
         notes.setWrapStyleWord(true);
@@ -447,20 +460,20 @@ public final class MainFrame extends JFrame {
         notes.setColumns(46);
         notes.setBackground(UIManager.getColor("Panel.background"));
         JPanel panel = new JPanel(new BorderLayout(6, 8));
-        panel.add(new JLabel("NexoDB Studio " + update.version() + " está disponible."), BorderLayout.NORTH);
+        panel.add(new JLabel("NexoDB Studio " + update.version() + tr(" está disponible.")), BorderLayout.NORTH);
         panel.add(new JScrollPane(notes), BorderLayout.CENTER);
-        int answer = JOptionPane.showConfirmDialog(this, panel, "Actualización disponible",
+        int answer = JOptionPane.showConfirmDialog(this, panel, tr("Actualización disponible"),
                 JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
         if (answer == JOptionPane.YES_OPTION) downloadAndInstall(update);
     }
 
     private void downloadAndInstall(UpdateService.UpdateInfo update) {
-        JDialog progressDialog = new JDialog(this, "Descargando actualización", true);
+        JDialog progressDialog = new JDialog(this, tr("Descargando actualización"), true);
         JProgressBar progress = new JProgressBar(0, 100);
         progress.setStringPainted(true);
         JPanel panel = new JPanel(new BorderLayout(8, 8));
         panel.setBorder(new EmptyBorder(18, 18, 18, 18));
-        panel.add(new JLabel("Descargando y verificando NexoDB Studio " + update.version() + "…"), BorderLayout.NORTH);
+        panel.add(new JLabel(tr("Descargando y verificando NexoDB Studio ") + update.version() + "…"), BorderLayout.NORTH);
         panel.add(progress, BorderLayout.CENTER);
         progressDialog.setContentPane(panel);
         progressDialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
@@ -478,16 +491,21 @@ public final class MainFrame extends JFrame {
                 try {
                     Path zip = get();
                     int install = JOptionPane.showConfirmDialog(MainFrame.this,
-                            "La actualización fue descargada y verificada.\n\n¿Instalarla ahora? NexoDB se cerrará y volverá a abrir.",
-                            "Instalar actualización", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                            UpdateService.canInstallInPlace()
+                                    ? tr("La actualización fue descargada y verificada.\n\n¿Instalarla ahora? NexoDB se cerrará y volverá a abrir.")
+                                    : tr("La actualización fue descargada y verificada.\n\n¿Abrir el paquete con el instalador de tu sistema?"),
+                            tr("Instalar actualización"), JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
                     if (install == JOptionPane.YES_OPTION) {
                         updateService.launchInstaller(zip);
-                        closeAllSessions();
-                        dispose();
-                        System.exit(0);
+                        if (UpdateService.canInstallInPlace()) {
+                            closeAllSessions();
+                            dispose();
+                            System.exit(0);
+                        }
                     }
                 } catch (Exception error) {
-                    showError("No se pudo instalar la actualización", rootCause(error));
+                    JOptionPane.showMessageDialog(MainFrame.this, UpdateService.explainError(error),
+                            tr("No se pudo instalar la actualización"), JOptionPane.WARNING_MESSAGE);
                 }
             }
         };
@@ -542,7 +560,7 @@ public final class MainFrame extends JFrame {
     }
 
     private void loadProfilesAsync() {
-        setStatus("Cargando perfiles…");
+        setStatus(tr("Cargando perfiles…"));
         setBusy(true);
         new SwingWorker<List<ConnectionProfile>, Void>() {
             @Override protected List<ConnectionProfile> doInBackground() { return profileStore.load(); }
@@ -552,9 +570,9 @@ public final class MainFrame extends JFrame {
                 try {
                     for (ConnectionProfile profile : get()) profileModel.addElement(profile);
                     if (!profileModel.isEmpty()) profileList.setSelectedIndex(0);
-                    setStatus("Listo");
+                    setStatus(tr("Listo"));
                 } catch (Exception ex) {
-                    setStatus("No se pudieron cargar los perfiles; puedes crear uno nuevo.");
+                    setStatus(tr("No se pudieron cargar los perfiles; puedes crear uno nuevo."));
                 }
                 updateConnectionActions();
                 setBusy(false);
@@ -590,10 +608,10 @@ public final class MainFrame extends JFrame {
         ConnectionProfile selected = profileList.getSelectedValue();
         if (selected == null) return;
         if (sessions.containsKey(selected.id())) {
-            JOptionPane.showMessageDialog(this, "Desconecta este perfil antes de eliminarlo.", "Conexión activa", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, tr("Desconecta este perfil antes de eliminarlo."), tr("Conexión activa"), JOptionPane.WARNING_MESSAGE);
             return;
         }
-        int answer = JOptionPane.showConfirmDialog(this, "¿Eliminar el perfil “" + selected.name() + "”?", "Eliminar perfil", JOptionPane.YES_NO_OPTION);
+        int answer = JOptionPane.showConfirmDialog(this, tr("¿Eliminar el perfil “") + selected.name() + "”?", tr("Eliminar perfil"), JOptionPane.YES_NO_OPTION);
         if (answer == JOptionPane.YES_OPTION) {
             profileStore.delete(selected);
             secretStore.delete(selected.id());
@@ -619,7 +637,7 @@ public final class MainFrame extends JFrame {
         JdbcSession open = sessions.get(profile.id());
         if (open != null && open.isOpen()) {
             activateSession(open);
-            setStatus("Conexión activa: " + profile.name());
+            setStatus(tr("Conexión activa: ") + profile.name());
             return;
         }
         if (secretStore.has(profile.id())) {
@@ -628,17 +646,20 @@ public final class MainFrame extends JFrame {
                 connect(profile, protectedPassword == null ? new char[0] : protectedPassword);
                 return;
             } catch (Exception error) {
-                showError("Windows no pudo recuperar la contraseña protegida", error);
+                showError(tr("Windows no pudo recuperar la contraseña protegida"), error);
             }
         }
         JPasswordField password = new JPasswordField(24);
-        JCheckBox remember = new JCheckBox("Recordar de forma segura con Windows", true);
+        JCheckBox remember = new JCheckBox(tr("Recordar de forma segura con Windows"), true);
+        remember.setEnabled(SecretStore.isSupported());
+        remember.setSelected(SecretStore.isSupported());
+        if (!SecretStore.isSupported()) remember.setText(tr("Guardar contraseña no disponible en este sistema"));
         JPanel panel = new JPanel(new BorderLayout(6, 6));
-        panel.add(new JLabel("Contraseña para " + profile.name() + ":"), BorderLayout.NORTH);
+        panel.add(new JLabel(tr("Contraseña para ") + profile.name() + ":"), BorderLayout.NORTH);
         panel.add(password, BorderLayout.CENTER);
         panel.add(remember, BorderLayout.SOUTH);
-        int answer = JOptionPane.showConfirmDialog(this, panel, "Conectar", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (answer == JOptionPane.OK_OPTION) connect(profile, password.getPassword(), remember.isSelected());
+        int answer = JOptionPane.showConfirmDialog(this, panel, tr("Conectar"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (answer == JOptionPane.OK_OPTION) connect(profile, password.getPassword(), SecretStore.isSupported() && remember.isSelected());
     }
 
     private char[] persistSecret(ConnectionProfile profile, ConnectionDialog.Result answer) {
@@ -654,7 +675,7 @@ public final class MainFrame extends JFrame {
                 if (stored != null) return stored;
             }
         } catch (Exception error) {
-            showError("No se pudo proteger la contraseña con Windows", error);
+            showError(tr("No se pudo proteger la contraseña con Windows"), error);
         }
         return entered;
     }
@@ -665,7 +686,7 @@ public final class MainFrame extends JFrame {
 
     private void connect(ConnectionProfile profile, char[] password, boolean rememberAfterSuccess) {
         char[] savedCandidate = rememberAfterSuccess ? Arrays.copyOf(password, password.length) : new char[0];
-        setStatus("Conectando a " + profile.name() + "…");
+        setStatus(tr("Conectando a ") + profile.name() + "…");
         setBusy(true);
         connectButton.setEnabled(false);
         new SwingWorker<JdbcSession, Void>() {
@@ -677,8 +698,8 @@ public final class MainFrame extends JFrame {
                         busyBar.setValue(value);
                         busyBar.setString(value + "%");
                         setStatus(value < 100
-                                ? "Descargando adaptador oficial de " + profile.type().displayName() + "…"
-                                : "Adaptador verificado; conectando a " + profile.name() + "…");
+                                ? tr("Descargando adaptador oficial de ") + profile.type().displayName() + "…"
+                                : tr("Adaptador verificado; conectando a ") + profile.name() + "…");
                     }));
                     if (!PostgresSupport.needsDatabaseSelection(profile)) return opened;
                     List<String> databases;
@@ -698,7 +719,7 @@ public final class MainFrame extends JFrame {
                 try {
                     JdbcSession next = get();
                     if (next == null) {
-                        setStatus("Conexión cancelada: no se seleccionó una base de datos.");
+                        setStatus(tr("Conexión cancelada: no se seleccionó una base de datos."));
                         return;
                     }
                     JdbcSession previous = sessions.put(profile.id(), next);
@@ -711,16 +732,16 @@ public final class MainFrame extends JFrame {
                         try { secretStore.save(profile.id(), savedCandidate); }
                         catch (Exception error) {
                             JOptionPane.showMessageDialog(MainFrame.this,
-                                    "La conexión se abrió, pero Windows no pudo proteger la contraseña.\n" + rootCause(error).getMessage(),
-                                    "Contraseña no guardada", JOptionPane.WARNING_MESSAGE);
+                                    tr("La conexión se abrió, pero Windows no pudo proteger la contraseña.\n") + rootCause(error).getMessage(),
+                                    tr("Contraseña no guardada"), JOptionPane.WARNING_MESSAGE);
                         }
                     }
                     activateSession(next);
-                    setStatus("Conectado a " + next.connection().getMetaData().getDatabaseProductName());
+                    setStatus(tr("Conectado a ") + next.connection().getMetaData().getDatabaseProductName());
                     refreshConnectionObjects(next);
                 } catch (Exception ex) {
-                    showError("No se pudo conectar", rootCause(ex));
-                    setStatus("Error de conexión");
+                    showError(tr("No se pudo conectar"), rootCause(ex));
+                    setStatus(tr("Error de conexión"));
                 } finally {
                     Arrays.fill(savedCandidate, '\0');
                     busyBar.setIndeterminate(true);
@@ -748,10 +769,10 @@ public final class MainFrame extends JFrame {
             objectRoot.removeAllChildren();
             objectModel.reload();
             setTitle("NexoDB Studio");
-            setStatus("Sin conexiones activas");
+            setStatus(tr("Sin conexiones activas"));
         } else {
             activateSession(session);
-            setStatus("Conexión activa: " + session.profile().name());
+            setStatus(tr("Conexión activa: ") + session.profile().name());
         }
         updateConnectionActions();
     }
@@ -766,7 +787,7 @@ public final class MainFrame extends JFrame {
 
     private void closeSpecificSession(JdbcSession target) {
         try { target.close(); }
-        catch (Exception e) { setStatus("Conexión cerrada con advertencias"); }
+        catch (Exception e) { setStatus(tr("Conexión cerrada con advertencias")); }
     }
 
     private LazyNode findConnectionNode(String profileId) {
@@ -783,7 +804,7 @@ public final class MainFrame extends JFrame {
         LazyNode node = findConnectionNode(target.profile().id());
         if (node != null) objectRoot.remove(node);
         objectRoot.setUserObject(new SchemaItem(SchemaItem.Kind.ROOT, "", "",
-                sessions.isEmpty() ? "Conexiones activas" : "Conexiones activas (" + sessions.size() + ")", ""));
+                sessions.isEmpty() ? tr("Conexiones activas") : tr("Conexiones activas (") + sessions.size() + ")", ""));
         objectModel.reload(objectRoot);
         objectTree.expandRow(0);
     }
@@ -831,7 +852,7 @@ public final class MainFrame extends JFrame {
         }
         LazyNode finalConnectionNode = connectionNode;
         finalConnectionNode.removeAllChildren();
-        finalConnectionNode.add(new LazyNode(new SchemaItem(SchemaItem.Kind.COLUMN, "", "", "Cargando objetos…", ""), true, target));
+        finalConnectionNode.add(new LazyNode(new SchemaItem(SchemaItem.Kind.COLUMN, "", "", tr("Cargando objetos…"), ""), true, target));
         objectModel.reload(finalConnectionNode);
         setBusy(true);
         new SwingWorker<List<SchemaItem>, Void>() {
@@ -852,16 +873,16 @@ public final class MainFrame extends JFrame {
                         }
                         finalConnectionNode.add(schemaNode);
                     }
-                    objectRoot.setUserObject(new SchemaItem(SchemaItem.Kind.ROOT, "", "", "Conexiones activas (" + sessions.size() + ")", ""));
+                    objectRoot.setUserObject(new SchemaItem(SchemaItem.Kind.ROOT, "", "", tr("Conexiones activas (") + sessions.size() + ")", ""));
                     objectModel.reload(finalConnectionNode);
                     objectTree.expandRow(0);
                     objectTree.expandPath(new TreePath(finalConnectionNode.getPath()));
-                    setStatus(target.profile().name() + " · " + schemas.size() + " esquemas cargados");
+                    setStatus(target.profile().name() + " · " + schemas.size() + tr(" esquemas cargados"));
                 } catch (Exception ex) {
                     finalConnectionNode.removeAllChildren();
-                    finalConnectionNode.add(new LazyNode(new SchemaItem(SchemaItem.Kind.COLUMN, "", "", "Error al cargar objetos", ""), true, target));
+                    finalConnectionNode.add(new LazyNode(new SchemaItem(SchemaItem.Kind.COLUMN, "", "", tr("Error al cargar objetos"), ""), true, target));
                     objectModel.reload(finalConnectionNode);
-                    showError("No se pudo leer el catálogo", rootCause(ex));
+                    showError(tr("No se pudo leer el catálogo"), rootCause(ex));
                 } finally {
                     setBusy(false);
                 }
@@ -877,12 +898,12 @@ public final class MainFrame extends JFrame {
         if (database.isBlank()) {
             searchResultModel.clear();
             searchResultModel.addElement(new SchemaItem(SchemaItem.Kind.TABLE, "", "", "Selecciona una base", ""));
-            setStatus("Selecciona una base antes de buscar objetos");
+            setStatus(tr("Selecciona una base antes de buscar objetos"));
             return;
         }
         int generation = ++searchGeneration;
         searchResultModel.clear();
-        searchResultModel.addElement(new SchemaItem(SchemaItem.Kind.TABLE, "", "", "Buscando…", ""));
+        searchResultModel.addElement(new SchemaItem(SchemaItem.Kind.TABLE, "", "", tr("Buscando…"), ""));
         setBusy(true);
         new SwingWorker<List<SchemaItem>, Void>() {
             @Override protected List<SchemaItem> doInBackground() throws Exception {
@@ -904,14 +925,14 @@ public final class MainFrame extends JFrame {
                         String type = rs.getString("TABLE_TYPE");
                         SchemaItem.Kind kind = "VIEW".equalsIgnoreCase(type) ? SchemaItem.Kind.VIEW : SchemaItem.Kind.TABLE;
                         matches.add(new SchemaItem(kind, rs.getString("TABLE_CAT"), rs.getString("TABLE_SCHEM"), name,
-                                kind == SchemaItem.Kind.VIEW ? "Vista" : "Tabla"));
+                                kind == SchemaItem.Kind.VIEW ? tr("Vista") : tr("Tabla")));
                     }
                 }
                 try (ResultSet rs = metadata.getProcedures(catalog, schema, "%" + pattern + "%")) {
                     while (rs.next() && matches.size() < 300) {
                         String name = rs.getString("PROCEDURE_NAME");
                         if (containsIgnoreCase(name, query)) matches.add(new SchemaItem(SchemaItem.Kind.PROCEDURE,
-                                rs.getString("PROCEDURE_CAT"), rs.getString("PROCEDURE_SCHEM"), name, "Procedimiento almacenado"));
+                                rs.getString("PROCEDURE_CAT"), rs.getString("PROCEDURE_SCHEM"), name, tr("Procedimiento almacenado")));
                     }
                 } catch (SQLException ignored) {
                 }
@@ -919,7 +940,7 @@ public final class MainFrame extends JFrame {
                     while (rs.next() && matches.size() < 300) {
                         String name = rs.getString("FUNCTION_NAME");
                         if (containsIgnoreCase(name, query)) matches.add(new SchemaItem(SchemaItem.Kind.FUNCTION,
-                                rs.getString("FUNCTION_CAT"), rs.getString("FUNCTION_SCHEM"), name, "Función"));
+                                rs.getString("FUNCTION_CAT"), rs.getString("FUNCTION_SCHEM"), name, tr("Función")));
                     }
                 } catch (SQLException ignored) {
                 }
@@ -935,7 +956,7 @@ public final class MainFrame extends JFrame {
                                 if (!containsIgnoreCase(name, query)) continue;
                                 SchemaItem.Kind kind = "TRIGGER".equals(rs.getString(2)) ? SchemaItem.Kind.TRIGGER : SchemaItem.Kind.EVENT;
                                 matches.add(new SchemaItem(kind, database, null, name,
-                                        kind == SchemaItem.Kind.TRIGGER ? "Trigger" : "Evento"));
+                                        kind == SchemaItem.Kind.TRIGGER ? "Trigger" : tr("Evento")));
                             }
                         }
                     }
@@ -950,13 +971,13 @@ public final class MainFrame extends JFrame {
                     searchResultModel.clear();
                     for (SchemaItem item : get()) searchResultModel.addElement(item);
                     if (searchResultModel.isEmpty()) {
-                        searchResultModel.addElement(new SchemaItem(SchemaItem.Kind.TABLE, "", "", "Sin resultados", query));
+                        searchResultModel.addElement(new SchemaItem(SchemaItem.Kind.TABLE, "", "", tr("Sin resultados"), query));
                     }
-                    setStatus(searchResultModel.size() + " coincidencias en " + database + " para “" + query + "”");
+                    setStatus(searchResultModel.size() + tr(" coincidencias en ") + database + tr(" para “") + query + "”");
                 } catch (Exception error) {
                     if (generation == searchGeneration) {
                         searchResultModel.clear();
-                        searchResultModel.addElement(new SchemaItem(SchemaItem.Kind.TABLE, "", "", "Error al buscar", rootCause(error).getMessage()));
+                        searchResultModel.addElement(new SchemaItem(SchemaItem.Kind.TABLE, "", "", tr("Error al buscar"), rootCause(error).getMessage()));
                     }
                 } finally {
                     setBusy(false);
@@ -1002,7 +1023,7 @@ public final class MainFrame extends JFrame {
             String catalog = target.connection().getCatalog();
             String schema;
             try { schema = target.connection().getSchema(); } catch (SQLException ignored) { schema = null; }
-            String name = schema != null && !schema.isBlank() ? schema : catalog != null && !catalog.isBlank() ? catalog : "Base de datos";
+            String name = schema != null && !schema.isBlank() ? schema : catalog != null && !catalog.isBlank() ? catalog : tr("Base de datos");
             schemas.add(new SchemaItem(SchemaItem.Kind.SCHEMA, catalog, schema, name, ""));
         }
         schemas.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
@@ -1039,7 +1060,7 @@ public final class MainFrame extends JFrame {
                     objectModel.reload(node);
                 } catch (Exception ex) {
                     node.loaded = false;
-                    showError("No se pudieron cargar los objetos", rootCause(ex));
+                    showError(tr("No se pudieron cargar los objetos"), rootCause(ex));
                 } finally {
                     setBusy(false);
                 }
@@ -1131,47 +1152,47 @@ public final class MainFrame extends JFrame {
         JdbcSession target = node.nodeSession();
         JPopupMenu menu = new JPopupMenu();
         if (item.kind() == SchemaItem.Kind.TABLE || item.kind() == SchemaItem.Kind.VIEW) {
-            addMenu(menu, "Abrir datos", IconFactory.Kind.TABLE, e -> openTable(target, item, TableWorkbenchPanel.DATA));
-            addMenu(menu, "Ver estructura", IconFactory.Kind.COLUMN, e -> openTable(target, item, TableWorkbenchPanel.COLUMNS));
-            addMenu(menu, "Ver índices", IconFactory.Kind.KEY, e -> openTable(target, item, TableWorkbenchPanel.INDEXES));
-            addMenu(menu, "Relaciones / claves foráneas", IconFactory.Kind.COMPARE, e -> openTable(target, item, TableWorkbenchPanel.FOREIGN_KEYS));
-            addMenu(menu, "Ver SQL / DDL", IconFactory.Kind.SQL, e -> openTable(target, item, TableWorkbenchPanel.DDL));
+            addMenu(menu, tr("Abrir datos"), IconFactory.Kind.TABLE, e -> openTable(target, item, TableWorkbenchPanel.DATA));
+            addMenu(menu, tr("Ver estructura"), IconFactory.Kind.COLUMN, e -> openTable(target, item, TableWorkbenchPanel.COLUMNS));
+            addMenu(menu, tr("Ver índices"), IconFactory.Kind.KEY, e -> openTable(target, item, TableWorkbenchPanel.INDEXES));
+            addMenu(menu, tr("Relaciones / claves foráneas"), IconFactory.Kind.COMPARE, e -> openTable(target, item, TableWorkbenchPanel.FOREIGN_KEYS));
+            addMenu(menu, tr("Ver SQL / DDL"), IconFactory.Kind.SQL, e -> openTable(target, item, TableWorkbenchPanel.DDL));
             menu.addSeparator();
-            addMenu(menu, "Copiar tabla a otra base…", IconFactory.Kind.COMPARE, e -> copyTable(target, item));
-            addMenu(menu, "Exportar datos…", IconFactory.Kind.EXPORT, e -> exportTable(target, item));
+            addMenu(menu, tr("Copiar tabla a otra base…"), IconFactory.Kind.COMPARE, e -> copyTable(target, item));
+            addMenu(menu, tr("Exportar datos…"), IconFactory.Kind.EXPORT, e -> exportTable(target, item));
             menu.addSeparator();
             addMenu(menu, "SELECT en el editor", IconFactory.Kind.PLAY, e -> insertSelect(target, item));
             if (item.kind() == SchemaItem.Kind.TABLE) {
-                addMenu(menu, "Preparar INSERT", IconFactory.Kind.ADD, e -> insertTemplate(target, "INSERT INTO " + qualifiedName(target, item) + " (...)\nVALUES (...);\n"));
-                addMenu(menu, "Preparar UPDATE", IconFactory.Kind.EDIT, e -> insertTemplate(target, "UPDATE " + qualifiedName(target, item) + "\nSET columna = valor\nWHERE condicion;\n"));
-                addMenu(menu, "Preparar DELETE", IconFactory.Kind.DELETE, e -> insertTemplate(target, "DELETE FROM " + qualifiedName(target, item) + "\nWHERE condicion;\n"));
+                addMenu(menu, tr("Preparar INSERT"), IconFactory.Kind.ADD, e -> insertTemplate(target, "INSERT INTO " + qualifiedName(target, item) + " (...)\nVALUES (...);\n"));
+                addMenu(menu, tr("Preparar UPDATE"), IconFactory.Kind.EDIT, e -> insertTemplate(target, "UPDATE " + qualifiedName(target, item) + "\nSET columna = valor\nWHERE condicion;\n"));
+                addMenu(menu, tr("Preparar DELETE"), IconFactory.Kind.DELETE, e -> insertTemplate(target, "DELETE FROM " + qualifiedName(target, item) + "\nWHERE condicion;\n"));
             }
             menu.addSeparator();
-            addMenu(menu, "Copiar nombre completo", IconFactory.Kind.SQL, e -> copyText(qualifiedName(target, item)));
+            addMenu(menu, tr("Copiar nombre completo"), IconFactory.Kind.SQL, e -> copyText(qualifiedName(target, item)));
         } else if (isProgrammableObject(item.kind())) {
-            addMenu(menu, "Abrir definición SQL", IconFactory.Kind.SQL, e -> openDefinition(target, item));
+            addMenu(menu, tr("Abrir definición SQL"), IconFactory.Kind.SQL, e -> openDefinition(target, item));
             if (item.kind() == SchemaItem.Kind.PROCEDURE) {
-                addMenu(menu, "Preparar CALL", IconFactory.Kind.PLAY, e -> insertTemplate(target, "CALL " + qualifiedName(target, item) + "();\n"));
+                addMenu(menu, tr("Preparar CALL"), IconFactory.Kind.PLAY, e -> insertTemplate(target, "CALL " + qualifiedName(target, item) + "();\n"));
             } else if (item.kind() == SchemaItem.Kind.FUNCTION) {
-                addMenu(menu, "Preparar SELECT", IconFactory.Kind.PLAY, e -> insertTemplate(target, "SELECT " + qualifiedName(target, item) + "();\n"));
+                addMenu(menu, tr("Preparar SELECT"), IconFactory.Kind.PLAY, e -> insertTemplate(target, "SELECT " + qualifiedName(target, item) + "();\n"));
             }
             menu.addSeparator();
-            addMenu(menu, "Copiar nombre completo", IconFactory.Kind.SQL, e -> copyText(qualifiedName(target, item)));
+            addMenu(menu, tr("Copiar nombre completo"), IconFactory.Kind.SQL, e -> copyText(qualifiedName(target, item)));
         } else if (isGroup(item.kind())) {
-            addMenu(menu, "Actualizar", IconFactory.Kind.REFRESH, e -> refreshNode(node));
+            addMenu(menu, tr("Actualizar"), IconFactory.Kind.REFRESH, e -> refreshNode(node));
             if (item.kind() == SchemaItem.Kind.TABLES) {
-                addMenu(menu, "Preparar CREATE TABLE", IconFactory.Kind.ADD,
+                addMenu(menu, tr("Preparar CREATE TABLE"), IconFactory.Kind.ADD,
                         e -> insertTemplate(target, "CREATE TABLE " + qualifiedNamespace(target, item) + "nueva_tabla (\n    id INT NOT NULL PRIMARY KEY\n);\n"));
             }
         } else if (item.kind() == SchemaItem.Kind.SCHEMA) {
-            addMenu(menu, "Usar esta base en una consulta", IconFactory.Kind.DATABASE,
+            addMenu(menu, tr("Usar esta base en una consulta"), IconFactory.Kind.DATABASE,
                     e -> activateDatabase(target, item));
-            addMenu(menu, "Copiar una tabla a otra base…", IconFactory.Kind.COMPARE,
+            addMenu(menu, tr("Copiar una tabla a otra base…"), IconFactory.Kind.COMPARE,
                     e -> chooseTableToCopy(target, item));
-            addMenu(menu, "Actualizar objetos", IconFactory.Kind.REFRESH, e -> refreshConnectionObjects(target));
+            addMenu(menu, tr("Actualizar objetos"), IconFactory.Kind.REFRESH, e -> refreshConnectionObjects(target));
         } else if (item.kind() == SchemaItem.Kind.ROOT && target != null) {
-            addMenu(menu, "Usar esta conexión", IconFactory.Kind.CONNECT, e -> activateSession(target));
-            addMenu(menu, "Actualizar objetos", IconFactory.Kind.REFRESH, e -> refreshConnectionObjects(target));
+            addMenu(menu, tr("Usar esta conexión"), IconFactory.Kind.CONNECT, e -> activateSession(target));
+            addMenu(menu, tr("Actualizar objetos"), IconFactory.Kind.REFRESH, e -> refreshConnectionObjects(target));
         }
         if (menu.getComponentCount() > 0) menu.show(objectTree, event.getX(), event.getY());
     }
@@ -1192,7 +1213,7 @@ public final class MainFrame extends JFrame {
     private void chooseTableToCopy(JdbcSession source, SchemaItem schema) {
         if (source == null || !source.isOpen()) return;
         setBusy(true);
-        setStatus("Cargando tablas de " + schema.name() + "…");
+        setStatus(tr("Cargando tablas de ") + schema.name() + "…");
         new SwingWorker<List<SchemaItem>, Void>() {
             @Override protected List<SchemaItem> doInBackground() throws Exception {
                 return loadTables(source, schema, "TABLE", SchemaItem.Kind.TABLE);
@@ -1202,15 +1223,15 @@ public final class MainFrame extends JFrame {
                 try {
                     List<SchemaItem> tables = get();
                     if (tables.isEmpty()) {
-                        JOptionPane.showMessageDialog(MainFrame.this, "La base no contiene tablas.", "Copiar tabla", JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog(MainFrame.this, tr("La base no contiene tablas."), tr("Copiar tabla"), JOptionPane.INFORMATION_MESSAGE);
                         return;
                     }
                     SchemaItem selected = (SchemaItem) JOptionPane.showInputDialog(MainFrame.this,
-                            "Selecciona la tabla que deseas copiar:", "Copiar tabla a otra base",
+                            tr("Selecciona la tabla que deseas copiar:"), tr("Copiar tabla a otra base"),
                             JOptionPane.PLAIN_MESSAGE, IconFactory.of(IconFactory.Kind.TABLE, 28), tables.toArray(), tables.get(0));
                     if (selected != null) copyTable(source, selected);
                 } catch (Exception error) {
-                    showError("No se pudieron cargar las tablas", rootCause(error));
+                    showError(tr("No se pudieron cargar las tablas"), rootCause(error));
                 }
             }
         }.execute();
@@ -1220,16 +1241,16 @@ public final class MainFrame extends JFrame {
         if (target == null || !target.isOpen()) return;
         JSpinner limit = new JSpinner(new SpinnerNumberModel(10000, 1, 1000000, 1000));
         JPanel options = new JPanel(new BorderLayout(8, 8));
-        options.add(new JLabel("Máximo de filas que se exportarán:"), BorderLayout.NORTH);
+        options.add(new JLabel(tr("Máximo de filas que se exportarán:")), BorderLayout.NORTH);
         options.add(limit, BorderLayout.CENTER);
-        if (JOptionPane.showConfirmDialog(this, options, "Exportar " + table.name(),
+        if (JOptionPane.showConfirmDialog(this, options, tr("Exportar ") + table.name(),
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         ExportChooser.Request request = ExportChooser.choose(this, table.name());
         if (request == null) return;
         int maxRows = ((Number) limit.getValue()).intValue();
         String qualified = qualifiedName(target, table);
         setBusy(true);
-        setStatus("Exportando " + table.name() + "…");
+        setStatus(tr("Exportando ") + table.name() + "…");
         new SwingWorker<Integer, Void>() {
             @Override protected Integer doInBackground() throws Exception {
                 QueryResult result = target.execute("SELECT * FROM " + qualified, maxRows);
@@ -1240,9 +1261,9 @@ public final class MainFrame extends JFrame {
                 setBusy(false);
                 try {
                     int rows = get();
-                    setStatus(request.format() + " exportado · " + rows + " filas · " + request.path().getFileName());
+                    setStatus(request.format() + tr(" exportado · ") + rows + tr(" filas · ") + request.path().getFileName());
                 } catch (Exception error) {
-                    showError("No se pudo exportar la tabla", rootCause(error));
+                    showError(tr("No se pudo exportar la tabla"), rootCause(error));
                 }
             }
         }.execute();
@@ -1277,7 +1298,7 @@ public final class MainFrame extends JFrame {
         close.setMargin(new Insets(0, 4, 0, 4));
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
-        close.setToolTipText("Cerrar pestaña");
+        close.setToolTipText(tr("Cerrar pestaña"));
         close.addActionListener(e -> workspaceTabs.remove(component));
         tab.add(close);
         return tab;
@@ -1302,13 +1323,13 @@ public final class MainFrame extends JFrame {
         String database = item.catalog() != null && !item.catalog().isBlank() ? item.catalog() : item.name();
         queryPanel.selectDatabase(database);
         workspaceTabs.setSelectedIndex(0);
-        setStatus("Base activa: " + database);
+        setStatus(tr("Base activa: ") + database);
     }
 
     private void openDefinition(JdbcSession target, SchemaItem item) {
         if (target == null || !target.isOpen()) return;
         activateSession(target);
-        setStatus("Leyendo definición de " + item.name() + "…");
+        setStatus(tr("Leyendo definición de ") + item.name() + "…");
         setBusy(true);
         new SwingWorker<String, Void>() {
             @Override protected String doInBackground() throws Exception {
@@ -1317,7 +1338,7 @@ public final class MainFrame extends JFrame {
                     case FUNCTION -> "SHOW CREATE FUNCTION ";
                     case TRIGGER -> "SHOW CREATE TRIGGER ";
                     case EVENT -> "SHOW CREATE EVENT ";
-                    default -> throw new IllegalArgumentException("Este objeto no tiene una definición SQL disponible.");
+                    default -> throw new IllegalArgumentException(tr("Este objeto no tiene una definición SQL disponible."));
                 };
                 QueryResult result = target.execute(command + qualifiedName(target, item), 1);
                 if (result.rows().isEmpty()) return "-- No se encontró la definición de " + qualifiedName(target, item) + "\n";
@@ -1332,9 +1353,9 @@ public final class MainFrame extends JFrame {
             @Override protected void done() {
                 try {
                     insertTemplate(get());
-                    setStatus("Definición de " + item.name() + " cargada");
+                    setStatus(tr("Definición de ") + item.name() + tr(" cargada"));
                 } catch (Exception error) {
-                    showError("No se pudo leer la definición", rootCause(error));
+                    showError(tr("No se pudo leer la definición"), rootCause(error));
                 } finally {
                     setBusy(false);
                 }
@@ -1393,12 +1414,12 @@ public final class MainFrame extends JFrame {
 
     private static String groupLabel(SchemaItem.Kind kind) {
         return switch (kind) {
-            case TABLES -> "Tablas";
-            case VIEWS -> "Vistas";
-            case PROCEDURES -> "Procedimientos almacenados";
-            case FUNCTIONS -> "Funciones";
+            case TABLES -> tr("Tablas");
+            case VIEWS -> tr("Vistas");
+            case PROCEDURES -> tr("Procedimientos almacenados");
+            case FUNCTIONS -> tr("Funciones");
             case TRIGGERS -> "Triggers";
-            case EVENTS -> "Eventos";
+            case EVENTS -> tr("Eventos");
             default -> kind.name();
         };
     }
@@ -1416,7 +1437,7 @@ public final class MainFrame extends JFrame {
     }
 
     private LazyNode placeholder(JdbcSession target) {
-        return new LazyNode(new SchemaItem(SchemaItem.Kind.COLUMN, "", "", "Cargando…", ""), true, target);
+        return new LazyNode(new SchemaItem(SchemaItem.Kind.COLUMN, "", "", tr("Cargando…"), ""), true, target);
     }
 
     private void updateConnectionActions() {
@@ -1430,7 +1451,7 @@ public final class MainFrame extends JFrame {
 
     private void compareSchemas() {
         if (session == null || !session.isOpen()) {
-            JOptionPane.showMessageDialog(this, "Conecta primero una base de datos.", "Comparar esquemas", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Comparar esquemas"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         new SchemaCompareDialog(this, session, new ArrayList<>(sessions.values()), this::insertTemplate).showDialog();
@@ -1438,7 +1459,7 @@ public final class MainFrame extends JFrame {
 
     private void compareData() {
         if (session == null || !session.isOpen()) {
-            JOptionPane.showMessageDialog(this, "Conecta primero una base de datos.", "Comparar datos", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Comparar datos"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         new DataCompareDialog(this, session, new ArrayList<>(sessions.values()), this::insertTemplate).showDialog();
@@ -1446,12 +1467,12 @@ public final class MainFrame extends JFrame {
 
     private void manageUsers() {
         if (session == null || !session.isOpen()) {
-            JOptionPane.showMessageDialog(this, "Conecta primero una base de datos.", "Administrar usuarios", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Administrar usuarios"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         if (session.profile().type() != DatabaseType.MYSQL && session.profile().type() != DatabaseType.MARIADB) {
-            JOptionPane.showMessageDialog(this, "Esta primera versión del administrador de usuarios está disponible para MySQL y MariaDB.",
-                    "Motor no compatible", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, tr("Esta primera versión del administrador de usuarios está disponible para MySQL y MariaDB."),
+                    tr("Motor no compatible"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         new UserManagerDialog(this, session).showDialog();
@@ -1507,7 +1528,7 @@ public final class MainFrame extends JFrame {
             label.setIconTextGap(10);
             if (value instanceof ConnectionProfile profile) {
                 String target = profile.host().isBlank() ? profile.database() : profile.host() + (profile.port() > 0 ? ":" + profile.port() : "");
-                label.setText("<html><b>" + html(profile.name()) + "</b><br><span style='color:#64748b;font-size:10px'>"
+                label.setText("<html><b>" + html(profile.name()) + "</b><br><span style='font-size:10px'>"
                         + html(profile.type().displayName()) + (target.isBlank() ? "" : " · " + html(target)) + "</span></html>");
             }
             return label;
@@ -1562,7 +1583,7 @@ public final class MainFrame extends JFrame {
                 label.setIcon(IconFactory.of(icon, 18));
                 String namespace = item.catalog() != null && !item.catalog().isBlank() ? item.catalog() : item.schema();
                 label.setText("<html><b>" + html(item.name()) + "</b>"
-                        + "<br><span style='color:#64748b'>" + html(item.detail())
+                        + "<br><span>" + html(item.detail())
                         + (namespace == null || namespace.isBlank() ? "" : " · " + html(namespace)) + "</span></html>");
             }
             return label;

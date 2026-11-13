@@ -10,7 +10,7 @@ public enum AuthenticationMode {
         this.displayName = displayName;
     }
 
-    public String displayName() { return displayName; }
+    public String displayName() { return com.nexodb.util.I18n.tr(displayName); }
 
-    @Override public String toString() { return displayName; }
+    @Override public String toString() { return displayName(); }
 }

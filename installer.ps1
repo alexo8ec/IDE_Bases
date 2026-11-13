@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$version = '0.10.6'
+$version = (Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'VERSION')).Trim()
 $wixRoot = Join-Path $projectRoot '.tools\wix314'
 $wixArchive = Join-Path $projectRoot '.tools\wix314-binaries.zip'
 $wixUrl = 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip'
@@ -36,7 +36,8 @@ New-Item -ItemType Directory -Path $installerRoot -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'build\nexodb-studio.jar') -Destination $staging
 Copy-Item -LiteralPath (Join-Path $projectRoot 'build\lib') -Destination $staging -Recurse
 Copy-Item -LiteralPath (Join-Path $projectRoot 'build\drivers') -Destination $staging -Recurse
-Get-ChildItem -LiteralPath $installerRoot -Filter 'NexoDB Studio-*.exe' | Remove-Item -Force
+$existingInstaller = Join-Path $installerRoot ("NexoDB Studio-$version.exe")
+if (Test-Path -LiteralPath $existingInstaller) { Remove-Item -LiteralPath $existingInstaller -Force }
 
 $previousPath = $env:PATH
 try {
@@ -63,6 +64,7 @@ try {
         --win-upgrade-uuid '8b7eafbb-43c1-4b70-a75c-fc964e02ea6e' `
         --add-modules 'java.desktop,java.sql,java.prefs,java.naming,java.net.http,java.security.jgss,jdk.security.auth' `
         --java-options '-Dfile.encoding=UTF-8' `
+        --java-options '-Djava.net.useSystemProxies=true' `
         --java-options '-Dsun.java2d.d3d=false' `
         --java-options '-Dsun.java2d.opengl=false' `
         --java-options '-Dsun.security.jgss.native=true' `

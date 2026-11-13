@@ -3,9 +3,6 @@ package com.nexodb.update;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,12 +14,9 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.IntConsumer;
 import java.util.prefs.Preferences;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class UpdateService {
-    public static final String CURRENT_VERSION = "0.10.6";
-    private static final Pattern JSON_STRING = Pattern.compile("\\\"%s\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"");
+    public static final String CURRENT_VERSION = "0.11.0";
     private static volatile String sessionManifestUrl = "";
 
     public record UpdateInfo(String version, String downloadUrl, String sha256, String notes) {}
@@ -38,7 +32,8 @@ public final class UpdateService {
         if (!configured.isBlank()) return configured;
         String systemValue = System.getProperty("nexodb.updateManifest", "").trim();
         if (!systemValue.isBlank()) return systemValue;
-        return System.getenv().getOrDefault("NEXODB_UPDATE_URL", "").trim();
+        return System.getenv().getOrDefault("NEXODB_UPDATE_URL",
+                "https://github.com/alexo8ec/IDE_Bases/releases/latest/download/update-manifest.json").trim();
     }
 
     public void setManifestUrl(String url) {
@@ -63,17 +58,11 @@ public final class UpdateService {
             json = Files.readString(Path.of(uri), StandardCharsets.UTF_8);
         } else {
             validateRemoteUri(uri, "El canal de actualizaciones");
-            HttpRequest request = HttpRequest.newBuilder(uri)
-                    .timeout(Duration.ofSeconds(20))
-                    .header("Accept", "application/json")
-                    .header("User-Agent", "NexoDB-Studio/" + CURRENT_VERSION)
-                    .GET()
-                    .build();
-            HttpResponse<String> response = client().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IOException("El servidor de actualizaciones respondió HTTP " + response.statusCode() + ".");
-            }
-            json = response.body();
+            Path manifest = Files.createTempFile("nexodb-manifest-", ".json");
+            try {
+                com.nexodb.util.SecureDownload.fetch(uri, manifest, 1024 * 1024, Duration.ofSeconds(25), null);
+                json = Files.readString(manifest, StandardCharsets.UTF_8);
+            } finally { Files.deleteIfExists(manifest); }
         }
         return parseManifest(json);
     }
@@ -83,34 +72,15 @@ public final class UpdateService {
         if (update.downloadUrl().isBlank()) throw new IllegalArgumentException("La actualización no contiene una URL de descarga.");
         if (update.sha256().isBlank()) throw new IllegalArgumentException("La actualización no contiene una firma SHA-256.");
         URI uri = URI.create(update.downloadUrl());
-        Path destination = Files.createTempFile("nexodb-update-" + update.version() + "-", ".zip");
+        Path destination = Files.createTempFile("nexodb-update-", packageSuffix(uri));
         try {
             if ("file".equalsIgnoreCase(uri.getScheme())) {
                 Files.copy(Path.of(uri), destination, StandardCopyOption.REPLACE_EXISTING);
-                progress.accept(100);
+                if (progress != null) progress.accept(100);
             } else {
                 validateRemoteUri(uri, "La descarga");
-                HttpRequest request = HttpRequest.newBuilder(uri)
-                        .timeout(Duration.ofMinutes(5))
-                        .header("User-Agent", "NexoDB-Studio/" + CURRENT_VERSION)
-                        .GET()
-                        .build();
-                HttpResponse<InputStream> response = client().send(request, HttpResponse.BodyHandlers.ofInputStream());
-                if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                    throw new IOException("La descarga respondió HTTP " + response.statusCode() + ".");
-                }
-                long total = response.headers().firstValueAsLong("Content-Length").orElse(-1);
-                try (InputStream input = response.body(); var output = Files.newOutputStream(destination)) {
-                    byte[] buffer = new byte[64 * 1024];
-                    long copied = 0;
-                    int read;
-                    while ((read = input.read(buffer)) >= 0) {
-                        output.write(buffer, 0, read);
-                        copied += read;
-                        if (total > 0) progress.accept((int) Math.min(99, copied * 100 / total));
-                    }
-                }
-                progress.accept(100);
+                com.nexodb.util.SecureDownload.fetch(uri, destination, 2L * 1024 * 1024 * 1024,
+                        Duration.ofMinutes(5), progress);
             }
             String actual = sha256(destination);
             if (!actual.equalsIgnoreCase(update.sha256())) {
@@ -124,6 +94,18 @@ public final class UpdateService {
     }
 
     public void launchInstaller(Path zip) throws IOException {
+        if (!Files.isRegularFile(zip)) throw new IOException("No se encontró el paquete descargado.");
+        if (!canInstallInPlace()) {
+            if (!java.awt.Desktop.isDesktopSupported() || !java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.OPEN)) {
+                throw new IOException("Abre el paquete descargado con el instalador de tu sistema: " + zip);
+            }
+            java.awt.Desktop.getDesktop().open(zip.toFile());
+            return;
+        }
+        if (!zip.toString().toLowerCase(Locale.ROOT).endsWith(".zip")) {
+            java.awt.Desktop.getDesktop().open(zip.toFile());
+            return;
+        }
         String executableProperty = System.getProperty("jpackage.app-path", "").trim();
         if (executableProperty.isBlank()) {
             throw new IllegalStateException("La actualización automática solo funciona desde la aplicación portable instalada.");
@@ -146,15 +128,80 @@ public final class UpdateService {
         ).start();
     }
 
-    public static UpdateInfo parseManifest(String json) {
-        String version = jsonValue(json, "version", true);
-        String downloadUrl = jsonValue(json, "downloadUrl", false);
-        String sha256 = jsonValue(json, "sha256", false).toLowerCase(Locale.ROOT);
-        String notes = jsonValue(json, "notes", false);
-        if (!sha256.isBlank() && !sha256.matches("[0-9a-f]{64}")) {
-            throw new IllegalArgumentException("El SHA-256 del manifiesto no es válido.");
+    public static String platformKey() {
+        return platformKey(System.getProperty("os.name", ""), System.getProperty("os.arch", ""));
+    }
+
+    public static String platformKey(String os, String arch) {
+        String name = os.toLowerCase(Locale.ROOT);
+        String platform = name.startsWith("windows") ? "windows" : name.contains("mac") ? "macos"
+                : name.contains("linux") ? "linux" : "unknown";
+        String cpu = arch.toLowerCase(Locale.ROOT);
+        String architecture = cpu.equals("aarch64") || cpu.equals("arm64") ? "arm64"
+                : cpu.equals("amd64") || cpu.equals("x86_64") ? "x64" : cpu;
+        return platform + "-" + architecture;
+    }
+
+    public static UpdateInfo parseManifest(String json) { return parseManifest(json, platformKey()); }
+
+    public static UpdateInfo parseManifest(String json, String platform) {
+        var root = com.nexodb.util.Json.object(json);
+        String version = string(root, "version");
+        if (!version.matches("[vV]?[0-9]+(?:\\.[0-9]+){1,3}")) throw new IllegalArgumentException("La versión del manifiesto no es válida.");
+        java.util.Map<?, ?> asset = root;
+        if (root.get("platforms") instanceof java.util.Map<?, ?> platforms) {
+            if (!(platforms.get(platform) instanceof java.util.Map<?, ?> selected)) {
+                throw new IllegalStateException("Esta versión todavía no tiene un paquete para " + platform + ".");
+            }
+            asset = selected;
+        } else if (!platform.startsWith("windows-")) {
+            throw new IllegalStateException("El canal solo contiene un paquete de Windows. Aún no hay una actualización para " + platform + ".");
         }
-        return new UpdateInfo(version, downloadUrl, sha256, notes);
+        String downloadUrl = string(asset, "downloadUrl");
+        String sha256 = string(asset, "sha256").toLowerCase(Locale.ROOT);
+        if (!sha256.isBlank() && !sha256.matches("[0-9a-f]{64}")) throw new IllegalArgumentException("El SHA-256 del manifiesto no es válido.");
+        if (!downloadUrl.isBlank()) {
+            URI uri = URI.create(downloadUrl);
+            if (!"file".equalsIgnoreCase(uri.getScheme())) com.nexodb.util.SecureDownload.validate(uri);
+        }
+        return new UpdateInfo(version, downloadUrl, sha256, string(root, "notes"));
+    }
+
+    private static String string(java.util.Map<?, ?> object, String key) {
+        Object value = object.get(key);
+        if (value == null) return "";
+        if (!(value instanceof String text)) throw new IllegalArgumentException("El campo " + key + " debe ser texto.");
+        return text;
+    }
+
+    private static String packageSuffix(URI uri) {
+        String path = uri.getPath().toLowerCase(Locale.ROOT);
+        for (String suffix : new String[]{".zip", ".dmg", ".pkg", ".deb", ".rpm", ".tar.gz"}) {
+            if (path.endsWith(suffix)) return suffix;
+        }
+        throw new IllegalArgumentException("El formato del paquete de actualización no está admitido.");
+    }
+
+    public static boolean canInstallInPlace() {
+        return platformKey().startsWith("windows-") && !System.getProperty("jpackage.app-path", "").isBlank();
+    }
+
+    public static String explainError(Throwable error) {
+        while ((error instanceof java.util.concurrent.ExecutionException || error instanceof java.util.concurrent.CompletionException)
+                && error.getCause() != null) error = error.getCause();
+        if (error instanceof com.nexodb.util.SecureDownload.HttpStatusException http) {
+            if (http.status() == 404) return com.nexodb.util.I18n.tr("El canal de actualizaciones no está disponible (HTTP 404). El manifiesto debe estar publicado y ser accesible sin iniciar sesión. Revisa la dirección en Ayuda → Canal de actualizaciones.");
+            if (http.status() == 403 || http.status() == 429) return com.nexodb.util.I18n.tr("El servidor de actualizaciones ha limitado el acceso. Inténtalo más tarde o revisa el canal configurado.");
+            return com.nexodb.util.I18n.tr("El servidor de actualizaciones respondió HTTP %s. Inténtalo más tarde.", http.status());
+        }
+        if (com.nexodb.util.SecureDownload.isTlsFailure(error)) {
+            return com.nexodb.util.I18n.tr("No se pudo establecer una conexión HTTPS segura para buscar actualizaciones.\nSe intentaron Java, TLS 1.2 y la conexión del sistema. Revisa el proxy o los certificados de tu red e inténtalo de nuevo.");
+        }
+        if (error instanceof java.net.ConnectException || error instanceof java.net.UnknownHostException
+                || error instanceof java.net.http.HttpTimeoutException) {
+            return com.nexodb.util.I18n.tr("No se pudo contactar con el servidor de actualizaciones. Revisa tu conexión a Internet e inténtalo de nuevo.");
+        }
+        return error.getMessage() == null ? error.toString() : com.nexodb.util.I18n.tr(error.getMessage());
     }
 
     public static boolean isNewer(String candidate, String current) {
@@ -180,20 +227,6 @@ public final class UpdateService {
         return values;
     }
 
-    private static String jsonValue(String json, String key, boolean required) {
-        Matcher matcher = Pattern.compile(String.format(JSON_STRING.pattern(), Pattern.quote(key))).matcher(json);
-        if (!matcher.find()) {
-            if (required) throw new IllegalArgumentException("El manifiesto no contiene “" + key + "”.");
-            return "";
-        }
-        return matcher.group(1)
-                .replace("\\n", "\n")
-                .replace("\\r", "\r")
-                .replace("\\t", "\t")
-                .replace("\\\"", "\"")
-                .replace("\\\\", "\\");
-    }
-
     private static void validateRemoteUri(URI uri, String label) {
         if (!"https".equalsIgnoreCase(uri.getScheme())) {
             throw new IllegalArgumentException(label + " debe usar HTTPS.");
@@ -205,13 +238,6 @@ public final class UpdateService {
 
     private static Preferences settings() {
         return Preferences.userRoot().node("com/nexodb/studio/updater");
-    }
-
-    private static HttpClient client() {
-        return HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
     }
 
     private static String sha256(Path file) throws Exception {

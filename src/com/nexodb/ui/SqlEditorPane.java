@@ -55,6 +55,23 @@ public final class SqlEditorPane extends JTextPane {
             @Override public void removeUpdate(DocumentEvent e) { changed(); }
             @Override public void changedUpdate(DocumentEvent e) { changed(); }
         });
+        updatePalette();
+    }
+
+    @Override public void updateUI() {
+        super.updateUI();
+        if (defaultStyle != null) updatePalette();
+    }
+
+    private void updatePalette() {
+        StyleConstants.setForeground(defaultStyle, ThemeManager.color(0x172033, 0xE2E8F0));
+        StyleConstants.setForeground(keywordStyle, ThemeManager.color(0x155EEF, 0x82AAFF));
+        StyleConstants.setForeground(stringStyle, ThemeManager.color(0x16803A, 0xA3D98B));
+        StyleConstants.setForeground(commentStyle, ThemeManager.color(0x7A8699, 0x9BA8BB));
+        StyleConstants.setForeground(numberStyle, ThemeManager.color(0x8B3FD1, 0xC4A7E7));
+        StyleConstants.setForeground(identifierStyle, ThemeManager.color(0x087E8B, 0x7DD3D8));
+        setCaretColor(UIManager.getColor("TextPane.caretForeground"));
+        if (highlightTimer != null) highlightTimer.restart();
     }
 
     public void append(String text) {

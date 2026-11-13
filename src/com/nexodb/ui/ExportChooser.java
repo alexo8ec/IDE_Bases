@@ -1,5 +1,7 @@
 package com.nexodb.ui;
 
+import static com.nexodb.util.I18n.tr;
+
 import com.nexodb.util.DataExporter;
 
 import javax.swing.*;
@@ -16,7 +18,7 @@ public final class ExportChooser {
 
     public static Request choose(Component owner, String baseName) {
         JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Exportar datos");
+        chooser.setDialogTitle(tr("Exportar datos"));
         chooser.setAcceptAllFileFilterUsed(false);
         Map<javax.swing.filechooser.FileFilter, DataExporter.Format> formats = new LinkedHashMap<>();
         for (DataExporter.Format format : DataExporter.Format.values()) {
@@ -39,7 +41,7 @@ public final class ExportChooser {
         String expected = "." + format.extension();
         if (!selected.getName().toLowerCase().endsWith(expected)) selected = new File(selected.getParentFile(), selected.getName() + expected);
         if (selected.exists()) {
-            int replace = JOptionPane.showConfirmDialog(owner, "El archivo ya existe. ¿Deseas reemplazarlo?", "Reemplazar archivo",
+            int replace = JOptionPane.showConfirmDialog(owner, tr("El archivo ya existe. ¿Deseas reemplazarlo?"), tr("Reemplazar archivo"),
                     JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
             if (replace != JOptionPane.YES_OPTION) return null;
         }

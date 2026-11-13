@@ -60,7 +60,7 @@ if (-not $sources) {
 }
 
 $compileClasspath = "$flatLafSource;$flatLafExtrasSource;$jsvgSource"
-& javac -encoding UTF-8 -cp $compileClasspath -d $classesRoot $sources
+& javac --release 17 -encoding UTF-8 -cp $compileClasspath -d $classesRoot $sources
 if ($LASTEXITCODE -ne 0) { throw 'La compilacion fallo.' }
 
 if (Test-Path -LiteralPath $resourceRoot) {

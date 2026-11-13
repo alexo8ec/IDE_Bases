@@ -35,6 +35,9 @@ public final class JdbcSession implements AutoCloseable {
     }
 
     public static JdbcSession open(ConnectionProfile profile, char[] password, IntConsumer driverProgress) throws Exception {
+        if (profile.authenticationMode() == AuthenticationMode.WINDOWS && !com.nexodb.util.SecretStore.isSupported()) {
+            throw new IllegalArgumentException("La autenticación integrada de Windows requiere Windows. Edita el perfil y elige usuario y contraseña.");
+        }
         profile = PostgresSupport.initialProfile(profile);
         ensureKnownDriver(profile, driverProgress);
         try {

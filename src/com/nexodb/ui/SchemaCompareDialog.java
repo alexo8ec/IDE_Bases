@@ -1,5 +1,7 @@
 package com.nexodb.ui;
 
+import static com.nexodb.util.I18n.tr;
+
 import com.nexodb.db.JdbcSession;
 import com.nexodb.model.DatabaseType;
 
@@ -28,18 +30,18 @@ public final class SchemaCompareDialog extends JDialog {
     private final JComboBox<String> source = new JComboBox<>();
     private final JComboBox<String> target = new JComboBox<>();
     private final DefaultTableModel model = new DefaultTableModel(
-            new Object[]{"Objeto", "Nombre", "Estado", "Detalle"}, 0) {
+            new Object[]{tr("Objeto"), tr("Nombre"), tr("Estado"), tr("Detalle")}, 0) {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable results = new JTable(model);
-    private final JButton compare = new JButton("Comparar", IconFactory.of(IconFactory.Kind.COMPARE, 16));
-    private final JButton generate = new JButton("Generar script", IconFactory.of(IconFactory.Kind.SQL, 16));
-    private final JLabel status = new JLabel("Selecciona el origen y el destino.");
+    private final JButton compare = new JButton(tr("Comparar"), IconFactory.of(IconFactory.Kind.COMPARE, 16));
+    private final JButton generate = new JButton(tr("Generar script"), IconFactory.of(IconFactory.Kind.SQL, 16));
+    private final JLabel status = new JLabel(tr("Selecciona el origen y el destino."));
     private final JProgressBar progress = new JProgressBar();
     private Comparison lastComparison;
 
     public SchemaCompareDialog(Window owner, JdbcSession activeSession, List<JdbcSession> sessions, BiConsumer<JdbcSession, String> scriptConsumer) {
-        super(owner, "Comparar esquemas", ModalityType.APPLICATION_MODAL);
+        super(owner, tr("Comparar esquemas"), ModalityType.APPLICATION_MODAL);
         this.scriptConsumer = scriptConsumer;
         for (JdbcSession session : sessions) if (session != null && session.isOpen()) {
             SessionOption option = new SessionOption(session); sourceConnection.addItem(option); targetConnection.addItem(option);
@@ -67,7 +69,7 @@ public final class SchemaCompareDialog extends JDialog {
         status.setIcon(IconFactory.of(IconFactory.Kind.INFO, 15));
         bottom.add(status, BorderLayout.CENTER);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        JButton close = new JButton("Cerrar", IconFactory.of(IconFactory.Kind.CANCEL, 16));
+        JButton close = new JButton(tr("Cerrar"), IconFactory.of(IconFactory.Kind.CANCEL, 16));
         compare.addActionListener(e -> compare());
         generate.addActionListener(e -> generateScript());
         generate.setEnabled(false);
@@ -86,20 +88,20 @@ public final class SchemaCompareDialog extends JDialog {
 
     private JComponent buildSelectors() {
         JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createTitledBorder("Origen y destino"));
+        panel.setBorder(BorderFactory.createTitledBorder(tr("Origen y destino")));
         GridBagConstraints c = new GridBagConstraints();
         c.insets = new Insets(7, 8, 7, 8);
         c.gridy = 0;
         c.fill = GridBagConstraints.HORIZONTAL;
         c.weightx = 0;
-        panel.add(new JLabel("Instancia de origen:"), c);
+        panel.add(new JLabel(tr("Instancia de origen:")), c);
         c.gridx = 1;
         c.weightx = 1;
         panel.add(sourceConnection, c);
         c.gridx = 2;
         c.weightx = 0;
         JButton swap = new JButton("⇄", IconFactory.of(IconFactory.Kind.COMPARE, 16));
-        swap.setToolTipText("Intercambiar origen y destino");
+        swap.setToolTipText(tr("Intercambiar origen y destino"));
         swap.addActionListener(e -> {
             Object left = sourceConnection.getSelectedItem();
             sourceConnection.setSelectedItem(targetConnection.getSelectedItem());
@@ -107,13 +109,13 @@ public final class SchemaCompareDialog extends JDialog {
         });
         panel.add(swap, c);
         c.gridx = 3;
-        panel.add(new JLabel("Instancia de destino:"), c);
+        panel.add(new JLabel(tr("Instancia de destino:")), c);
         c.gridx = 4;
         c.weightx = 1;
         panel.add(targetConnection, c);
-        c.gridy = 1; c.gridx = 0; c.weightx = 0; panel.add(new JLabel("Base de origen:"), c);
+        c.gridy = 1; c.gridx = 0; c.weightx = 0; panel.add(new JLabel(tr("Base de origen:")), c);
         c.gridx = 1; c.weightx = 1; panel.add(source, c);
-        c.gridx = 3; c.weightx = 0; panel.add(new JLabel("Base de destino:"), c);
+        c.gridx = 3; c.weightx = 0; panel.add(new JLabel(tr("Base de destino:")), c);
         c.gridx = 4; c.weightx = 1; panel.add(target, c);
         sourceConnection.addActionListener(e -> loadDatabases(sourceSession(), source));
         targetConnection.addActionListener(e -> loadDatabases(targetSession(), target));
@@ -163,8 +165,8 @@ public final class SchemaCompareDialog extends JDialog {
                     if (requested != null && !requested.isBlank()) combo.setSelectedItem(requested);
                     combo.setEnabled(combo.getItemCount() > 0);
                     compare.setEnabled(source.getItemCount() > 0 && target.getItemCount() > 0);
-                    status.setText("Selecciona las instancias y bases que deseas comparar.");
-                } catch (Exception error) { status.setText("No se pudieron cargar las bases: " + rootCause(error).getMessage()); }
+                    status.setText(tr("Selecciona las instancias y bases que deseas comparar."));
+                } catch (Exception error) { status.setText(tr("No se pudieron cargar las bases: ") + rootCause(error).getMessage()); }
             }
         }.execute();
     }
@@ -176,12 +178,12 @@ public final class SchemaCompareDialog extends JDialog {
         String targetName = (String) target.getSelectedItem();
         if (sourceSession == null || targetSession == null || sourceName == null || targetName == null) return;
         if (sourceSession == targetSession && sourceName.equalsIgnoreCase(targetName)) {
-            JOptionPane.showMessageDialog(this, "Selecciona un origen y un destino diferentes.", "Comparar esquemas", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, tr("Selecciona un origen y un destino diferentes."), tr("Comparar esquemas"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         compare.setEnabled(false);
         generate.setEnabled(false);
-        status.setText("Comparando " + sourceName + " con " + targetName + "…");
+        status.setText(tr("Comparando ") + sourceName + tr(" con ") + targetName + "…");
         progress.setVisible(true);
         model.setRowCount(0);
         new SwingWorker<Comparison, Void>() {
@@ -198,13 +200,13 @@ public final class SchemaCompareDialog extends JDialog {
                         model.addRow(new Object[]{difference.type(), difference.name(), difference.status(), difference.detail()});
                     }
                     generate.setEnabled(!lastComparison.script().isBlank());
-                    long changes = lastComparison.differences().stream().filter(d -> !d.status().equals("Igual")).count();
-                    status.setText(lastComparison.differences().size() + " objetos revisados · " + changes + " diferencias");
+                    long changes = lastComparison.differences().stream().filter(d -> !d.status().equals(tr("Igual"))).count();
+                    status.setText(lastComparison.differences().size() + tr(" objetos revisados · ") + changes + tr(" diferencias"));
                 } catch (Exception error) {
                     Throwable cause = rootCause(error);
-                    status.setText("Error al comparar");
+                    status.setText(tr("Error al comparar"));
                     JOptionPane.showMessageDialog(SchemaCompareDialog.this, cause.getMessage(),
-                            "No se pudieron comparar los esquemas", JOptionPane.ERROR_MESSAGE);
+                            tr("No se pudieron comparar los esquemas"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();
@@ -226,17 +228,17 @@ public final class SchemaCompareDialog extends JDialog {
             DbObject sourceObject = left.objects().get(key);
             DbObject targetObject = right.objects().get(key);
             if (sourceObject == null) {
-                differences.add(new Difference(targetObject.type(), targetObject.name(), "Solo en destino", "No se elimina automáticamente"));
+                differences.add(new Difference(targetObject.type(), targetObject.name(), tr("Solo en destino"), tr("No se elimina automáticamente")));
                 script.append("-- Solo en destino; no se genera DROP: ").append(targetObject.type()).append(' ').append(targetObject.name()).append("\n");
                 continue;
             }
             if (targetObject == null) {
-                differences.add(new Difference(sourceObject.type(), sourceObject.name(), "Solo en origen", "Debe crearse en el destino"));
+                differences.add(new Difference(sourceObject.type(), sourceObject.name(), tr("Solo en origen"), tr("Debe crearse en el destino")));
                 appendCreateObject(script, sourceSession, sourceName, targetSession, targetName, sourceObject);
                 continue;
             }
-            if (!sourceObject.type().equals("Tabla")) {
-                differences.add(new Difference(sourceObject.type(), sourceObject.name(), "Existe en ambos", "La definición debe revisarse desde SQL / DDL"));
+            if (!sourceObject.type().equals(tr("Tabla"))) {
+                differences.add(new Difference(sourceObject.type(), sourceObject.name(), tr("Existe en ambos"), tr("La definición debe revisarse desde SQL / DDL")));
                 continue;
             }
             compareColumns(sourceObject, targetObject, targetSession, targetName, differences, script);
@@ -252,8 +254,8 @@ public final class SchemaCompareDialog extends JDialog {
                 "%", new String[]{"TABLE", "VIEW"})) {
             while (rs.next()) {
                 String name = rs.getString("TABLE_NAME");
-                String type = "VIEW".equalsIgnoreCase(rs.getString("TABLE_TYPE")) ? "Vista" : "Tabla";
-                Map<String, ColumnDef> columns = type.equals("Tabla") ? readColumns(endpoint, database, name, catalog) : Map.of();
+                String type = "VIEW".equalsIgnoreCase(rs.getString("TABLE_TYPE")) ? tr("Vista") : tr("Tabla");
+                Map<String, ColumnDef> columns = type.equals(tr("Tabla")) ? readColumns(endpoint, database, name, catalog) : Map.of();
                 objects.put(key(type, name), new DbObject(type, name, columns));
             }
         }
@@ -287,36 +289,36 @@ public final class SchemaCompareDialog extends JDialog {
             String displayName = sourceTable.name() + "." + (left != null ? left.name() : right.name());
             if (left == null) {
                 tableEqual = false;
-                differences.add(new Difference("Columna", displayName, "Solo en destino", "No se elimina automáticamente"));
+                differences.add(new Difference(tr("Columna"), displayName, tr("Solo en destino"), tr("No se elimina automáticamente")));
                 script.append("-- Solo en destino; no se genera DROP COLUMN: ").append(displayName).append("\n");
             } else if (right == null) {
                 tableEqual = false;
-                differences.add(new Difference("Columna", displayName, "Solo en origen", left.sqlDefinition()));
+                differences.add(new Difference(tr("Columna"), displayName, tr("Solo en origen"), left.sqlDefinition()));
                 script.append("ALTER TABLE ").append(qualified(targetSession, targetDatabase, sourceTable.name()))
                         .append(" ADD COLUMN ").append(quote(targetSession, left.name())).append(' ').append(left.sqlDefinition()).append(";\n");
             } else if (!left.normalized().equals(right.normalized())) {
                 tableEqual = false;
-                differences.add(new Difference("Columna", displayName, "Diferente",
-                        "Origen: " + left.sqlDefinition() + " · Destino: " + right.sqlDefinition()));
+                differences.add(new Difference(tr("Columna"), displayName, tr("Diferente"),
+                        tr("Origen: ") + left.sqlDefinition() + tr(" · Destino: ") + right.sqlDefinition()));
                 if (targetSession.profile().type() == DatabaseType.MYSQL || targetSession.profile().type() == DatabaseType.MARIADB) {
                     script.append("ALTER TABLE ").append(qualified(targetSession, targetDatabase, sourceTable.name()))
                             .append(" MODIFY COLUMN ").append(quote(targetSession, left.name())).append(' ').append(left.sqlDefinition()).append(";\n");
                 } else {
-                    script.append("-- Modificar ").append(displayName).append(" a ").append(left.sqlDefinition()).append("\n");
+                    script.append("-- Modificar ").append(displayName).append(tr(" a ")).append(left.sqlDefinition()).append("\n");
                 }
             }
         }
-        differences.add(new Difference("Tabla", sourceTable.name(), tableEqual ? "Igual" : "Diferente",
-                tableEqual ? "Estructura de columnas equivalente" : "Revisa las diferencias de columnas"));
+        differences.add(new Difference(tr("Tabla"), sourceTable.name(), tableEqual ? tr("Igual") : tr("Diferente"),
+                tableEqual ? tr("Estructura de columnas equivalente") : tr("Revisa las diferencias de columnas")));
     }
 
     private void appendCreateObject(StringBuilder script, JdbcSession sourceSession, String sourceDatabase,
                                     JdbcSession targetSession, String targetDatabase, DbObject object) {
-        if (object.type().equals("Tabla") && sourceSession == targetSession
+        if (object.type().equals(tr("Tabla")) && sourceSession == targetSession
                 && (targetSession.profile().type() == DatabaseType.MYSQL || targetSession.profile().type() == DatabaseType.MARIADB)) {
             script.append("CREATE TABLE ").append(qualified(targetSession, targetDatabase, object.name()))
                     .append(" LIKE ").append(qualified(sourceSession, sourceDatabase, object.name())).append(";\n");
-        } else if (object.type().equals("Tabla")) {
+        } else if (object.type().equals(tr("Tabla"))) {
             script.append("CREATE TABLE ").append(qualified(targetSession, targetDatabase, object.name())).append(" (\n");
             int index = 0;
             for (ColumnDef column : object.columns().values()) {
@@ -326,7 +328,7 @@ public final class SchemaCompareDialog extends JDialog {
             script.append("\n);\n");
         } else {
             script.append("-- Crear ").append(object.type()).append(' ').append(object.name())
-                    .append(" en ").append(targetDatabase).append("; revisa su DDL en el explorador.\n");
+                    .append(tr(" en ")).append(targetDatabase).append("; revisa su DDL en el explorador.\n");
         }
     }
 
@@ -395,8 +397,8 @@ public final class SchemaCompareDialog extends JDialog {
             JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, selected, focus, row, column);
             if (!selected) {
                 String status = value == null ? "" : value.toString();
-                label.setForeground(status.equals("Igual") || status.equals("Existe en ambos")
-                        ? IconFactory.GREEN : status.equals("Diferente") ? IconFactory.AMBER : IconFactory.RED);
+                label.setForeground(status.equals(tr("Igual")) || status.equals(tr("Existe en ambos"))
+                        ? IconFactory.GREEN : status.equals(tr("Diferente")) ? IconFactory.AMBER : IconFactory.RED);
             }
             return label;
         }

@@ -28,4 +28,10 @@ if ($LASTEXITCODE -ne 0) { throw 'La prueba del almacen seguro de contrasenas fa
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de exportacion de datos fallo.' }
 & java -cp $testClasspath com.nexodb.db.DriverDownloadServiceTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba del gestor de adaptadores JDBC fallo.' }
+& java -cp $testClasspath com.nexodb.update.UpdateServiceTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del actualizador fallaron.' }
+& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.AppearanceTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de idiomas y temas fallaron.' }
+& java -cp $testClasspath com.nexodb.util.SecureDownloadTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de descarga HTTPS fallaron.' }
 

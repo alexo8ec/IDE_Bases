@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$version = '0.10.6'
+$version = (Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'VERSION')).Trim()
 & (Join-Path $projectRoot 'build.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -14,6 +14,12 @@ $releaseRoot = Join-Path $distRoot $version
 $appRoot = Join-Path $releaseRoot 'NexoDB Studio'
 $packageRoot = Join-Path ([IO.Path]::GetTempPath()) ("nexodb-package-" + $version)
 $iconPath = Join-Path $projectRoot 'build\nexodb.ico'
+$productionInput = Join-Path $projectRoot 'build\package-input'
+if (Test-Path -LiteralPath $productionInput) { Remove-Item -LiteralPath $productionInput -Recurse -Force }
+New-Item -ItemType Directory -Path $productionInput -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'build\nexodb-studio.jar') -Destination $productionInput
+Copy-Item -LiteralPath (Join-Path $projectRoot 'build\lib') -Destination $productionInput -Recurse
+Copy-Item -LiteralPath (Join-Path $projectRoot 'build\drivers') -Destination $productionInput -Recurse
 $embeddedManifestUrl = if ($UpdateManifestUrl) {
     $UpdateManifestUrl.Trim()
 } elseif ($UpdateBaseUrl) {
@@ -38,13 +44,14 @@ New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
     --app-version $version `
     --vendor 'NexoDB' `
     --description 'Cliente universal de bases de datos' `
-    --input (Join-Path $projectRoot 'build') `
+    --input $productionInput `
     --main-jar 'nexodb-studio.jar' `
     --main-class 'com.nexodb.App' `
     --icon $iconPath `
     --dest $packageRoot `
     --add-modules 'java.desktop,java.sql,java.prefs,java.naming,java.net.http,java.security.jgss,jdk.security.auth' `
     --java-options '-Dfile.encoding=UTF-8' `
+    --java-options '-Djava.net.useSystemProxies=true' `
     --java-options '-Dsun.java2d.d3d=false' `
     --java-options '-Dsun.java2d.opengl=false' `
     --java-options '-Dsun.security.jgss.native=true' `
@@ -85,7 +92,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = 'PostgreSQL permite dejar la base vacia y elegir entre las bases con permiso CONNECT del usuario, sin usar su nombre como base.'
+    notes = 'Actualizador HTTPS con TLS 1.2 y conexion nativa segura, idiomas espanol/ingles, temas claro/oscuro/sistema y distribucion Java para Windows, Linux y macOS.'
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\NexoDB Studio.exe"

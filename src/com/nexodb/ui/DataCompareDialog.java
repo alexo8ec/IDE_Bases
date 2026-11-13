@@ -1,5 +1,7 @@
 package com.nexodb.ui;
 
+import static com.nexodb.util.I18n.tr;
+
 import com.nexodb.db.JdbcSession;
 import com.nexodb.model.DatabaseType;
 
@@ -31,31 +33,31 @@ public final class DataCompareDialog extends JDialog {
     private final JComboBox<String> source = new JComboBox<>();
     private final JComboBox<String> target = new JComboBox<>();
     private final JTextField tableFilter = new JTextField();
-    private final JCheckBox includeViews = new JCheckBox("Incluir vistas");
-    private final JCheckBox ignoreCase = new JCheckBox("Ignorar mayúsculas/minúsculas en textos");
-    private final JCheckBox trimText = new JCheckBox("Ignorar espacios al inicio y al final", true);
-    private final JCheckBox nullEqualsEmpty = new JCheckBox("Tratar NULL y texto vacío como iguales");
-    private final JCheckBox ignoreLobs = new JCheckBox("Ignorar columnas BLOB/CLOB", true);
+    private final JCheckBox includeViews = new JCheckBox(tr("Incluir vistas"));
+    private final JCheckBox ignoreCase = new JCheckBox(tr("Ignorar mayúsculas/minúsculas en textos"));
+    private final JCheckBox trimText = new JCheckBox(tr("Ignorar espacios al inicio y al final"), true);
+    private final JCheckBox nullEqualsEmpty = new JCheckBox(tr("Tratar NULL y texto vacío como iguales"));
+    private final JCheckBox ignoreLobs = new JCheckBox(tr("Ignorar columnas BLOB/CLOB"), true);
     private final JSpinner maxRows = new JSpinner(new SpinnerNumberModel(5000, 1, 1_000_000, 1000));
-    private final JButton chooseTables = new JButton("Seleccionar tablas…", IconFactory.of(IconFactory.Kind.TABLE, 16));
+    private final JButton chooseTables = new JButton(tr("Seleccionar tablas…"), IconFactory.of(IconFactory.Kind.TABLE, 16));
     private final Set<String> selectedTables = new LinkedHashSet<>();
     private boolean tableSelectionConfigured;
     private final DefaultTableModel model = new DefaultTableModel(
-            new Object[]{"Tabla", "Estado", "Origen", "Destino", "Faltan", "Adicionales", "Modificadas", "Detalle"}, 0) {
+            new Object[]{tr("Tabla"), tr("Estado"), tr("Origen"), tr("Destino"), tr("Faltan"), tr("Adicionales"), tr("Modificadas"), tr("Detalle")}, 0) {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable results = new JTable(model);
     private final JTextArea scriptPreview = new JTextArea();
     private final JTabbedPane outputTabs = new JTabbedPane();
     private final JProgressBar progress = new JProgressBar();
-    private final JLabel status = new JLabel("Selecciona las bases que deseas comparar.");
-    private final JButton compare = new JButton("Comparar datos", IconFactory.of(IconFactory.Kind.COMPARE, 16));
-    private final JButton generate = new JButton("Abrir script en editor", IconFactory.of(IconFactory.Kind.SQL, 16));
-    private final JButton saveScript = new JButton("Guardar .sql", IconFactory.of(IconFactory.Kind.SAVE, 16));
+    private final JLabel status = new JLabel(tr("Selecciona las bases que deseas comparar."));
+    private final JButton compare = new JButton(tr("Comparar datos"), IconFactory.of(IconFactory.Kind.COMPARE, 16));
+    private final JButton generate = new JButton(tr("Abrir script en editor"), IconFactory.of(IconFactory.Kind.SQL, 16));
+    private final JButton saveScript = new JButton(tr("Guardar .sql"), IconFactory.of(IconFactory.Kind.SAVE, 16));
     private Comparison comparison;
 
     public DataCompareDialog(Window owner, JdbcSession activeSession, List<JdbcSession> sessions, BiConsumer<JdbcSession, String> scriptConsumer) {
-        super(owner, "Comparar datos", ModalityType.APPLICATION_MODAL);
+        super(owner, tr("Comparar datos"), ModalityType.APPLICATION_MODAL);
         this.scriptConsumer = scriptConsumer;
         for (JdbcSession session : sessions) if (session != null && session.isOpen()) {
             SessionOption option = new SessionOption(session);
@@ -82,8 +84,8 @@ public final class DataCompareDialog extends JDialog {
         scriptPreview.setEditable(false);
         scriptPreview.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         scriptPreview.setMargin(new Insets(10, 12, 10, 12));
-        outputTabs.addTab("Resultados", IconFactory.of(IconFactory.Kind.COMPARE, 16), new JScrollPane(results));
-        outputTabs.addTab("Script de sincronización", IconFactory.of(IconFactory.Kind.SQL, 16), new JScrollPane(scriptPreview));
+        outputTabs.addTab(tr("Resultados"), IconFactory.of(IconFactory.Kind.COMPARE, 16), new JScrollPane(results));
+        outputTabs.addTab(tr("Script de sincronización"), IconFactory.of(IconFactory.Kind.SQL, 16), new JScrollPane(scriptPreview));
         outputTabs.putClientProperty("JTabbedPane.tabType", "card");
         root.add(outputTabs, BorderLayout.CENTER);
 
@@ -96,7 +98,7 @@ public final class DataCompareDialog extends JDialog {
         progress.setVisible(false);
         generate.setEnabled(false);
         saveScript.setEnabled(false);
-        JButton close = new JButton("Cerrar", IconFactory.of(IconFactory.Kind.CANCEL, 16));
+        JButton close = new JButton(tr("Cerrar"), IconFactory.of(IconFactory.Kind.CANCEL, 16));
         compare.addActionListener(e -> compare());
         generate.addActionListener(e -> generateScript());
         saveScript.addActionListener(e -> saveScript());
@@ -110,10 +112,10 @@ public final class DataCompareDialog extends JDialog {
     private JComponent buildOptions() {
         JPanel container = new JPanel(new BorderLayout(8, 8));
         JPanel endpoints = new JPanel(new GridBagLayout());
-        endpoints.setBorder(BorderFactory.createTitledBorder("Origen y destino"));
+        endpoints.setBorder(BorderFactory.createTitledBorder(tr("Origen y destino")));
         GridBagConstraints c = new GridBagConstraints();
         c.insets = new Insets(5, 7, 5, 7); c.fill = GridBagConstraints.HORIZONTAL; c.gridy = 0;
-        endpoints.add(new JLabel("Instancia de origen:"), c);
+        endpoints.add(new JLabel(tr("Instancia de origen:")), c);
         c.gridx = 1; c.weightx = 1; endpoints.add(sourceConnection, c);
         c.gridx = 2; c.weightx = 0;
         JButton swap = new JButton("⇄", IconFactory.of(IconFactory.Kind.COMPARE, 16));
@@ -126,17 +128,17 @@ public final class DataCompareDialog extends JDialog {
             SwingUtilities.invokeLater(() -> { source.setSelectedItem(rightDatabase); target.setSelectedItem(leftDatabase); });
         });
         endpoints.add(swap, c);
-        c.gridx = 3; endpoints.add(new JLabel("Instancia de destino:"), c);
+        c.gridx = 3; endpoints.add(new JLabel(tr("Instancia de destino:")), c);
         c.gridx = 4; c.weightx = 1; endpoints.add(targetConnection, c);
-        c.gridx = 0; c.gridy = 1; c.weightx = 0; endpoints.add(new JLabel("Base de origen:"), c);
+        c.gridx = 0; c.gridy = 1; c.weightx = 0; endpoints.add(new JLabel(tr("Base de origen:")), c);
         c.gridx = 1; c.weightx = 1; endpoints.add(source, c);
-        c.gridx = 3; c.weightx = 0; endpoints.add(new JLabel("Base de destino:"), c);
+        c.gridx = 3; c.weightx = 0; endpoints.add(new JLabel(tr("Base de destino:")), c);
         c.gridx = 4; c.weightx = 1; endpoints.add(target, c);
-        c.gridx = 0; c.gridy = 2; c.weightx = 0; endpoints.add(new JLabel("Filtrar tablas:"), c);
+        c.gridx = 0; c.gridy = 2; c.weightx = 0; endpoints.add(new JLabel(tr("Filtrar tablas:")), c);
         c.gridx = 1; c.gridwidth = 2; c.weightx = 1;
-        tableFilter.putClientProperty("JTextField.placeholderText", "Vacío para comparar todas; admite texto parcial");
+        tableFilter.putClientProperty("JTextField.placeholderText", tr("Vacío para comparar todas; admite texto parcial"));
         endpoints.add(tableFilter, c);
-        c.gridx = 3; c.gridwidth = 1; c.weightx = 0; endpoints.add(new JLabel("Máx. filas por tabla:"), c);
+        c.gridx = 3; c.gridwidth = 1; c.weightx = 0; endpoints.add(new JLabel(tr("Máx. filas por tabla:")), c);
         c.gridx = 4; c.weightx = 1; endpoints.add(maxRows, c);
         c.gridx = 0; c.gridy = 3; c.gridwidth = 5; c.weightx = 1;
         chooseTables.addActionListener(e -> chooseTables());
@@ -149,7 +151,7 @@ public final class DataCompareDialog extends JDialog {
         container.add(endpoints, BorderLayout.NORTH);
 
         JPanel options = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 3));
-        options.setBorder(BorderFactory.createTitledBorder("Opciones de comparación"));
+        options.setBorder(BorderFactory.createTitledBorder(tr("Opciones de comparación")));
         options.add(ignoreCase); options.add(trimText); options.add(nullEqualsEmpty); options.add(ignoreLobs); options.add(includeViews);
         container.add(options, BorderLayout.SOUTH);
         return container;
@@ -184,9 +186,9 @@ public final class DataCompareDialog extends JDialog {
                     if (!sourceSide && combo.getSelectedIndex() < 0 && combo.getItemCount() > 0) combo.setSelectedIndex(0);
                     combo.setEnabled(combo.getItemCount() > 0);
                     compare.setEnabled(source.getItemCount() > 0 && target.getItemCount() > 0);
-                    status.setText("Selecciona las instancias, las bases y las tablas que deseas comparar.");
+                    status.setText(tr("Selecciona las instancias, las bases y las tablas que deseas comparar."));
                 } catch (Exception error) {
-                    status.setText("No se pudieron cargar las bases: " + rootCause(error).getMessage());
+                    status.setText(tr("No se pudieron cargar las bases: ") + rootCause(error).getMessage());
                 }
             }
         }.execute();
@@ -212,7 +214,7 @@ public final class DataCompareDialog extends JDialog {
         String targetDb = (String) target.getSelectedItem();
         if (sourceSession == null || targetSession == null || sourceDb == null || targetDb == null
                 || (sourceSession == targetSession && sourceDb.equalsIgnoreCase(targetDb))) {
-            JOptionPane.showMessageDialog(this, "Selecciona un origen y un destino diferentes.", "Comparar datos", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, tr("Selecciona un origen y un destino diferentes."), tr("Comparar datos"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         Options options = new Options(ignoreCase.isSelected(), trimText.isSelected(), nullEqualsEmpty.isSelected(),
@@ -220,8 +222,8 @@ public final class DataCompareDialog extends JDialog {
                 Set.copyOf(selectedTables), tableSelectionConfigured);
         compare.setEnabled(false); generate.setEnabled(false); model.setRowCount(0);
         saveScript.setEnabled(false); scriptPreview.setText(""); outputTabs.setSelectedIndex(0);
-        progress.setValue(0); progress.setString("Preparando…"); progress.setVisible(true);
-        status.setText("Comparando " + sourceSession.profile().name() + "/" + sourceDb + " con "
+        progress.setValue(0); progress.setString(tr("Preparando…")); progress.setVisible(true);
+        status.setText(tr("Comparando ") + sourceSession.profile().name() + "/" + sourceDb + tr(" con ")
                 + targetSession.profile().name() + "/" + targetDb + "…");
         SwingWorker<Comparison, Void> worker = new SwingWorker<>() {
             @Override protected Comparison doInBackground() throws Exception {
@@ -241,12 +243,12 @@ public final class DataCompareDialog extends JDialog {
                     saveScript.setEnabled(!comparison.script().isBlank());
                     scriptPreview.setText(comparison.script());
                     scriptPreview.setCaretPosition(0);
-                    long changedTables = comparison.tables().stream().filter(t -> !t.status().equals("Igual")).count();
-                    status.setText(comparison.tables().size() + " tablas revisadas · " + changedTables + " con diferencias");
+                    long changedTables = comparison.tables().stream().filter(t -> !t.status().equals(tr("Igual"))).count();
+                    status.setText(comparison.tables().size() + tr(" tablas revisadas · ") + changedTables + tr(" con diferencias"));
                 } catch (Exception error) {
-                    status.setText("Error al comparar datos");
+                    status.setText(tr("Error al comparar datos"));
                     JOptionPane.showMessageDialog(DataCompareDialog.this, rootCause(error).getMessage(),
-                            "No se pudieron comparar los datos", JOptionPane.ERROR_MESSAGE);
+                            tr("No se pudieron comparar los datos"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         };
@@ -273,9 +275,9 @@ public final class DataCompareDialog extends JDialog {
         for (String key : filtered) {
             String sourceTable = sourceTables.get(key), targetTable = targetTables.get(key);
             if (sourceTable == null) {
-                differences.add(new TableDifference(targetTable, "Solo en destino", 0, -1, 0, 0, 0, "No existe en origen", List.of()));
+                differences.add(new TableDifference(targetTable, tr("Solo en destino"), 0, -1, 0, 0, 0, tr("No existe en origen"), List.of()));
             } else if (targetTable == null) {
-                differences.add(new TableDifference(sourceTable, "Solo en origen", -1, 0, 0, 0, 0, "No existe en destino", List.of()));
+                differences.add(new TableDifference(sourceTable, tr("Solo en origen"), -1, 0, 0, 0, 0, tr("No existe en destino"), List.of()));
             } else {
                 TableDifference difference = compareTable(sourceSession, sourceDb, targetSession, targetDb, sourceTable, targetTable, options, script);
                 differences.add(difference);
@@ -315,10 +317,10 @@ public final class DataCompareDialog extends JDialog {
         Set<String> commonNames = new LinkedHashSet<>();
         for (ColumnMeta column : common) commonNames.add(column.name().toLowerCase(Locale.ROOT));
         if (sourcePk.isEmpty() || !lower(sourcePk).equals(lower(targetPk)) || !commonNames.containsAll(lower(sourcePk))) {
-            return new TableDifference(sourceTable, "Sin clave compatible", -1, -1, 0, 0, 0,
-                    "Se necesita la misma clave primaria en origen y destino", List.of());
+            return new TableDifference(sourceTable, tr("Sin clave compatible"), -1, -1, 0, 0, 0,
+                    tr("Se necesita la misma clave primaria en origen y destino"), List.of());
         }
-        if (common.isEmpty()) return new TableDifference(sourceTable, "Sin columnas comunes", -1, -1, 0, 0, 0, "No se puede comparar", List.of());
+        if (common.isEmpty()) return new TableDifference(sourceTable, tr("Sin columnas comunes"), -1, -1, 0, 0, 0, tr("No se puede comparar"), List.of());
 
         TableData left = readRows(sourceSession, sourceDb, sourceTable, common, sourcePk, options);
         TableData right = readRows(targetSession, targetDb, targetTable, common, sourcePk, options);
@@ -327,21 +329,21 @@ public final class DataCompareDialog extends JDialog {
         for (Map.Entry<RowKey, RowData> entry : left.rows().entrySet()) {
             RowData targetRow = right.rows().get(entry.getKey());
             if (targetRow == null) {
-                missing++; if (details.size() < 100) details.add("Falta en destino: " + entry.getKey().display());
+                missing++; if (details.size() < 100) details.add(tr("Falta en destino: ") + entry.getKey().display());
                 appendInsert(script, targetSession, targetDb, targetTable, common, entry.getValue());
             } else if (!entry.getValue().normalized().equals(targetRow.normalized())) {
-                changed++; if (details.size() < 100) details.add("Modificada: " + entry.getKey().display());
+                changed++; if (details.size() < 100) details.add(tr("Modificada: ") + entry.getKey().display());
                 appendUpdate(script, targetSession, targetDb, targetTable, common, sourcePk, entry.getValue());
             }
         }
         for (RowKey key : right.rows().keySet()) {
             if (!left.rows().containsKey(key)) {
-                extra++; if (details.size() < 100) details.add("Adicional en destino: " + key.display());
+                extra++; if (details.size() < 100) details.add(tr("Adicional en destino: ") + key.display());
             }
         }
         String state = missing == 0 && extra == 0 && changed == 0
-                ? (left.truncated() || right.truncated() ? "Parcial" : "Igual") : "Diferente";
-        String note = (left.truncated() || right.truncated()) ? "Límite alcanzado; comparación parcial" : common.size() + " columnas comparadas";
+                ? (left.truncated() || right.truncated() ? tr("Parcial") : tr("Igual")) : tr("Diferente");
+        String note = (left.truncated() || right.truncated()) ? tr("Límite alcanzado; comparación parcial") : common.size() + tr(" columnas comparadas");
         return new TableDifference(sourceTable, state, left.rows().size(), right.rows().size(), missing, extra, changed, note, details);
     }
 
@@ -432,7 +434,7 @@ public final class DataCompareDialog extends JDialog {
         text.setEditable(false); text.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         text.setText(difference.details().isEmpty() ? difference.detail() : String.join("\n", difference.details()));
         text.setCaretPosition(0);
-        JOptionPane.showMessageDialog(this, new JScrollPane(text), "Diferencias de " + difference.table(), JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(this, new JScrollPane(text), tr("Diferencias de ") + difference.table(), JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void generateScript() {
@@ -444,21 +446,21 @@ public final class DataCompareDialog extends JDialog {
     private void saveScript() {
         if (comparison == null || comparison.script().isBlank()) return;
         JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Guardar script de sincronización");
+        chooser.setDialogTitle(tr("Guardar script de sincronización"));
         chooser.setSelectedFile(new java.io.File("sincronizacion-datos.sql"));
         if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
         try {
             Files.writeString(chooser.getSelectedFile().toPath(), comparison.script(), StandardCharsets.UTF_8);
-            status.setText("Script guardado: " + chooser.getSelectedFile().getName());
+            status.setText(tr("Script guardado: ") + chooser.getSelectedFile().getName());
         } catch (Exception error) {
-            JOptionPane.showMessageDialog(this, error.getMessage(), "No se pudo guardar el script", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, error.getMessage(), tr("No se pudo guardar el script"), JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void clearTableSelection() {
         selectedTables.clear();
         tableSelectionConfigured = false;
-        chooseTables.setText("Seleccionar tablas…");
+        chooseTables.setText(tr("Seleccionar tablas…"));
     }
 
     private void chooseTables() {
@@ -469,7 +471,7 @@ public final class DataCompareDialog extends JDialog {
         if (sourceSession == null || targetSession == null || sourceDb == null || targetDb == null) return;
         chooseTables.setEnabled(false);
         progress.setIndeterminate(true);
-        progress.setString("Cargando tablas…");
+        progress.setString(tr("Cargando tablas…"));
         progress.setVisible(true);
         new SwingWorker<List<String>, Void>() {
             @Override protected List<String> doInBackground() throws Exception {
@@ -486,7 +488,7 @@ public final class DataCompareDialog extends JDialog {
                 try { showTableChooser(get()); }
                 catch (Exception error) {
                     JOptionPane.showMessageDialog(DataCompareDialog.this, rootCause(error).getMessage(),
-                            "No se pudieron cargar las tablas", JOptionPane.ERROR_MESSAGE);
+                            tr("No se pudieron cargar las tablas"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();
@@ -516,31 +518,31 @@ public final class DataCompareDialog extends JDialog {
                 }
             }
         });
-        JButton all = new JButton("Todas");
-        JButton none = new JButton("Ninguna");
+        JButton all = new JButton(tr("Todas"));
+        JButton none = new JButton(tr("Ninguna"));
         all.addActionListener(e -> { for (int i = 0; i < choices.size(); i++) choices.get(i).setSelected(true); list.repaint(); });
         none.addActionListener(e -> { for (int i = 0; i < choices.size(); i++) choices.get(i).setSelected(false); list.repaint(); });
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         buttons.add(all); buttons.add(none);
         JPanel panel = new JPanel(new BorderLayout(5, 5));
-        panel.add(new JLabel("Marca las tablas o vistas que deseas comparar:"), BorderLayout.NORTH);
+        panel.add(new JLabel(tr("Marca las tablas o vistas que deseas comparar:")), BorderLayout.NORTH);
         panel.add(new JScrollPane(list), BorderLayout.CENTER);
         panel.add(buttons, BorderLayout.SOUTH);
         panel.setPreferredSize(new Dimension(480, 500));
-        if (JOptionPane.showConfirmDialog(this, panel, "Seleccionar tablas", JOptionPane.OK_CANCEL_OPTION,
+        if (JOptionPane.showConfirmDialog(this, panel, tr("Seleccionar tablas"), JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         selectedTables.clear();
         for (int i = 0; i < choices.size(); i++) {
             if (choices.get(i).selected()) selectedTables.add(choices.get(i).name().toLowerCase(Locale.ROOT));
         }
         if (selectedTables.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Selecciona al menos una tabla.", "Comparar datos", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, tr("Selecciona al menos una tabla."), tr("Comparar datos"), JOptionPane.INFORMATION_MESSAGE);
             clearTableSelection();
             return;
         }
         tableSelectionConfigured = true;
-        chooseTables.setText("Tablas seleccionadas: " + selectedTables.size());
-        status.setText(selectedTables.size() + " tablas seleccionadas para comparar");
+        chooseTables.setText(tr("Tablas seleccionadas: ") + selectedTables.size());
+        status.setText(selectedTables.size() + tr(" tablas seleccionadas para comparar"));
     }
 
     private JdbcSession sourceSession() { SessionOption option = (SessionOption) sourceConnection.getSelectedItem(); return option == null ? null : option.session(); }
@@ -634,8 +636,8 @@ public final class DataCompareDialog extends JDialog {
             JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, selected, focus, row, column);
             if (!selected) {
                 String text = String.valueOf(value);
-                label.setForeground(text.equals("Igual") ? IconFactory.GREEN
-                        : text.equals("Diferente") || text.equals("Parcial") ? IconFactory.AMBER : IconFactory.RED);
+                label.setForeground(text.equals(tr("Igual")) ? IconFactory.GREEN
+                        : text.equals(tr("Diferente")) || text.equals(tr("Parcial")) ? IconFactory.AMBER : IconFactory.RED);
             }
             return label;
         }

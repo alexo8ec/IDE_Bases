@@ -1,5 +1,7 @@
 package com.nexodb.ui;
 
+import static com.nexodb.util.I18n.tr;
+
 import com.nexodb.db.JdbcSession;
 
 import javax.swing.*;
@@ -16,15 +18,15 @@ import java.util.concurrent.Callable;
 /** Basic MySQL/MariaDB account administration without exposing password hashes. */
 public final class UserManagerDialog extends JDialog {
     private final JdbcSession session;
-    private final DefaultTableModel model = new DefaultTableModel(new Object[]{"Usuario", "Host", "Plugin"}, 0) {
+    private final DefaultTableModel model = new DefaultTableModel(new Object[]{tr("Usuario"), "Host", "Plugin"}, 0) {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable users = new JTable(model);
     private final JProgressBar progress = new JProgressBar();
-    private final JLabel status = new JLabel("Cargando usuarios…");
+    private final JLabel status = new JLabel(tr("Cargando usuarios…"));
 
     public UserManagerDialog(Window owner, JdbcSession session) {
-        super(owner, "Administrar usuarios", ModalityType.APPLICATION_MODAL);
+        super(owner, tr("Administrar usuarios"), ModalityType.APPLICATION_MODAL);
         this.session = session;
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setMinimumSize(new Dimension(720, 480));
@@ -39,7 +41,7 @@ public final class UserManagerDialog extends JDialog {
     private JComponent buildContent() {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(new EmptyBorder(12, 14, 12, 14));
-        JLabel title = new JLabel("Usuarios de MySQL / MariaDB", IconFactory.of(IconFactory.Kind.USER, 22), JLabel.LEFT);
+        JLabel title = new JLabel(tr("Usuarios de MySQL / MariaDB"), IconFactory.of(IconFactory.Kind.USER, 22), JLabel.LEFT);
         title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
         root.add(title, BorderLayout.NORTH);
         users.setAutoCreateRowSorter(true);
@@ -53,12 +55,12 @@ public final class UserManagerDialog extends JDialog {
 
         JPanel bottom = new JPanel(new BorderLayout(8, 8));
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 0));
-        JButton create = button("Nuevo usuario", IconFactory.Kind.ADD, e -> createUser());
-        JButton password = button("Cambiar contraseña", IconFactory.Kind.KEY, e -> changePassword());
-        JButton grants = button("Permisos", IconFactory.Kind.USER, e -> grantPrivileges());
-        JButton showGrants = button("Ver permisos", IconFactory.Kind.VIEW, e -> showGrants());
-        JButton delete = button("Eliminar", IconFactory.Kind.DELETE, e -> deleteUser());
-        JButton refresh = button("Actualizar", IconFactory.Kind.REFRESH, e -> loadUsers());
+        JButton create = button(tr("Nuevo usuario"), IconFactory.Kind.ADD, e -> createUser());
+        JButton password = button(tr("Cambiar contraseña"), IconFactory.Kind.KEY, e -> changePassword());
+        JButton grants = button(tr("Permisos"), IconFactory.Kind.USER, e -> grantPrivileges());
+        JButton showGrants = button(tr("Ver permisos"), IconFactory.Kind.VIEW, e -> showGrants());
+        JButton delete = button(tr("Eliminar"), IconFactory.Kind.DELETE, e -> deleteUser());
+        JButton refresh = button(tr("Actualizar"), IconFactory.Kind.REFRESH, e -> loadUsers());
         actions.add(create); actions.add(password); actions.add(grants); actions.add(showGrants); actions.add(delete); actions.add(refresh);
         bottom.add(actions, BorderLayout.NORTH);
 
@@ -81,7 +83,7 @@ public final class UserManagerDialog extends JDialog {
     }
 
     private void loadUsers() {
-        run("Leyendo usuarios…", () -> {
+        run(tr("Leyendo usuarios…"), () -> {
             List<Object[]> rows = new ArrayList<>();
             try (Statement statement = session.connection().createStatement();
                  ResultSet rs = statement.executeQuery("SELECT User, Host, plugin FROM mysql.user ORDER BY User, Host")) {
@@ -91,7 +93,7 @@ public final class UserManagerDialog extends JDialog {
         }, rows -> {
             model.setRowCount(0);
             for (Object[] row : rows) model.addRow(row);
-            status.setText(rows.size() + " cuentas cargadas");
+            status.setText(rows.size() + tr(" cuentas cargadas"));
         });
     }
 
@@ -99,23 +101,23 @@ public final class UserManagerDialog extends JDialog {
         JTextField name = new JTextField(20);
         JTextField host = new JTextField("localhost", 20);
         JPasswordField password = new JPasswordField(20);
-        JPanel form = form(new String[]{"Usuario:", "Host:", "Contraseña:"}, new JComponent[]{name, host, password});
-        if (JOptionPane.showConfirmDialog(this, form, "Nuevo usuario", JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
+        JPanel form = form(new String[]{tr("Usuario:"), "Host:", tr("Contraseña:")}, new JComponent[]{name, host, password});
+        if (JOptionPane.showConfirmDialog(this, form, tr("Nuevo usuario"), JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
         String user = validIdentity(name.getText(), "usuario");
         String userHost = validIdentity(host.getText(), "host");
         if (user == null || userHost == null) return;
         String sql = "CREATE USER " + account(user, userHost) + " IDENTIFIED BY " + literal(new String(password.getPassword()));
-        executeChange("Creando usuario…", sql, "Usuario creado correctamente");
+        executeChange(tr("Creando usuario…"), sql, tr("Usuario creado correctamente"));
     }
 
     private void changePassword() {
         Account selected = selectedAccount();
         if (selected == null) return;
         JPasswordField password = new JPasswordField(22);
-        if (JOptionPane.showConfirmDialog(this, password, "Nueva contraseña para " + selected.display(),
+        if (JOptionPane.showConfirmDialog(this, password, tr("Nueva contraseña para ") + selected.display(),
                 JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
-        executeChange("Cambiando contraseña…", "ALTER USER " + account(selected.user(), selected.host())
-                + " IDENTIFIED BY " + literal(new String(password.getPassword())), "Contraseña actualizada");
+        executeChange(tr("Cambiando contraseña…"), "ALTER USER " + account(selected.user(), selected.host())
+                + " IDENTIFIED BY " + literal(new String(password.getPassword())), tr("Contraseña actualizada"));
     }
 
     private void grantPrivileges() {
@@ -132,27 +134,27 @@ public final class UserManagerDialog extends JDialog {
         JPanel privileges = new JPanel(new GridLayout(0, 2, 6, 4));
         List<JCheckBox> checks = new ArrayList<>();
         for (String name : names) { JCheckBox check = new JCheckBox(name); checks.add(check); privileges.add(check); }
-        JCheckBox grantOption = new JCheckBox("Permitir delegar permisos (GRANT OPTION)");
+        JCheckBox grantOption = new JCheckBox(tr("Permitir delegar permisos (GRANT OPTION)"));
         JPanel form = new JPanel();
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.add(new JLabel("Base de datos:")); form.add(database); form.add(Box.createVerticalStrut(8)); form.add(privileges); form.add(grantOption);
-        if (JOptionPane.showConfirmDialog(this, form, "Asignar permisos a " + selected.display(),
+        form.add(new JLabel(tr("Base de datos:"))); form.add(database); form.add(Box.createVerticalStrut(8)); form.add(privileges); form.add(grantOption);
+        if (JOptionPane.showConfirmDialog(this, form, tr("Asignar permisos a ") + selected.display(),
                 JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
         List<String> chosen = new ArrayList<>();
         for (JCheckBox check : checks) if (check.isSelected()) chosen.add(check.getText());
         if (chosen.isEmpty() || database.getSelectedItem() == null) {
-            JOptionPane.showMessageDialog(this, "Selecciona al menos un permiso y una base.");
+            JOptionPane.showMessageDialog(this, tr("Selecciona al menos un permiso y una base."));
             return;
         }
         String sql = "GRANT " + String.join(", ", chosen) + " ON " + identifier(database.getSelectedItem().toString())
                 + ".* TO " + account(selected.user(), selected.host()) + (grantOption.isSelected() ? " WITH GRANT OPTION" : "");
-        executeChange("Asignando permisos…", sql, "Permisos actualizados");
+        executeChange(tr("Asignando permisos…"), sql, tr("Permisos actualizados"));
     }
 
     private void showGrants() {
         Account selected = selectedAccount();
         if (selected == null) return;
-        run("Leyendo permisos…", () -> {
+        run(tr("Leyendo permisos…"), () -> {
             StringBuilder text = new StringBuilder();
             try (Statement statement = session.connection().createStatement();
                  ResultSet rs = statement.executeQuery("SHOW GRANTS FOR " + account(selected.user(), selected.host()))) {
@@ -162,17 +164,17 @@ public final class UserManagerDialog extends JDialog {
         }, text -> {
             JTextArea area = new JTextArea(text, 15, 75);
             area.setEditable(false); area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-            JOptionPane.showMessageDialog(this, new JScrollPane(area), "Permisos de " + selected.display(), JOptionPane.INFORMATION_MESSAGE);
-            status.setText("Permisos cargados");
+            JOptionPane.showMessageDialog(this, new JScrollPane(area), tr("Permisos de ") + selected.display(), JOptionPane.INFORMATION_MESSAGE);
+            status.setText(tr("Permisos cargados"));
         });
     }
 
     private void deleteUser() {
         Account selected = selectedAccount();
         if (selected == null) return;
-        if (JOptionPane.showConfirmDialog(this, "¿Eliminar definitivamente " + selected.display() + "?",
-                "Eliminar usuario", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.YES_OPTION) return;
-        executeChange("Eliminando usuario…", "DROP USER " + account(selected.user(), selected.host()), "Usuario eliminado");
+        if (JOptionPane.showConfirmDialog(this, tr("¿Eliminar definitivamente ") + selected.display() + "?",
+                tr("Eliminar usuario"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.YES_OPTION) return;
+        executeChange(tr("Eliminando usuario…"), "DROP USER " + account(selected.user(), selected.host()), tr("Usuario eliminado"));
     }
 
     private void executeChange(String running, String sql, String success) {
@@ -191,7 +193,7 @@ public final class UserManagerDialog extends JDialog {
             @Override protected void done() {
                 progress.setVisible(false);
                 try { done.accept(get()); }
-                catch (Exception error) { status.setText("Operación fallida"); showError(rootCause(error)); }
+                catch (Exception error) { status.setText(tr("Operación fallida")); showError(rootCause(error)); }
             }
         }.execute();
     }
@@ -199,7 +201,7 @@ public final class UserManagerDialog extends JDialog {
     private Account selectedAccount() {
         int viewRow = users.getSelectedRow();
         if (viewRow < 0) {
-            JOptionPane.showMessageDialog(this, "Selecciona un usuario.", "Administrar usuarios", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, tr("Selecciona un usuario."), tr("Administrar usuarios"), JOptionPane.INFORMATION_MESSAGE);
             return null;
         }
         int row = users.convertRowIndexToModel(viewRow);
@@ -209,8 +211,8 @@ public final class UserManagerDialog extends JDialog {
     private String validIdentity(String value, String label) {
         String clean = value == null ? "" : value.trim();
         if (clean.isEmpty() || !clean.matches("[A-Za-z0-9_.:%$-]+")) {
-            JOptionPane.showMessageDialog(this, "El " + label + " está vacío o contiene caracteres no permitidos.",
-                    "Dato no válido", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "El " + label + tr(" está vacío o contiene caracteres no permitidos."),
+                    tr("Dato no válido"), JOptionPane.WARNING_MESSAGE);
             return null;
         }
         return clean;
@@ -230,7 +232,7 @@ public final class UserManagerDialog extends JDialog {
     private String account(String user, String host) { return literal(user) + "@" + literal(host); }
     private String literal(String value) { return "'" + value.replace("\\", "\\\\").replace("'", "''") + "'"; }
     private String identifier(String value) { return "`" + value.replace("`", "``") + "`"; }
-    private void showError(Throwable error) { JOptionPane.showMessageDialog(this, error.getMessage(), "Operación fallida", JOptionPane.ERROR_MESSAGE); }
+    private void showError(Throwable error) { JOptionPane.showMessageDialog(this, error.getMessage(), tr("Operación fallida"), JOptionPane.ERROR_MESSAGE); }
     private static Throwable rootCause(Throwable error) { Throwable cause = error; while (cause.getCause() != null) cause = cause.getCause(); return cause; }
     private record Account(String user, String host) { String display() { return "'" + user + "'@'" + host + "'"; } }
 }

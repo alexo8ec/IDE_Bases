@@ -27,7 +27,7 @@ public final class CoreTest {
         assertEquals("jdbc:mysql://localhost:3306/", DatabaseType.MYSQL.buildUrl("localhost", 3306, ""));
         assertEquals("jdbc:mariadb://localhost:3306/?sslMode=disable", DatabaseType.MARIADB.buildUrl("localhost", 3306, ""));
         assertEquals("aitrol_db.access_roles", new SchemaItem(SchemaItem.Kind.TABLE, "aitrol_db", null, "access_roles", "").qualifiedName());
-        UpdateService.UpdateInfo update = UpdateService.parseManifest("{\"version\":\"1.0.0\",\"downloadUrl\":\"https://example.com/nexodb.zip\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"notes\":\"Mejoras\"}");
+        UpdateService.UpdateInfo update = UpdateService.parseManifest("{\"version\":\"1.0.0\",\"downloadUrl\":\"https://example.com/nexodb.zip\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"notes\":\"Mejoras\"}", "windows-x64");
         if (!UpdateService.isNewer(update.version(), UpdateService.CURRENT_VERSION)) throw new AssertionError("Update version comparison failed");
         if (UpdateService.isNewer("0.3.9", UpdateService.CURRENT_VERSION)) throw new AssertionError("Older version reported as new");
 

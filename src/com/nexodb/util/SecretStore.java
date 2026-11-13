@@ -13,6 +13,7 @@ import java.util.Properties;
 
 /** Stores connection passwords encrypted with Windows DPAPI for the current user. */
 public final class SecretStore {
+    public static boolean isSupported() { return System.getProperty("os.name", "").startsWith("Windows"); }
     private static final String ENTROPY = Base64.getEncoder().encodeToString(
             "NexoDB Studio credentials v1".getBytes(StandardCharsets.UTF_8));
     private static final String PROTECT =
@@ -45,12 +46,14 @@ public final class SecretStore {
     }
 
     public synchronized boolean has(String profileId) {
+        if (!isSupported()) return false;
         if (profileId == null || profileId.isBlank()) return false;
         try { return read().containsKey(profileId); }
         catch (IOException ignored) { return false; }
     }
 
     public synchronized void save(String profileId, char[] password) throws IOException, InterruptedException {
+        if (!isSupported()) throw new IOException("El guardado seguro de contraseñas requiere Windows DPAPI. Puedes conectarte escribiendo la contraseña.");
         if (profileId == null || profileId.isBlank()) throw new IllegalArgumentException("El perfil no tiene identificador.");
         if (password == null) password = new char[0];
         ByteBuffer encoded = StandardCharsets.UTF_8.encode(CharBuffer.wrap(password));
@@ -71,6 +74,7 @@ public final class SecretStore {
     }
 
     public synchronized char[] load(String profileId) throws IOException, InterruptedException {
+        if (!isSupported()) return null;
         String stored = profileId == null ? null : read().getProperty(profileId);
         if (stored == null) return null;
         byte[] protectedBytes = Base64.getDecoder().decode(stored);

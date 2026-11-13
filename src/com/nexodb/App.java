@@ -1,7 +1,9 @@
 package com.nexodb;
 
-import com.formdev.flatlaf.FlatLightLaf;
 import com.nexodb.ui.MainFrame;
+import com.nexodb.ui.ThemeManager;
+import com.nexodb.util.AppSettings;
+import com.nexodb.util.I18n;
 
 import javax.swing.*;
 import java.awt.*;
@@ -14,24 +16,11 @@ public final class App {
         // hangs observed on some Windows laptops during Java2D initialization.
         System.setProperty("sun.java2d.d3d", "false");
         System.setProperty("sun.java2d.opengl", "false");
-        System.setProperty("sun.security.jgss.native", "true");
+        System.setProperty("java.net.useSystemProxies", "true");
+        if (System.getProperty("os.name", "").startsWith("Windows")) System.setProperty("sun.security.jgss.native", "true");
+        I18n.initialize(AppSettings.get("language", "es"));
+        ThemeManager.initialize();
         SwingUtilities.invokeLater(() -> {
-            try {
-                FlatLightLaf.setup();
-                Font interfaceFont = new Font("Segoe UI", Font.PLAIN, 13);
-                UIManager.put("defaultFont", interfaceFont);
-                UIManager.put("ToolTip.font", interfaceFont.deriveFont(12f));
-                UIManager.put("Component.arc", 10);
-                UIManager.put("Button.arc", 10);
-                UIManager.put("TextComponent.arc", 9);
-                UIManager.put("Component.focusWidth", 1);
-                UIManager.put("ScrollBar.thumbArc", 999);
-                UIManager.put("TabbedPane.showTabSeparators", true);
-                UIManager.put("Table.showHorizontalLines", true);
-                UIManager.put("Table.showVerticalLines", false);
-                UIManager.put("Table.intercellSpacing", new Dimension(0, 1));
-            } catch (Exception ignored) {
-            }
             new MainFrame().setVisible(true);
         });
     }

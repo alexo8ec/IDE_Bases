@@ -95,7 +95,11 @@ public final class IconFactory {
                 g.scale(scale, scale);
                 g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-                g.setColor(component != null && !component.isEnabled() ? new Color(0xA8B1BC) : color);
+                Color visible = color;
+                if (com.formdev.flatlaf.FlatLaf.isLafDark()) {
+                    visible = new Color(Math.min(255, color.getRed() + 65), Math.min(255, color.getGreen() + 65), Math.min(255, color.getBlue() + 45));
+                }
+                g.setColor(component != null && !component.isEnabled() ? UIManager.getColor("Label.disabledForeground") : visible);
                 g.setStroke(new BasicStroke(1.65f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 paint(g);
             } finally {

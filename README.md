@@ -1,5 +1,11 @@
 # NexoDB Studio
 
+La versión 0.11.0 añade **Preferencias → Idioma y apariencia** con Español, English, idioma del sistema y temas claro, oscuro o según el sistema. El editor SQL adapta su fondo y resaltado al tema sin modificar las consultas. Las preferencias se guardan por usuario.
+
+El actualizador comparte la descarga HTTPS segura con los controladores: reintenta TLS 1.2 y la conexión nativa cuando falla el handshake, mantiene la validación de certificados y la comprobación SHA-256, y distingue errores de red, TLS y canal no publicado (HTTP 404). Los manifiestos admiten paquetes por sistema y arquitectura.
+
+Hay un paquete Java universal instalable por usuario en **Windows, Linux y macOS** (requiere Java 17+), además de scripts para generar instaladores nativos con runtime en cada sistema. Consulta la [guía de distribución multiplataforma](docs/multiplatform.md) para instalación, requisitos, temas, idiomas y publicación de actualizaciones.
+
 La versión 0.10.6 corrige las conexiones PostgreSQL sin base indicada: ya no utiliza el nombre del usuario como base. **Probar** y **Guardar y conectar** muestran un selector con las bases disponibles para ese usuario, filtradas por permiso `CONNECT` y sin plantillas. Al elegir una base se abre una conexión real a ella; el editor, el buscador y el autocompletado trabajan sobre esa base.
 
 La versión 0.6.0 incorpora un explorador de objetos con menús contextuales, pestañas para datos, columnas, índices y DDL, navegación de vistas, procedimientos, funciones, triggers y eventos, además de comparación de esquemas con generación de scripts revisables.

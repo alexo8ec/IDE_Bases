@@ -1,5 +1,7 @@
 package com.nexodb.ui;
 
+import static com.nexodb.util.I18n.tr;
+
 import com.nexodb.db.JdbcSession;
 import com.nexodb.db.SchemaItem;
 import com.nexodb.model.DatabaseType;
@@ -21,20 +23,20 @@ public final class TableCopyDialog extends JDialog {
     private final JComboBox<SessionOption> targetConnection = new JComboBox<>();
     private final JComboBox<String> targetDatabase = new JComboBox<>();
     private final JTextField targetName = new JTextField(28);
-    private final JCheckBox copyStructure = new JCheckBox("Copiar estructura", true);
-    private final JCheckBox copyData = new JCheckBox("Copiar datos", true);
-    private final JCheckBox replace = new JCheckBox("Reemplazar la tabla si ya existe", false);
+    private final JCheckBox copyStructure = new JCheckBox(tr("Copiar estructura"), true);
+    private final JCheckBox copyData = new JCheckBox(tr("Copiar datos"), true);
+    private final JCheckBox replace = new JCheckBox(tr("Reemplazar la tabla si ya existe"), false);
     private final JComboBox<DataMode> dataMode = new JComboBox<>(DataMode.values());
-    private final JButton copy = new JButton("Copiar tabla");
-    private final JButton verify = new JButton("Verificar copia");
-    private final JButton close = new JButton("Cerrar");
+    private final JButton copy = new JButton(tr("Copiar tabla"));
+    private final JButton verify = new JButton(tr("Verificar copia"));
+    private final JButton close = new JButton(tr("Cerrar"));
     private final JProgressBar progress = new JProgressBar();
-    private final JLabel state = new JLabel("Selecciona el destino.");
+    private final JLabel state = new JLabel(tr("Selecciona el destino."));
     private final Runnable completed;
 
     public TableCopyDialog(Window owner, JdbcSession source, SchemaItem sourceTable,
                            List<JdbcSession> sessions, Runnable completed) {
-        super(owner, "Copiar tabla a otra base", ModalityType.APPLICATION_MODAL);
+        super(owner, tr("Copiar tabla a otra base"), ModalityType.APPLICATION_MODAL);
         this.source = source;
         this.sourceTable = sourceTable;
         this.completed = completed == null ? () -> {} : completed;
@@ -55,8 +57,8 @@ public final class TableCopyDialog extends JDialog {
     private JComponent build() {
         JPanel root = new JPanel(new BorderLayout(12, 12));
         root.setBorder(new EmptyBorder(18, 20, 16, 20));
-        JLabel title = new JLabel("<html><b style='font-size:14px'>Copiar " + html(sourceTable.qualifiedName())
-                + "</b><br>El origen no se modifica. Selecciona otra base o conexión como destino.</html>",
+        JLabel title = new JLabel(tr("<html><b style='font-size:14px'>Copiar ") + html(sourceTable.qualifiedName())
+                + tr("</b><br>El origen no se modifica. Selecciona otra base o conexión como destino.</html>"),
                 IconFactory.of(IconFactory.Kind.TABLE, 32), JLabel.LEFT);
         title.setIconTextGap(12);
         root.add(title, BorderLayout.NORTH);
@@ -64,13 +66,13 @@ public final class TableCopyDialog extends JDialog {
         JPanel form = new JPanel(new GridBagLayout());
         GridBagConstraints gc = new GridBagConstraints();
         gc.insets = new Insets(6, 6, 6, 6); gc.fill = GridBagConstraints.HORIZONTAL; gc.gridy = 0;
-        row(form, gc, "Conexión de destino", targetConnection);
-        row(form, gc, "Base / esquema de destino", targetDatabase);
-        row(form, gc, "Nombre de la tabla", targetName);
+        row(form, gc, tr("Conexión de destino"), targetConnection);
+        row(form, gc, tr("Base / esquema de destino"), targetDatabase);
+        row(form, gc, tr("Nombre de la tabla"), targetName);
         JPanel options = new JPanel(new GridLayout(0, 1, 3, 3));
         options.add(copyStructure); options.add(copyData); options.add(replace);
-        row(form, gc, "Opciones", options);
-        row(form, gc, "Modo de datos", dataMode);
+        row(form, gc, tr("Opciones"), options);
+        row(form, gc, tr("Modo de datos"), dataMode);
         root.add(form, BorderLayout.CENTER);
 
         JPanel footer = new JPanel(new BorderLayout(8, 8));
@@ -117,7 +119,7 @@ public final class TableCopyDialog extends JDialog {
         targetDatabase.removeAllItems();
         copy.setEnabled(false);
         if (target == null) return;
-        state.setText("Cargando bases de " + target.profile().name() + "…");
+        state.setText(tr("Cargando bases de ") + target.profile().name() + "…");
         new SwingWorker<List<String>, Void>() {
             @Override protected List<String> doInBackground() throws Exception {
                 List<String> names = new ArrayList<>();
@@ -138,11 +140,11 @@ public final class TableCopyDialog extends JDialog {
                     for (int i = 0; i < targetDatabase.getItemCount(); i++) {
                         if (sourceDb.equalsIgnoreCase(targetDatabase.getItemAt(i))) { targetDatabase.setSelectedIndex(i); break; }
                     }
-                    state.setText(targetDatabase.getItemCount() == 0 ? "No se encontraron bases en el destino." : "Destino listo.");
+                    state.setText(targetDatabase.getItemCount() == 0 ? tr("No se encontraron bases en el destino.") : tr("Destino listo."));
                     copy.setEnabled(targetDatabase.getItemCount() > 0 && !target.profile().readOnly());
-                    if (target.profile().readOnly()) state.setText("La conexión de destino está configurada como solo lectura.");
+                    if (target.profile().readOnly()) state.setText(tr("La conexión de destino está configurada como solo lectura."));
                 } catch (Exception error) {
-                    state.setText("No se pudieron cargar las bases del destino.");
+                    state.setText(tr("No se pudieron cargar las bases del destino."));
                 }
             }
         }.execute();
@@ -153,13 +155,13 @@ public final class TableCopyDialog extends JDialog {
         String database = (String) targetDatabase.getSelectedItem();
         String name = targetName.getText().trim();
         if (target == null || database == null || database.isBlank()) return;
-        if (name.isBlank()) { warn("Escribe el nombre de la tabla de destino."); return; }
-        if (!copyStructure.isSelected() && !copyData.isSelected()) { warn("Selecciona estructura, datos o ambos."); return; }
-        if (target.profile().readOnly()) { warn("La conexión de destino es de solo lectura."); return; }
+        if (name.isBlank()) { warn(tr("Escribe el nombre de la tabla de destino.")); return; }
+        if (!copyStructure.isSelected() && !copyData.isSelected()) { warn(tr("Selecciona estructura, datos o ambos.")); return; }
+        if (target.profile().readOnly()) { warn(tr("La conexión de destino es de solo lectura.")); return; }
         if (source == target && namespace(sourceTable).equalsIgnoreCase(database) && sourceTable.name().equalsIgnoreCase(name)) {
-            warn("El origen y el destino son la misma tabla."); return;
+            warn(tr("El origen y el destino son la misma tabla.")); return;
         }
-        setRunning(true, "Copiando tabla…");
+        setRunning(true, tr("Copiando tabla…"));
         new SwingWorker<CopyReport, Integer>() {
             @Override protected CopyReport doInBackground() throws Exception {
                 return copyTable(source, sourceTable, target, database, name, copyStructure.isSelected(), copyData.isSelected(),
@@ -169,16 +171,16 @@ public final class TableCopyDialog extends JDialog {
                 setRunning(false, "");
                 try {
                     CopyReport report = get();
-                    state.setText("Copia completada: " + report.inserted() + " nuevas; " + report.skipped() + " ya existían.");
+                    state.setText(tr("Copia completada: ") + report.inserted() + tr(" nuevas; ") + report.skipped() + tr(" ya existían."));
                     completed.run();
                     JOptionPane.showMessageDialog(TableCopyDialog.this,
-                            "La copia terminó correctamente.\n\nDestino: " + report.destination()
-                                    + "\nFilas insertadas: " + report.inserted() + "\nFilas que ya existían: " + report.skipped(),
-                            "Copia completada", JOptionPane.INFORMATION_MESSAGE);
+                            tr("La copia terminó correctamente.\n\nDestino: ") + report.destination()
+                                    + tr("\nFilas insertadas: ") + report.inserted() + tr("\nFilas que ya existían: ") + report.skipped(),
+                            tr("Copia completada"), JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception error) {
                     Throwable cause = error.getCause() == null ? error : error.getCause();
-                    state.setText("No se pudo copiar la tabla.");
-                    JOptionPane.showMessageDialog(TableCopyDialog.this, cause.getMessage(), "Error al copiar", JOptionPane.ERROR_MESSAGE);
+                    state.setText(tr("No se pudo copiar la tabla."));
+                    JOptionPane.showMessageDialog(TableCopyDialog.this, cause.getMessage(), tr("Error al copiar"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();
@@ -197,10 +199,10 @@ public final class TableCopyDialog extends JDialog {
         String database = (String) targetDatabase.getSelectedItem();
         String name = targetName.getText().trim();
         if (target == null || database == null || name.isBlank()) return;
-        setRunning(true, "Verificando filas por clave primaria…");
+        setRunning(true, tr("Verificando filas por clave primaria…"));
         new SwingWorker<Verification, Void>() {
             @Override protected Verification doInBackground() throws Exception {
-                if (!tableExists(target, database, name)) throw new SQLException("La tabla de destino todavía no existe.");
+                if (!tableExists(target, database, name)) throw new SQLException(tr("La tabla de destino todavía no existe."));
                 return verifyTable(source, sourceTable, target, database, name);
             }
             @Override protected void done() {
@@ -208,16 +210,16 @@ public final class TableCopyDialog extends JDialog {
                 try {
                     Verification result = get();
                     String detail = result.hasKeys()
-                            ? "Filas en origen: " + result.sourceRows() + "\nFilas en destino: " + result.targetRows()
-                                + "\nFaltan en destino: " + result.missing() + "\nAdicionales en destino: " + result.extra()
-                            : "Filas en origen: " + result.sourceRows() + "\nFilas en destino: " + result.targetRows()
-                                + "\n\nLa tabla no tiene clave primaria; solamente se pudieron comparar los conteos.";
-                    state.setText(result.missing() == 0 ? "Verificación completa: no faltan filas." : "Verificación: faltan " + result.missing() + " filas.");
-                    JOptionPane.showMessageDialog(TableCopyDialog.this, detail, "Resultado de la verificación", JOptionPane.INFORMATION_MESSAGE);
+                            ? tr("Filas en origen: ") + result.sourceRows() + tr("\nFilas en destino: ") + result.targetRows()
+                                + tr("\nFaltan en destino: ") + result.missing() + tr("\nAdicionales en destino: ") + result.extra()
+                            : tr("Filas en origen: ") + result.sourceRows() + tr("\nFilas en destino: ") + result.targetRows()
+                                + tr("\n\nLa tabla no tiene clave primaria; solamente se pudieron comparar los conteos.");
+                    state.setText(result.missing() == 0 ? tr("Verificación completa: no faltan filas.") : tr("Verificación: faltan ") + result.missing() + tr(" filas."));
+                    JOptionPane.showMessageDialog(TableCopyDialog.this, detail, tr("Resultado de la verificación"), JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception error) {
                     Throwable cause = error.getCause() == null ? error : error.getCause();
-                    state.setText("No se pudo verificar la copia.");
-                    JOptionPane.showMessageDialog(TableCopyDialog.this, cause.getMessage(), "Error al verificar", JOptionPane.ERROR_MESSAGE);
+                    state.setText(tr("No se pudo verificar la copia."));
+                    JOptionPane.showMessageDialog(TableCopyDialog.this, cause.getMessage(), tr("Error al verificar"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();
@@ -226,17 +228,17 @@ public final class TableCopyDialog extends JDialog {
     static CopyReport copyTable(JdbcSession source, SchemaItem table, JdbcSession target, String targetDatabase,
                                 String targetName, boolean structure, boolean data, boolean replace, boolean missingOnly) throws Exception {
         List<ColumnDef> columns = columns(source, table);
-        if (columns.isEmpty()) throw new SQLException("La tabla de origen no tiene columnas visibles.");
+        if (columns.isEmpty()) throw new SQLException(tr("La tabla de origen no tiene columnas visibles."));
         String destination = qualified(target, targetDatabase, targetName);
         boolean exists = tableExists(target, targetDatabase, targetName);
         if (structure) {
-            if (exists && !replace && !missingOnly) throw new SQLException("La tabla de destino ya existe. Activa “Reemplazar” o usa “Solo filas faltantes”.");
+            if (exists && !replace && !missingOnly) throw new SQLException(tr("La tabla de destino ya existe. Activa “Reemplazar” o usa “Solo filas faltantes”."));
             if (!exists || replace) try (Statement statement = target.connection().createStatement()) {
                 if (exists) statement.executeUpdate("DROP TABLE " + destination);
                 statement.executeUpdate(createSql(source, table, target, targetDatabase, targetName, columns));
             }
         } else if (!exists) {
-            throw new SQLException("La tabla de destino no existe. Activa “Copiar estructura”.");
+            throw new SQLException(tr("La tabla de destino no existe. Activa “Copiar estructura”."));
         }
         CopyData result = data ? copyRows(source, table, target, destination, columns, missingOnly) : new CopyData(0, 0);
         return new CopyReport(destination, result.inserted(), result.skipped());
@@ -253,7 +255,7 @@ public final class TableCopyDialog extends JDialog {
         insert.setLength(insert.length() - 1); insert.append(')');
         List<String> primaryKeys = primaryKeys(source, table);
         if (missingOnly && primaryKeys.isEmpty()) throw new SQLException(
-                "La tabla no tiene clave primaria. No es posible identificar de forma segura cuáles filas faltan; usa “Insertar todas” o crea una clave primaria.");
+                tr("La tabla no tiene clave primaria. No es posible identificar de forma segura cuáles filas faltan; usa “Insertar todas” o crea una clave primaria."));
         Set<RowKey> existing = missingOnly ? readKeys(target, destination, primaryKeys) : Set.of();
         boolean originalAutoCommit = target.connection().getAutoCommit();
         Savepoint savepoint = null;
@@ -356,7 +358,7 @@ public final class TableCopyDialog extends JDialog {
         for (String key : keys) {
             int index = -1;
             for (int i = 0; i < columns.size(); i++) if (columns.get(i).name().equalsIgnoreCase(key)) { index = i + 1; break; }
-            if (index < 0) throw new SQLException("No se encontró la clave primaria " + key + " entre las columnas de origen.");
+            if (index < 0) throw new SQLException(tr("No se encontró la clave primaria ") + key + tr(" entre las columnas de origen."));
             values.add(keyPart(transferValue(row, index, columns.get(index - 1).jdbcType())));
         }
         return new RowKey(List.copyOf(values));
@@ -430,7 +432,7 @@ public final class TableCopyDialog extends JDialog {
     private static String namespace(SchemaItem item) { return item.catalog() != null && !item.catalog().isBlank() ? item.catalog() : item.schema() == null ? "" : item.schema(); }
     private static boolean catalogNamespace(DatabaseType type) { return type == DatabaseType.MYSQL || type == DatabaseType.MARIADB || type == DatabaseType.SQLSERVER; }
     private static String safe(ResultSet rs, String column) { try { return rs.getString(column); } catch (SQLException ignored) { return ""; } }
-    private void warn(String message) { JOptionPane.showMessageDialog(this, message, "Revisa la copia", JOptionPane.WARNING_MESSAGE); }
+    private void warn(String message) { JOptionPane.showMessageDialog(this, message, tr("Revisa la copia"), JOptionPane.WARNING_MESSAGE); }
     private static String html(String value) { return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"); }
 
     private record SessionOption(JdbcSession session) {
@@ -444,8 +446,8 @@ public final class TableCopyDialog extends JDialog {
     public record CopyReport(String destination, int inserted, int skipped) {}
 
     private enum DataMode {
-        MISSING_ONLY("Solo filas faltantes / reanudar (recomendado)"),
-        ALL("Insertar todas las filas");
+        MISSING_ONLY(tr("Solo filas faltantes / reanudar (recomendado)")),
+        ALL(tr("Insertar todas las filas"));
         private final String label;
         DataMode(String label) { this.label = label; }
         @Override public String toString() { return label; }
