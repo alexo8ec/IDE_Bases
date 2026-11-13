@@ -1,0 +1,28 @@
+{
+  "version": "0.11.0",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.0-win64.zip",
+  "sha256": "926e1c09235576b48dc8e3b55d37d6d1339c9b715ba91c2f65e4c6824391d1a2",
+  "notes": "NexoDB Studio 0.11.0: idiomas espanol/ingles; temas claro, oscuro y sistema; actualizador HTTPS mejorado. Windows incluye Java. El paquete universal Linux/macOS requiere Java 17 o superior.",
+  "platforms": {
+    "windows-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.0-win64.zip",
+      "sha256": "926e1c09235576b48dc8e3b55d37d6d1339c9b715ba91c2f65e4c6824391d1a2"
+    },
+    "linux-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.0-universal.zip",
+      "sha256": "2ace8bdd76a8c5cd85c9493009f47b5147958bcc575f8d81895abc5566463d17"
+    },
+    "linux-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.0-universal.zip",
+      "sha256": "2ace8bdd76a8c5cd85c9493009f47b5147958bcc575f8d81895abc5566463d17"
+    },
+    "macos-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.0-universal.zip",
+      "sha256": "2ace8bdd76a8c5cd85c9493009f47b5147958bcc575f8d81895abc5566463d17"
+    },
+    "macos-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.0-universal.zip",
+      "sha256": "2ace8bdd76a8c5cd85c9493009f47b5147958bcc575f8d81895abc5566463d17"
+    }
+  }
+}
