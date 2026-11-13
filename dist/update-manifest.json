@@ -1,6 +1,28 @@
-﻿{
-    "version":  "0.11.2",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.2-win64.zip",
-    "sha256":  "1f27ec02c8559ed5bccf28b7e024ea30acf3cf8adfac43716b5e2f6790773ac5",
-    "notes":  "Actualizador HTTPS con TLS 1.2 y conexion nativa segura, idiomas espanol/ingles, temas claro/oscuro/sistema y distribucion Java para Windows, Linux y macOS."
+{
+  "version": "0.11.2",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.2-win64.zip",
+  "sha256": "1f27ec02c8559ed5bccf28b7e024ea30acf3cf8adfac43716b5e2f6790773ac5",
+  "notes": "Prueba de conexion destacada, comparacion de esquemas optimizada con seleccion por casillas, bases y tablas recordadas, TLS con criptografia EC e instaladores con Java para Windows, Linux y macOS.",
+  "platforms": {
+    "windows-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.2-win64.zip",
+      "sha256": "1f27ec02c8559ed5bccf28b7e024ea30acf3cf8adfac43716b5e2f6790773ac5"
+    },
+    "linux-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.2-linux-x64.deb",
+      "sha256": "cb0e2adb8f8b89221da5907167a97f5bdc3f45b17b801205922ebaf4482d2c08"
+    },
+    "linux-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.2-linux-arm64.deb",
+      "sha256": "66bf68f5d0e925e7f964478bfc7c68b6099b58d53da9add4da08ddee800f5b39"
+    },
+    "macos-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.2-macos-x64.zip",
+      "sha256": "da481eebd370fb3da84d3a0ddec4400d2d3f409957e85a48cdb544d9ab16887d"
+    },
+    "macos-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.11.2-macos-arm64.zip",
+      "sha256": "2736c894fdea906c1b9d978b791e8eeb68b92b4e4060d483170a38151eb31f98"
+    }
+  }
 }
