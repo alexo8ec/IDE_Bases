@@ -1,5 +1,7 @@
 # NexoDB Studio
 
+La versión 0.10.6 corrige las conexiones PostgreSQL sin base indicada: ya no utiliza el nombre del usuario como base. **Probar** y **Guardar y conectar** muestran un selector con las bases disponibles para ese usuario, filtradas por permiso `CONNECT` y sin plantillas. Al elegir una base se abre una conexión real a ella; el editor, el buscador y el autocompletado trabajan sobre esa base.
+
 La versión 0.6.0 incorpora un explorador de objetos con menús contextuales, pestañas para datos, columnas, índices y DDL, navegación de vistas, procedimientos, funciones, triggers y eventos, además de comparación de esquemas con generación de scripts revisables.
 
 La versión 0.6.1 añade selección persistente de la base activa, reconocimiento de `USE`, edición de celdas con guardado inmediato mediante clave primaria, administración de usuarios MySQL/MariaDB e indicadores de progreso durante las operaciones.
@@ -96,6 +98,8 @@ Publica juntos el manifiesto y el ZIP producido. Sin una dirección pública don
 5. Escribe la contraseña y pulsa **Probar** o **Guardar y conectar**.
 
 En MySQL puedes dejar **Base / servicio / archivo** vacío. NexoDB conectará al servidor y mostrará en **Objetos** todas las bases, tablas y vistas que el usuario tenga permiso de consultar.
+
+En PostgreSQL también puedes dejar **Base / servicio / archivo** vacío: NexoDB consulta las bases disponibles y permite elegir una antes de cargar sus esquemas y objetos. Para consultar el catálogo utiliza inicialmente `postgres` y, si esa base no existe o no permite la conexión, prueba `template1`. Si el usuario no puede conectarse a ninguna de las dos, debes indicar una base existente a la que sí tenga acceso. PostgreSQL necesita una base inicial para consultar el servidor.
 
 Los campos URL JDBC, clase y archivo del controlador están dentro de **Configuración avanzada**, colapsada por defecto. Para conexiones normales no necesitas modificarlos.
 

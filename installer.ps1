@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$version = '0.10.5'
+$version = '0.10.6'
 $wixRoot = Join-Path $projectRoot '.tools\wix314'
 $wixArchive = Join-Path $projectRoot '.tools\wix314-binaries.zip'
 $wixUrl = 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip'

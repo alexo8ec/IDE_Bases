@@ -21,7 +21,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class UpdateService {
-    public static final String CURRENT_VERSION = "0.10.5";
+    public static final String CURRENT_VERSION = "0.10.6";
     private static final Pattern JSON_STRING = Pattern.compile("\\\"%s\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"");
     private static volatile String sessionManifestUrl = "";
 

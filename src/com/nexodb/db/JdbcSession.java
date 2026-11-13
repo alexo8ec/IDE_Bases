@@ -35,10 +35,28 @@ public final class JdbcSession implements AutoCloseable {
     }
 
     public static JdbcSession open(ConnectionProfile profile, char[] password, IntConsumer driverProgress) throws Exception {
+        profile = PostgresSupport.initialProfile(profile);
         ensureKnownDriver(profile, driverProgress);
         try {
             return openDirect(profile, password);
         } catch (Exception firstError) {
+            if (PostgresSupport.needsDatabaseSelection(profile) && firstError instanceof SQLException sql
+                    && ("3D000".equals(sql.getSQLState()) || "42501".equals(sql.getSQLState()))) {
+                try {
+                    return openDirect(PostgresSupport.alternateInitialProfile(profile), password);
+                } catch (SQLException fallbackError) {
+                    if (!"3D000".equals(fallbackError.getSQLState()) && !"42501".equals(fallbackError.getSQLState())) {
+                        fallbackError.addSuppressed(firstError);
+                        throw fallbackError;
+                    }
+                    SQLException friendly = new SQLException("No se pudo consultar la lista de bases: el usuario no puede "
+                            + "conectarse a postgres ni a template1. Indica una base existente en Base / servicio / archivo.",
+                            fallbackError.getSQLState());
+                    friendly.addSuppressed(firstError);
+                    friendly.addSuppressed(fallbackError);
+                    throw friendly;
+                }
+            }
             if (profile.type() == DatabaseType.MARIADB && isAuthenticationError(firstError)) {
                 IllegalStateException friendly = manualAuthenticationError(profile, password);
                 friendly.addSuppressed(firstError);

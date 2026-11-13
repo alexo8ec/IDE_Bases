@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$version = '0.10.5'
+$version = '0.10.6'
 & (Join-Path $projectRoot 'build.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -85,7 +85,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = 'Descarga corregida de controladores desde Maven Central, con reintentos TLS y alternativa nativa de Windows.'
+    notes = 'PostgreSQL permite dejar la base vacia y elegir entre las bases con permiso CONNECT del usuario, sin usar su nombre como base.'
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\NexoDB Studio.exe"

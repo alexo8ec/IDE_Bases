@@ -499,17 +499,22 @@ public final class QueryPanel extends JPanel {
     private void loadDatabases() {
         database.removeAllItems();
         database.setEnabled(false);
+        JdbcSession target = session;
         new SwingWorker<List<String>, Void>() {
             @Override protected List<String> doInBackground() throws Exception {
+                if (target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL) {
+                    // PostgreSQL setCatalog is a no-op: another database needs a new connection.
+                    return List.of(target.connection().getCatalog());
+                }
                 List<String> names = new ArrayList<>();
-                try (ResultSet rs = session.connection().getMetaData().getCatalogs()) {
+                try (ResultSet rs = target.connection().getMetaData().getCatalogs()) {
                     while (rs.next()) {
                         String name = rs.getString("TABLE_CAT");
                         if (name != null && !name.isBlank()) names.add(name);
                     }
                 }
                 if (names.isEmpty()) {
-                    try (ResultSet rs = session.connection().getMetaData().getSchemas()) {
+                    try (ResultSet rs = target.connection().getMetaData().getSchemas()) {
                         while (rs.next()) {
                             String name = rs.getString("TABLE_SCHEM");
                             if (name != null && !name.isBlank()) names.add(name);
@@ -521,16 +526,19 @@ public final class QueryPanel extends JPanel {
             }
 
             @Override protected void done() {
+                if (session != target) return;
                 try {
                     database.addItem(SELECT_DATABASE);
                     for (String name : get()) database.addItem(name);
                     for (int i = 1; i < database.getItemCount(); i++) completionWords.add(database.getItemAt(i));
-                    database.setSelectedIndex(0);
-                    try { session.connection().setCatalog(null); } catch (SQLException ignored) {}
+                    boolean postgres = target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL;
+                    database.setSelectedIndex(postgres ? 1 : 0);
+                    if (!postgres) try { target.connection().setCatalog(null); } catch (SQLException ignored) {}
                     state.setText(session.profile().name());
                 } catch (Exception ignored) {
                 }
                 updateActions();
+                if (target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL) changeDatabase();
             }
         }.execute();
     }
@@ -546,6 +554,10 @@ public final class QueryPanel extends JPanel {
             return;
         }
         try {
+            if (session.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL
+                    && !selected.equals(session.connection().getCatalog())) {
+                throw new SQLException("Para abrir otra base PostgreSQL, conecta de nuevo dejando Base vacía y selecciónala en la lista.");
+            }
             session.connection().setCatalog(selected);
             state.setText(session.profile().name() + " · " + selected);
             statusConsumer.accept("Base activa: " + selected);
@@ -613,15 +625,24 @@ public final class QueryPanel extends JPanel {
 
     private void loadCompletionObjects(String selectedDatabase) {
         if (session == null || selectedDatabase == null || selectedDatabase.isBlank()) return;
+        JdbcSession target = session;
+        boolean postgres = target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL;
         busyConsumer.accept(true);
         new SwingWorker<List<String>, Void>() {
             @Override protected List<String> doInBackground() throws Exception {
                 List<String> names = new ArrayList<>();
-                boolean catalog = session.profile().type() == com.nexodb.model.DatabaseType.MYSQL
-                        || session.profile().type() == com.nexodb.model.DatabaseType.MARIADB;
-                try (ResultSet rs = session.connection().getMetaData().getTables(
+                boolean catalog = target.profile().type() == com.nexodb.model.DatabaseType.MYSQL
+                        || target.profile().type() == com.nexodb.model.DatabaseType.MARIADB || postgres;
+                try (ResultSet rs = target.connection().getMetaData().getTables(
                         catalog ? selectedDatabase : null, catalog ? null : selectedDatabase, "%", new String[]{"TABLE", "VIEW"})) {
-                    while (rs.next()) names.add(rs.getString("TABLE_NAME"));
+                    while (rs.next()) {
+                        String name = rs.getString("TABLE_NAME");
+                        names.add(name);
+                        if (postgres) {
+                            String schema = rs.getString("TABLE_SCHEM");
+                            if (schema != null && !schema.isBlank()) names.add(schema + "." + name);
+                        }
+                    }
                 }
                 names.sort(String.CASE_INSENSITIVE_ORDER);
                 return names;
@@ -629,9 +650,10 @@ public final class QueryPanel extends JPanel {
 
             @Override protected void done() {
                 try {
+                    if (session != target) return;
                     for (String name : get()) {
                         completionWords.add(name);
-                        completionWords.add(selectedDatabase + "." + name);
+                        if (!postgres) completionWords.add(selectedDatabase + "." + name);
                     }
                 } catch (Exception ignored) {
                 } finally {

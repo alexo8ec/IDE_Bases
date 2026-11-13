@@ -80,7 +80,7 @@ public final class DriverDownloadService {
 
         HttpRequest request = HttpRequest.newBuilder(item.uri())
                 .timeout(Duration.ofMinutes(5))
-                .header("User-Agent", "NexoDB-Studio/0.10.5")
+                .header("User-Agent", "NexoDB-Studio/0.10.6")
                 .GET().build();
         HttpResponse<InputStream> response = null;
         Exception javaDownloadError = null;

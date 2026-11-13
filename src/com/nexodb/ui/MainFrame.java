@@ -1,6 +1,7 @@
 package com.nexodb.ui;
 
 import com.nexodb.db.JdbcSession;
+import com.nexodb.db.PostgresSupport;
 import com.nexodb.db.QueryResult;
 import com.nexodb.db.SchemaItem;
 import com.nexodb.model.ConnectionProfile;
@@ -669,21 +670,37 @@ public final class MainFrame extends JFrame {
         connectButton.setEnabled(false);
         new SwingWorker<JdbcSession, Void>() {
             @Override protected JdbcSession doInBackground() throws Exception {
-                try { return JdbcSession.open(profile, password, value -> SwingUtilities.invokeLater(() -> {
-                    busyBar.setIndeterminate(false);
-                    busyBar.setStringPainted(true);
-                    busyBar.setValue(value);
-                    busyBar.setString(value + "%");
-                    setStatus(value < 100
-                            ? "Descargando adaptador oficial de " + profile.type().displayName() + "…"
-                            : "Adaptador verificado; conectando a " + profile.name() + "…");
-                })); }
+                try {
+                    JdbcSession opened = JdbcSession.open(profile, password, value -> SwingUtilities.invokeLater(() -> {
+                        busyBar.setIndeterminate(false);
+                        busyBar.setStringPainted(true);
+                        busyBar.setValue(value);
+                        busyBar.setString(value + "%");
+                        setStatus(value < 100
+                                ? "Descargando adaptador oficial de " + profile.type().displayName() + "…"
+                                : "Adaptador verificado; conectando a " + profile.name() + "…");
+                    }));
+                    if (!PostgresSupport.needsDatabaseSelection(profile)) return opened;
+                    List<String> databases;
+                    try (opened) {
+                        databases = PostgresSupport.databases(opened.connection());
+                    }
+                    String[] selected = new String[1];
+                    SwingUtilities.invokeAndWait(() -> selected[0] = DatabaseSelectionDialog.choose(
+                            MainFrame.this, profile.username(), databases));
+                    if (selected[0] == null) return null;
+                    return JdbcSession.open(PostgresSupport.withDatabase(profile, selected[0]), password);
+                }
                 finally { Arrays.fill(password, '\0'); }
             }
 
             @Override protected void done() {
                 try {
                     JdbcSession next = get();
+                    if (next == null) {
+                        setStatus("Conexión cancelada: no se seleccionó una base de datos.");
+                        return;
+                    }
                     JdbcSession previous = sessions.put(profile.id(), next);
                     if (previous != null && previous != next) {
                         removeConnectionNode(previous);
@@ -877,8 +894,9 @@ public final class MainFrame extends JFrame {
                 }
                 List<SchemaItem> matches = new ArrayList<>();
                 boolean catalogMode = session.profile().type() == DatabaseType.MYSQL || session.profile().type() == DatabaseType.MARIADB;
-                String catalog = catalogMode ? database : null;
-                String schema = catalogMode ? null : database;
+                boolean postgres = session.profile().type() == DatabaseType.POSTGRESQL;
+                String catalog = catalogMode || postgres ? database : null;
+                String schema = catalogMode || postgres ? null : database;
                 try (ResultSet rs = metadata.getTables(catalog, schema, "%" + pattern + "%", new String[]{"TABLE", "VIEW"})) {
                     while (rs.next() && matches.size() < 300) {
                         String name = rs.getString("TABLE_NAME");

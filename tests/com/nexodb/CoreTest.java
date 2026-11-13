@@ -19,6 +19,10 @@ import java.sql.Types;
 public final class CoreTest {
     public static void main(String[] args) throws Exception {
         assertEquals("jdbc:postgresql://db.local:5432/app", DatabaseType.POSTGRESQL.buildUrl("db.local", 5432, "app"));
+        assertEquals("jdbc:postgresql://db.local:5433/postgres", DatabaseType.POSTGRESQL.buildUrl("db.local", 5433, ""));
+        assertEquals("jdbc:postgresql://localhost:5432/postgres", DatabaseType.POSTGRESQL.buildUrl("", 0, null));
+        assertEquals("jdbc:postgresql://db.local:5432/ventas%20%2F%20a%C3%B1o%3F%26",
+                DatabaseType.POSTGRESQL.buildUrl("db.local", 5432, "ventas / año?&"));
         assertEquals("jdbc:sqlite:C:\\data\\app.db", DatabaseType.SQLITE.buildUrl("", 0, "C:\\data\\app.db"));
         assertEquals("jdbc:mysql://localhost:3306/", DatabaseType.MYSQL.buildUrl("localhost", 3306, ""));
         assertEquals("jdbc:mariadb://localhost:3306/?sslMode=disable", DatabaseType.MARIADB.buildUrl("localhost", 3306, ""));

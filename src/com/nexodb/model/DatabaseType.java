@@ -1,5 +1,8 @@
 package com.nexodb.model;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 public enum DatabaseType {
     POSTGRESQL("PostgreSQL", 5432, "org.postgresql.Driver"),
     MYSQL("MySQL", 3306, "com.mysql.cj.jdbc.Driver"),
@@ -30,7 +33,8 @@ public enum DatabaseType {
         String db = database == null ? "" : database.trim();
         int p = port > 0 ? port : defaultPort;
         return switch (this) {
-            case POSTGRESQL -> "jdbc:postgresql://" + h + ":" + p + "/" + db;
+            case POSTGRESQL -> "jdbc:postgresql://" + h + ":" + p + "/"
+                    + URLEncoder.encode(db.isBlank() ? "postgres" : db, StandardCharsets.UTF_8).replace("+", "%20");
             case MYSQL -> "jdbc:mysql://" + h + ":" + p + "/" + db;
             case MARIADB -> "jdbc:mariadb://" + h + ":" + p + "/" + db + (isLocalHost(h) ? "?sslMode=disable" : "");
             case SQLSERVER -> "jdbc:sqlserver://" + h + ":" + p + ";databaseName=" + db + ";encrypt=true;trustServerCertificate=true";

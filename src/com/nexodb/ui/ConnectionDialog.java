@@ -2,6 +2,7 @@ package com.nexodb.ui;
 
 import com.nexodb.db.JdbcSession;
 import com.nexodb.db.DriverDownloadService;
+import com.nexodb.db.PostgresSupport;
 import com.nexodb.model.AuthenticationMode;
 import com.nexodb.model.ConnectionProfile;
 import com.nexodb.model.DatabaseType;
@@ -493,6 +494,9 @@ public final class ConnectionDialog extends JDialog {
 
     private void updateTlsUi() {
         DatabaseType engine = (DatabaseType) type.getSelectedItem();
+        database.setToolTipText(engine == DatabaseType.POSTGRESQL
+                ? "Déjala vacía para consultar las bases disponibles para este usuario."
+                : "Base de datos, servicio o archivo al que deseas conectarte");
         boolean supported = engine == DatabaseType.POSTGRESQL || engine == DatabaseType.MYSQL
                 || engine == DatabaseType.MARIADB || engine == DatabaseType.SQLSERVER
                 || engine == DatabaseType.MONGODB;
@@ -532,6 +536,7 @@ public final class ConnectionDialog extends JDialog {
         }
         char[] testSecret = secret == null ? new char[0] : secret;
         new SwingWorker<String, Void>() {
+            private java.util.List<String> availableDatabases;
             @Override protected String doInBackground() throws Exception {
                 try (JdbcSession session = JdbcSession.open(profile, testSecret, value -> SwingUtilities.invokeLater(() -> {
                     driverProgress.setVisible(true);
@@ -541,6 +546,9 @@ public final class ConnectionDialog extends JDialog {
                 }))) {
                     String product = session.connection().getMetaData().getDatabaseProductName();
                     String version = session.connection().getMetaData().getDatabaseProductVersion();
+                    if (PostgresSupport.needsDatabaseSelection(profile)) {
+                        availableDatabases = PostgresSupport.databases(session.connection());
+                    }
                     return product + " " + version;
                 } finally {
                     Arrays.fill(testSecret, '\0');
@@ -553,6 +561,11 @@ public final class ConnectionDialog extends JDialog {
                 try {
                     status.setForeground(new Color(28, 125, 70));
                     status.setText("Conexión correcta: " + get());
+                    if (availableDatabases != null && isDisplayable() && profile.equals(profileFromForm())) {
+                        String selected = DatabaseSelectionDialog.choose(ConnectionDialog.this,
+                                profile.username(), availableDatabases);
+                        if (selected != null) database.setText(selected);
+                    }
                 } catch (Exception ex) {
                     status.setForeground(new Color(180, 45, 45));
                     status.setText("No se pudo conectar.");

@@ -16,6 +16,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del nucleo fallaron.' }
 & java -cp $testClasspath com.nexodb.db.JdbcSessionTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de credenciales JDBC fallaron.' }
+& java -cp $testClasspath com.nexodb.db.PostgresSupportTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de seleccion de bases PostgreSQL fallaron.' }
 & java -cp $testClasspath com.nexodb.ui.CompletionInteractionTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de autocompletado fallo.' }
 & java -cp $testClasspath com.nexodb.db.ZeroDateTest
