@@ -24,6 +24,8 @@ Las comparaciones de estructura y datos permiten elegir por separado la instanci
 
 La versión 0.10.4 añade MongoDB mediante su **Atlas SQL Interface** y el controlador JDBC oficial completo. También incorpora un selector SSL/TLS visible con modos automático, requerido, verificación completa y sin cifrado, además de un reintento guiado cuando PostgreSQL rechaza el handshake.
 
+La versión 0.10.5 corrige la descarga bajo demanda de controladores JDBC. Usa el servidor canónico de Maven Central, reintenta con TLS 1.2 y, si Java es bloqueado por el proxy o antivirus, utiliza la conexión HTTPS nativa de Windows. PostgreSQL no se incluye previamente: se descarga al pulsar **Verificar / descargar driver** o al iniciar la primera conexión, y se valida con SHA-256 antes de usarlo.
+
 Canal estable de actualizaciones: `https://github.com/alexo8ec/IDE_Bases/releases/latest/download/update-manifest.json`. Los instaladores y manifiestos se publican como archivos de GitHub Releases sin guardar automatizaciones de GitHub Actions dentro del repositorio.
 
 La versión 0.10.3 añadió en el formulario de conexión el botón **Verificar / descargar driver**. Comprueba el archivo, su firma y la clase JDBC sin abrir una conexión; si falta, lo descarga y muestra el progreso. También diferencia los errores de controlador de los rechazos SSL/TLS del servidor.
@@ -40,7 +42,7 @@ Cliente de bases de datos de escritorio, portable y extensible mediante JDBC.
 - MySQL Connector/J oficial incluido y detectado automáticamente.
 - MariaDB Connector/J incluido, con cambio automático cuando el servidor solicita `auth_gssapi_client`.
 - Selector explícito entre usuario/contraseña y autenticación integrada de Windows (GSSAPI/SSPI) para MySQL/MariaDB.
-- Carga dinámica de controladores JDBC adicionales desde archivos `.jar`.
+- Descarga automática bajo demanda de los controladores JDBC registrados, con verificación SHA-256; también admite archivos `.jar` seleccionados manualmente.
 - Explorador de catálogos, esquemas, tablas, vistas y columnas.
 - Editor SQL con ejecución de la selección o sentencia actual.
 - Cancelación de consultas, límite de filas, transacciones manuales, `commit` y `rollback`.
@@ -89,8 +91,8 @@ Publica juntos el manifiesto y el ZIP producido. Sin una dirección pública don
 
 1. Abre **Nueva conexión**.
 2. Elige el motor, completa host, puerto, base de datos y usuario.
-3. Para MySQL no necesitas seleccionar ningún archivo: el controlador oficial ya está incluido.
-4. Para otros motores, selecciona su controlador JDBC `.jar`.
+3. Para MySQL y MariaDB no necesitas seleccionar ningún archivo: sus controladores oficiales ya están incluidos.
+4. Para PostgreSQL, SQL Server, Oracle, SQLite, H2 y MongoDB, NexoDB descarga automáticamente el controlador oficial si falta. También puedes comprobarlo antes con **Verificar / descargar driver**.
 5. Escribe la contraseña y pulsa **Probar** o **Guardar y conectar**.
 
 En MySQL puedes dejar **Base / servicio / archivo** vacío. NexoDB conectará al servidor y mostrará en **Objetos** todas las bases, tablas y vistas que el usuario tenga permiso de consultar.

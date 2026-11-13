@@ -1,6 +1,8 @@
 package com.nexodb.db;
 
 import com.nexodb.model.DatabaseType;
+import com.nexodb.model.AuthenticationMode;
+import com.nexodb.model.ConnectionProfile;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +15,8 @@ public final class DriverDownloadServiceTest {
             DriverDownloadService.DriverPackage item = DriverDownloadService.packageFor(type);
             require(item != null, "Falta el adaptador " + type);
             require("https".equals(item.uri().getScheme()), "La descarga debe usar HTTPS");
+            require("repo.maven.apache.org".equals(item.uri().getHost()),
+                    "La descarga debe usar el servidor canónico de Maven Central");
             require(item.sha256().matches("[0-9a-f]{64}"), "Firma SHA-256 inválida");
         }
         require(!DriverDownloadService.supports(DatabaseType.GENERIC), "JDBC genérico requiere selección manual");
@@ -29,10 +33,18 @@ public final class DriverDownloadServiceTest {
         }
 
         if (args.length > 0 && "--download-postgresql".equals(args[0])) {
-            var file = DriverDownloadService.ensureDownloaded(DatabaseType.POSTGRESQL, value -> {});
+            ConnectionProfile profile = new ConnectionProfile("", "Prueba PostgreSQL", DatabaseType.POSTGRESQL,
+                    "127.0.0.1", 1, "postgres", "tester",
+                    "jdbc:postgresql://127.0.0.1:1/postgres?connectTimeout=1",
+                    "org.postgresql.Driver", "", AuthenticationMode.DATABASE, true);
+            try (JdbcSession ignored = JdbcSession.open(profile, new char[0], value -> {})) {
+                throw new AssertionError("El puerto de prueba no debía aceptar la conexión");
+            } catch (Exception expectedConnectionFailure) {
+                // La conexión al puerto cerrado debe fallar después de descargar y cargar el controlador.
+            }
+            var file = DriverDownloadService.findDownloadedDriver(DatabaseType.POSTGRESQL);
+            require(file != null, "Conectar no descargó automáticamente PostgreSQL");
             require(file.isFile(), "No descargó PostgreSQL");
-            require(DriverDownloadService.findDownloadedDriver(DatabaseType.POSTGRESQL) != null,
-                    "No encontró el adaptador descargado");
             try (URLClassLoader loader = new URLClassLoader(new java.net.URL[]{file.toURI().toURL()})) {
                 Class.forName("org.postgresql.Driver", true, loader);
             }

@@ -563,10 +563,21 @@ public final class ConnectionDialog extends JDialog {
     }
 
     private void showDriverError(Exception exception) {
-        Throwable cause = exception;
-        while (cause.getCause() != null) cause = cause.getCause();
-        String message = cause.getMessage();
-        if (message == null || message.isBlank()) message = cause.toString();
+        String message = null;
+        boolean handshake = false;
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            String candidate = cause.getMessage();
+            if (candidate == null || candidate.isBlank()) continue;
+            if (candidate.contains("No se pudo descargar el controlador")) message = candidate;
+            if (candidate.toLowerCase().contains("handshake_failure")) handshake = true;
+            if (message == null) message = candidate;
+        }
+        if (message == null || message.isBlank()) message = exception.toString();
+        if (handshake && !message.contains("No se pudo descargar el controlador")) {
+            message = "La red rechazó la conexión TLS usada para descargar el controlador.\n\n"
+                    + "NexoDB intentó el modo normal, TLS 1.2 y la conexión segura nativa de Windows. "
+                    + "Revisa el proxy, antivirus o inspección HTTPS de la red.";
+        }
         JOptionPane.showMessageDialog(this, message, "Controlador JDBC", JOptionPane.ERROR_MESSAGE);
     }
 

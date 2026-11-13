@@ -16,6 +16,8 @@ import java.time.Duration;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.function.IntConsumer;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLParameters;
 
 /** Downloads known JDBC drivers to a per-user directory and verifies pinned SHA-256 hashes. */
 public final class DriverDownloadService {
@@ -45,7 +47,7 @@ public final class DriverDownloadService {
     private DriverDownloadService() {}
 
     private static DriverPackage pkg(String version, String fileName, String path, String sha256) {
-        return new DriverPackage(version, fileName, URI.create("https://repo1.maven.org/maven2/" + path), sha256);
+        return new DriverPackage(version, fileName, URI.create("https://repo.maven.apache.org/maven2/" + path), sha256);
     }
 
     public static boolean supports(DatabaseType type) { return CATALOG.containsKey(type); }
@@ -76,15 +78,37 @@ public final class DriverDownloadService {
         Files.deleteIfExists(target);
         notifyProgress(progress, 0);
 
-        HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(20))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
         HttpRequest request = HttpRequest.newBuilder(item.uri())
                 .timeout(Duration.ofMinutes(5))
-                .header("User-Agent", "NexoDB-Studio/0.10.4")
+                .header("User-Agent", "NexoDB-Studio/0.10.5")
                 .GET().build();
-        HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        HttpResponse<InputStream> response = null;
+        Exception javaDownloadError = null;
+        try {
+            response = httpClient(null).send(request, HttpResponse.BodyHandlers.ofInputStream());
+        } catch (Exception firstError) {
+            javaDownloadError = firstError;
+            if (isTlsHandshakeError(firstError)) {
+                SSLParameters tls12 = new SSLParameters();
+                tls12.setProtocols(new String[]{"TLSv1.2"});
+                try {
+                    response = httpClient(tls12).send(request, HttpResponse.BodyHandlers.ofInputStream());
+                } catch (Exception secondError) {
+                    javaDownloadError = secondError;
+                }
+            }
+        }
+        if (response == null) {
+            try {
+                downloadWithWindows(item.uri(), partial);
+                return finishDownload(type, item, partial, target, progress);
+            } catch (Exception windowsError) {
+                if (javaDownloadError != null) windowsError.addSuppressed(javaDownloadError);
+                throw new IllegalStateException(
+                        "No se pudo descargar el controlador mediante Java ni mediante la conexión segura de Windows. "
+                                + "Revisa el proxy, antivirus o inspección HTTPS de la red.", windowsError);
+            }
+        }
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             response.body().close();
             throw new IllegalStateException("No se pudo descargar el adaptador de " + type.displayName()
@@ -106,17 +130,7 @@ public final class DriverDownloadService {
             throw error;
         }
 
-        if (!verify(partial, item.sha256())) {
-            Files.deleteIfExists(partial);
-            throw new SecurityException("La firma SHA-256 del adaptador descargado no coincide. El archivo fue descartado.");
-        }
-        try {
-            Files.move(partial, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } catch (Exception unsupportedAtomicMove) {
-            Files.move(partial, target, StandardCopyOption.REPLACE_EXISTING);
-        }
-        notifyProgress(progress, 100);
-        return target.toFile();
+        return finishDownload(type, item, partial, target, progress);
     }
 
     public static Path driverDirectory() {
@@ -137,5 +151,67 @@ public final class DriverDownloadService {
 
     private static void notifyProgress(IntConsumer progress, int value) {
         if (progress != null) progress.accept(Math.max(0, Math.min(100, value)));
+    }
+
+    private static HttpClient httpClient(SSLParameters sslParameters) {
+        HttpClient.Builder builder = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(20))
+                .followRedirects(HttpClient.Redirect.NORMAL);
+        if (sslParameters != null) builder.sslParameters(sslParameters);
+        return builder.build();
+    }
+
+    private static boolean isTlsHandshakeError(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SSLHandshakeException) return true;
+            String message = cause.getMessage();
+            if (message != null && message.toLowerCase().contains("handshake_failure")) return true;
+        }
+        return false;
+    }
+
+    private static void downloadWithWindows(URI uri, Path partial) throws Exception {
+        Files.deleteIfExists(partial);
+        String systemRoot = System.getenv("SystemRoot");
+        if (systemRoot == null || systemRoot.isBlank()) {
+            throw new IllegalStateException("Windows no informó la ubicación del sistema.");
+        }
+        Path curl = Path.of(systemRoot, "System32", "curl.exe");
+        if (!Files.isRegularFile(curl)) {
+            throw new IllegalStateException("Windows no tiene disponible su cliente HTTPS nativo.");
+        }
+        Process process = new ProcessBuilder(
+                curl.toString(), "--fail", "--location", "--silent", "--show-error",
+                "--connect-timeout", "20", "--max-time", "300",
+                "--output", partial.toAbsolutePath().toString(), uri.toString())
+                .redirectErrorStream(true)
+                .start();
+        String output;
+        try (InputStream input = process.getInputStream()) {
+            output = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+        }
+        int exitCode = process.waitFor();
+        if (exitCode != 0 || !Files.isRegularFile(partial)) {
+            Files.deleteIfExists(partial);
+            throw new IllegalStateException(output.isBlank()
+                    ? "La descarga nativa de Windows terminó con código " + exitCode + "."
+                    : output);
+        }
+    }
+
+    private static File finishDownload(DatabaseType type, DriverPackage item, Path partial, Path target,
+                                       IntConsumer progress) throws Exception {
+        if (!verify(partial, item.sha256())) {
+            Files.deleteIfExists(partial);
+            throw new SecurityException("La firma SHA-256 del adaptador de " + type.displayName()
+                    + " no coincide. El archivo fue descartado.");
+        }
+        try {
+            Files.move(partial, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (Exception unsupportedAtomicMove) {
+            Files.move(partial, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+        notifyProgress(progress, 100);
+        return target.toFile();
     }
 }
