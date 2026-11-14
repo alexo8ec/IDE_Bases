@@ -1,0 +1,8 @@
+﻿{
+  "tool": "built-in image_gen",
+  "editTarget": "nexodb-icon.png",
+  "master": "adisdb-icon-source.png",
+  "applicationIcon": "adisdb-icon.png",
+  "prompt": "Use case: precise-object-edit. Asset type: Windows/macOS/Android app icon for AdisDB. Edit target: the provided original database icon (large dark-blue database cylinder with bright cyan rings, orbiting arrow and three network nodes, transparent background). Primary request: keep this original database graphic as the dominant icon, and ONLY add a SMALL capital letter A badge to identify AdisDB. Preserve the cylinder, cyan lighting, arrow, network nodes, original composition and transparent background unchanged. Add one crisp white 'A' in a compact royal-blue circular badge with a thin cyan outline, near the lower-right edge of the database without obscuring its main cylinder. The A badge should occupy about 16 percent of total icon width, secondary to the database. Text verbatim: 'A'. No other letters or words. Do not turn the A into the main icon; the database must remain large and recognizable. No background, no extra glow beyond the original, no watermark. Square app icon; preserve genuine alpha transparency.",
+  "export": "java -cp \"build/lib/*\" tools/RenderBrandIcon.java resources/com/nexodb/assets/adisdb-icon-source.png resources/com/nexodb/assets/adisdb-icon.png"
+}

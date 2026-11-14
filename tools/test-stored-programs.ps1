@@ -1,4 +1,4 @@
-param([string]$MariaDbBin='C:/Program Files/MariaDB 12.3/bin',[switch]$WithUi)
+param([string]$MariaDbBin='C:/Program Files/MariaDB 12.3/bin',[switch]$WithUi,[switch]$MysqlDriver)
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $data=[IO.Path]::GetFullPath((Join-Path $root 'build/stored-program-test-data'))
@@ -20,10 +20,11 @@ try{
         if($LASTEXITCODE -eq 0){$ready=$true;break};Start-Sleep -Milliseconds 250
     }
     if(-not $ready){throw 'Dedicated fixture did not start'}
-    & (Join-Path $env:JAVA_HOME 'bin/java.exe') '-Dnexodb.disableDraftPersistence=true' '-Dnexodb.test.storedPrograms=true' -cp 'build/test-classes;build/classes;build/lib/*' com.nexodb.db.StoredProgramIntegrationTest
+    $driverOption="-Dnexodb.test.mysqlDriver=$($MysqlDriver.IsPresent.ToString().ToLowerInvariant())"
+    & (Join-Path $env:JAVA_HOME 'bin/java.exe') '-Dnexodb.disableDraftPersistence=true' '-Dnexodb.test.storedPrograms=true' $driverOption -cp 'build/test-classes;build/classes;build/lib/*' com.nexodb.db.StoredProgramIntegrationTest
     if($LASTEXITCODE -ne 0){throw 'Stored-program integration test failed'}
     if($WithUi){
-        & (Join-Path $env:JAVA_HOME 'bin/java.exe') '-Dnexodb.disableDraftPersistence=true' '-Dnexodb.test.storedPrograms=true' -cp 'build/test-classes;build/classes;build/lib/*' com.nexodb.ui.StoredProgramWindowTest
+        & (Join-Path $env:JAVA_HOME 'bin/java.exe') '-Dnexodb.disableDraftPersistence=true' '-Dnexodb.test.storedPrograms=true' $driverOption -cp 'build/test-classes;build/classes;build/lib/*' com.nexodb.ui.StoredProgramWindowTest
         if($LASTEXITCODE -ne 0){throw 'Stored-program window test failed'}
     }
 }finally{

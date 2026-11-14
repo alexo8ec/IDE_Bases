@@ -41,7 +41,7 @@ public final class MysqlDebugSession implements AutoCloseable {
     private void run(){List<QueryResult> results=new ArrayList<>();Throwable failure=null;
         try{
             publish(State.STARTING,0,0,List.of(),List.of(),"Abriendo conexiones de depuración…");
-            control=JdbcSession.open(profile,password);worker=JdbcSession.open(profile,password);Arrays.fill(password,'\0');
+            control=JdbcSession.open(profile,password);worker=JdbcSession.open(workerProfile(profile),password);Arrays.fill(password,'\0');
             control.connection().setCatalog(StoredObjectService.namespace(item));worker.connection().setCatalog(StoredObjectService.namespace(item));control.setReadOnly(false);worker.setReadOnly(false);
             if(!StoredObjectService.read(control,item).hash().equals(definition.hash()))throw new SQLException("El procedimiento cambió desde que se abrió el depurador. Vuelve a abrirlo.");
             connectionId=Long.parseLong(StoredObjectService.scalar(worker.connection(),"SELECT CONNECTION_ID()"));
@@ -56,7 +56,19 @@ public final class MysqlDebugSession implements AutoCloseable {
             try(Statement statement=worker.connection().createStatement()){
                 // A single-row streaming fetch lets the controller display SELECT results while CALL is paused.
                 active=statement;statement.setFetchSize(worker.connection().getMetaData().getDriverName().toLowerCase(Locale.ROOT).contains("mysql")?Integer.MIN_VALUE:1);boolean has=statement.execute("CALL "+clone+"("+String.join(",",args)+")");
-                do{if(has)try(ResultSet rows=statement.getResultSet()){if(rows.getMetaData().getColumnCount()==1&&marker.equals(rows.getMetaData().getColumnLabel(1))){while(rows.next()){} }else{QueryResult result=QueryResult.from(rows,10000);if(results.size()<100)results.add(result);else throw new SQLException("La depuración alcanzó el límite de 100 conjuntos de resultados.");resultsChanged(results);}}else if(statement.getUpdateCount()==-1)break;has=statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT);}while(true);
+                do{
+                    if(has)try(ResultSet rows=statement.getResultSet()){
+                        if(rows.getMetaData().getColumnCount()==1&&marker.equals(rows.getMetaData().getColumnLabel(1))){while(rows.next()){} }
+                        else{
+                            QueryResult result=QueryResult.from(rows,10000);
+                            // Drain before close/getMoreResults: Connector/J can otherwise lose the next result.
+                            if(result.truncated())while(rows.next()){}
+                            if(results.size()>=100)throw new SQLException("La depuración alcanzó el límite de 100 conjuntos de resultados.");
+                            results.add(result);resultsChanged(results);
+                        }
+                    }else if(statement.getUpdateCount()==-1)break;
+                    has=statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT);
+                }while(true);
             }finally{active=null;}
             if(!args.isEmpty())results.add(worker.execute("SELECT "+String.join(",",args),1));
         }catch(Throwable error){failure=error;}
@@ -74,6 +86,16 @@ public final class MysqlDebugSession implements AutoCloseable {
         }
     }
     private void create(String kind,String name,String sql)throws SQLException{StoredObjectService.exec(control.connection(),sql);cleanup.add("DROP "+kind+" "+name);}
+    private static ConnectionProfile workerProfile(ConnectionProfile profile){
+        if(profile.type()!=DatabaseType.MYSQL)return profile;
+        // Connector/J restores net_write_timeout on ResultSet.close(). A streamed CALL may
+        // already have its next result open, making that automatic SET fail with S1000.
+        // Disable only this driver's automatic timeout rewrite on the dedicated worker.
+        String url=profile.jdbcUrl();int query=url.indexOf('?');String base=query<0?url:url.substring(0,query);List<String> options=new ArrayList<>();
+        if(query>=0)for(String option:url.substring(query+1).split("&"))if(!option.isBlank()&&!option.split("=",2)[0].equalsIgnoreCase("netTimeoutForStreamingResults"))options.add(option);
+        options.add("netTimeoutForStreamingResults=0");
+        return new ConnectionProfile(profile.id(),profile.name(),profile.type(),profile.host(),profile.port(),profile.database(),profile.username(),base+"?"+String.join("&",options),profile.driverClass(),profile.driverJar(),profile.authenticationMode(),profile.readOnly());
+    }
     private static void bind(Connection connection,String variable,Object value)throws SQLException{try(PreparedStatement s=connection.prepareStatement("SET "+variable+"=?")){s.setObject(1,value);s.execute();}}
     private String pauseSql(){int finalPoint=program.points().get(program.points().size()-1).id();return "CREATE PROCEDURE "+pause+"(IN nx_point INT,IN nx_line INT,IN nx_context LONGTEXT) SQL SECURITY INVOKER\nBEGIN\n"
             +" DECLARE nx_mode VARCHAR(16); DECLARE nx_bps LONGTEXT; DECLARE nx_status VARCHAR(16); DECLARE nx_lease BIGINT; DECLARE nx_keys LONGTEXT; DECLARE nx_key VARCHAR(256); DECLARE nx_path LONGTEXT; DECLARE nx_i INT DEFAULT 0; DECLARE nx_stop BOOL DEFAULT FALSE;\n"

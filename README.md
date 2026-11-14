@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.0**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.5**.
+La versión actual de escritorio es **0.18.1**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.6**.
+
+## Corrección del depurador MySQL — 0.18.1
+
+El icono conserva la base de datos original como símbolo principal y añade una A pequeña como distintivo de AdisDB, en escritorio y Android.
+
+Corrige el error `Streaming result set ... is still active` (SQLSTATE S1000) al avanzar o continuar un SP. MySQL Connector/J intentaba restaurar `net_write_timeout` al cerrar un resultado mientras el resultado siguiente del CALL ya estaba abierto. La conexión dedicada de ejecución usa `netTimeoutForStreamingResults=0` para desactivar esa modificación automática del controlador; el perfil guardado y la conexión del editor no se alteran. El streaming sigue activo: no se descartan resultados ni se vuelve a ejecutar el SELECT.
+
+La regresión se reproduce y valida contra una instancia MariaDB aislada utilizando ambos controladores reales incluidos: MySQL Connector/J y MariaDB Connector/J. Se comprueban pausas, pasos, resultados disponibles antes de terminar el SP, varios SELECT, NULL/decimales, bloques con LEAVE, conjuntos vacíos, límite de 10.000 filas, parámetros OUT y cancelación. Ejecuta `tools/test-stored-programs.ps1 -MysqlDriver -WithUi` para el controlador MySQL y el mismo comando sin `-MysqlDriver` para MariaDB.
 
 ## AdisDB · Suite AdisOne — 0.18.0
 
@@ -67,9 +75,9 @@ Otros cambios de escritorio 0.15.0: **Tab** acepta el autocompletado y deja el c
 
 **Exportar… / Ctrl+Shift+E** incorpora **Excel (.xlsx)** para el resultado activo, además de CSV y los demás formatos. El libro conserva encabezados, números, booleanos, texto Unicode e identificadores de más de 15 dígitos; el texto no se convierte en fórmulas. Incluye filtro y encabezado fijo. Respeta los límites de Excel y rechaza celdas o resultados demasiado grandes sin recortarlos silenciosamente. Exporta las filas cargadas, con el límite de consulta vigente. La depuración MySQL/MariaDB de 0.16.0 se describe arriba.
 
-**Android 0.14.5** corrige el error `Cannot read properties of null (reading forEach)` al mostrar consultas SELECT. Incluye una prueba de interfaz en el WebView real para consultas con filas, resultados vacíos y varias pestañas. [Descarga e instalación](android/README.md). Android mantiene su versión en `android/VERSION` y su propio manifiesto de actualización.
+**Android 0.14.6** corrige el error `Cannot read properties of null (reading forEach)` al mostrar consultas SELECT. Incluye una prueba de interfaz en el WebView real para consultas con filas, resultados vacíos y varias pestañas. [Descarga e instalación](android/README.md). Android mantiene su versión en `android/VERSION` y su propio manifiesto de actualización.
 
-La versión **0.14.5** incorporó [consulta y selección de registros relacionados por claves foráneas](docs/foreign-key-lookup.md), con búsqueda, paginación y asignación al borrador. Android incorpora la misma búsqueda y una pantalla de actualización con reintento de instalación. Añade formularios de conexión adaptados al motor, apertura de SQLite mediante selector de archivo y administración de usuarios para MySQL/MariaDB, PostgreSQL, SQL Server, Oracle y H2, con generación de contraseñas. Consulta la [guía de conexiones y usuarios](docs/users-and-connections.md). Mantiene las conexiones inactivas con comprobaciones periódicas y recuperación de sesiones sin transacciones, conservando base/esquema y modo de lectura. No repite consultas ni recupera silenciosamente una transacción interrumpida. Al aceptar tablas en FROM/JOIN, el editor propone alias breves como `ct_ventas AS v` y `ct_clientes AS c`, con sufijos para evitar repeticiones. Los JOIN por claves foráneas y el constructor visual utilizan estos identificadores, respetando los alias existentes. Añade la primera aplicación **Android** con conexión directa a bases de datos y mejora el escritorio con iconos de herramientas, sugerencias JOIN basadas en claves foráneas y diagramas con cuadrícula, colores, cierre de tarjetas y tamaño ajustable. Los instaladores y manifiestos se generan con la misma versión. Consulta las [descargas e instalación de Android](android/README.md) y la [distribución de escritorio](docs/multiplatform.md).
+La versión **0.14.6** incorporó [consulta y selección de registros relacionados por claves foráneas](docs/foreign-key-lookup.md), con búsqueda, paginación y asignación al borrador. Android incorpora la misma búsqueda y una pantalla de actualización con reintento de instalación. Añade formularios de conexión adaptados al motor, apertura de SQLite mediante selector de archivo y administración de usuarios para MySQL/MariaDB, PostgreSQL, SQL Server, Oracle y H2, con generación de contraseñas. Consulta la [guía de conexiones y usuarios](docs/users-and-connections.md). Mantiene las conexiones inactivas con comprobaciones periódicas y recuperación de sesiones sin transacciones, conservando base/esquema y modo de lectura. No repite consultas ni recupera silenciosamente una transacción interrumpida. Al aceptar tablas en FROM/JOIN, el editor propone alias breves como `ct_ventas AS v` y `ct_clientes AS c`, con sufijos para evitar repeticiones. Los JOIN por claves foráneas y el constructor visual utilizan estos identificadores, respetando los alias existentes. Añade la primera aplicación **Android** con conexión directa a bases de datos y mejora el escritorio con iconos de herramientas, sugerencias JOIN basadas en claves foráneas y diagramas con cuadrícula, colores, cierre de tarjetas y tamaño ajustable. Los instaladores y manifiestos se generan con la misma versión. Consulta las [descargas e instalación de Android](android/README.md) y la [distribución de escritorio](docs/multiplatform.md).
 
 La versión **0.13.1** incorpora relaciones visuales: arrastra una columna hija sobre la columna referenciada, o usa clic derecho sobre una columna o una línea del diagrama. Puedes crear, modificar y eliminar claves foráneas, con columnas compuestas y acciones ON DELETE/ON UPDATE. El diálogo permite revisar el SQL, abrirlo en una consulta nueva o aplicarlo con confirmación Sí/No. Esc cancela el enlace. Actualizar conserva las tablas y sus posiciones en el diagrama.
 
@@ -218,7 +226,7 @@ El script compila el programa y lo abre.
 .\package.ps1
 ```
 
-El resultado de esta versión queda en `dist\0.18.0\AdisDB\AdisDB.exe` e incluye un runtime Java reducido.
+El resultado de esta versión queda en `dist\0.18.1\AdisDB\AdisDB.exe` e incluye un runtime Java reducido.
 
 La distribución limita el heap a 256 MB y usa renderizado GDI por software para evitar problemas de controladores gráficos en Windows.
 

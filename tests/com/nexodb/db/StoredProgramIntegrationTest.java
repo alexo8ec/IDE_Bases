@@ -9,7 +9,7 @@ import java.util.concurrent.*;
 
 /** Uses only the explicitly enabled, dedicated local MariaDB fixture. */
 public final class StoredProgramIntegrationTest {
-    public static ConnectionProfile profile(String database){return new ConnectionProfile("stored-program-test","Isolated debugger test",DatabaseType.MARIADB,"127.0.0.1",43189,database,"root","jdbc:mariadb://127.0.0.1:43189/"+database+"?sslMode=disable",DatabaseType.MARIADB.driverClass(),Path.of("build/drivers/mariadb-java-client-4.0.0.jar").toAbsolutePath().toString(),false);}
+    public static ConnectionProfile profile(String database){boolean mysql=Boolean.getBoolean("nexodb.test.mysqlDriver");DatabaseType type=mysql?DatabaseType.MYSQL:DatabaseType.MARIADB;return new ConnectionProfile("stored-program-test","Isolated debugger test",type,"127.0.0.1",43189,database,"root",(mysql?"jdbc:mysql:":"jdbc:mariadb:")+"//127.0.0.1:43189/"+database+(mysql?"?sslMode=DISABLED&allowPublicKeyRetrieval=true&netTimeoutForStreamingResults=600":"?sslMode=disable"),type.driverClass(),Path.of(mysql?"build/drivers/mysql-connector-j-26.10.0.jar":"build/drivers/mariadb-java-client-4.0.0.jar").toAbsolutePath().toString(),false);}
     public static final String BODY="""
             CREATE PROCEDURE debug_calc(IN p_limit INT, OUT p_result INT)
             BEGIN
@@ -32,6 +32,7 @@ public final class StoredProgramIntegrationTest {
     public static void main(String[] args)throws Exception{
         if(!Boolean.getBoolean("nexodb.test.storedPrograms"))throw new IllegalStateException("Dedicated local test switch required");
         try(JdbcSession session=JdbcSession.open(profile(""),new char[0])){
+            String driver=session.connection().getMetaData().getDriverName();if(Boolean.getBoolean("nexodb.test.mysqlDriver")&&!driver.toLowerCase(Locale.ROOT).contains("mysql"))throw new AssertionError("MySQL driver was replaced by a fallback: "+driver);System.out.println("Stored-program JDBC driver: "+driver);
             equal(Path.of("build/stored-program-test-data").toRealPath(),Path.of(StoredObjectService.scalar(session.connection(),"SELECT @@datadir")).toRealPath());
             exec(session,"CREATE DATABASE IF NOT EXISTS nexodb_stored_test CHARACTER SET utf8mb4");session.connection().setCatalog("nexodb_stored_test");session.setReadOnly(false);
             exec(session,"DROP PROCEDURE IF EXISTS debug_calc");exec(session,"DROP TABLE IF EXISTS debug_target");exec(session,"CREATE TABLE debug_target(result INT) ENGINE=InnoDB");exec(session,BODY);
@@ -46,12 +47,47 @@ public final class StoredProgramIntegrationTest {
             events.clear();var cancelled=new MysqlDebugSession(profile("nexodb_stored_test"),new char[0],item,definition,program,Arrays.asList("1",null),Map.of(),Set.of(insert),events::add);cancelled.start();paused(events);cancelled.resume();equal(insert,paused(events).line());cancelled.stop();equal(MysqlDebugSession.State.CANCELLED,finished(events).state());equal("1",StoredObjectService.scalar(session.connection(),"SELECT COUNT(*) FROM debug_target"));assertClean(session,cancelled.helperPrefix());
             for(String unsupported:List.of("CREATE PROCEDURE p() BEGIN SELECT ROW_COUNT(); END","CREATE PROCEDURE p() BEGIN PREPARE x FROM 'SELECT 1'; END","CREATE PROCEDURE p() BEGIN DECLARE CONTINUE HANDLER FOR SQLEXCEPTION SET @x=1; END"))try{MysqlProcedure.compile(new StoredObjectService.Definition(unsupported,"","",""));throw new AssertionError("Unsupported semantics silently accepted");}catch(IllegalArgumentException expected){}
             lineByLine(session);
+            streamedStages(session);
             cursor(session);
             controlFlow(session);
             triggerOrder(session);
             ddl(session);
         }
         System.out.println("StoredProgramIntegrationTest: OK (real MariaDB pause/step/continue, loop hits, shadowed locals, OUT parameters, NULL, no write before breakpoint, cancellation, original unchanged, helper cleanup and all object DDL)");
+    }
+    private static void streamedStages(JdbcSession session)throws Exception{
+        String digits="(SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9)";
+        exec(session,"DROP PROCEDURE IF EXISTS debug_streamed_stages");exec(session,"""
+            CREATE PROCEDURE debug_streamed_stages(IN p_stop INT, OUT p_result DECIMAL(12,2))
+            BEGIN
+                DECLARE v_id INT DEFAULT NULL;
+                DECLARE v_total DECIMAL(12,2) DEFAULT NULL;
+                depuracion: BEGIN
+                    SET v_id=4321;
+                    SELECT 1 AS paso, 'ID generado' AS operacion, v_id AS id_venta, v_total AS total;
+                    IF p_stop=1 THEN LEAVE depuracion; END IF;
+                    SET v_total=300.50;
+                    SELECT 2 AS paso, 'Total calculado' AS operacion, v_id AS id_venta, v_total AS total;
+                    IF p_stop=2 THEN LEAVE depuracion; END IF;
+                    SET v_total=v_total-25;
+                    SELECT 3 AS paso, 'Saldo calculado' AS operacion, v_id AS id_venta, v_total AS total;
+                    SELECT v_id AS empty_result WHERE FALSE;
+                    SELECT a.n+10*b.n+100*c.n+1000*d.n+10000*e.n AS numero FROM %s a CROSS JOIN %s b CROSS JOIN %s c CROSS JOIN %s d CROSS JOIN %s e LIMIT 10005;
+                END depuracion;
+                SET p_result=COALESCE(v_total,0);
+            END
+            """.formatted(digits,digits,digits,digits,digits));
+        var item=new SchemaItem(SchemaItem.Kind.PROCEDURE,"nexodb_stored_test",null,"debug_streamed_stages","");var definition=StoredObjectService.read(session,item);var program=MysqlProcedure.compile(definition);
+        for(int stop:List.of(0,1,2)){
+            var events=new LinkedBlockingQueue<MysqlDebugSession.Event>();var debug=new MysqlDebugSession(profile("nexodb_stored_test"),new char[0],item,definition,program,Arrays.asList(""+stop,null),Map.of(),Set.of(),events::add);debug.start();
+            try{var event=paused(events);int steps=0;boolean live=false;while(event.point()!=program.points().get(program.points().size()-1).id()){
+                if(++steps>40)throw new AssertionError("Streamed stages did not finish");
+                if(event.line()==line(program.source(),"IF p_stop=1",0)){long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);while(debug.last().results().isEmpty()&&System.nanoTime()<deadline)Thread.sleep(20);equal(MysqlDebugSession.State.PAUSED,debug.state());var first=debug.last().results().get(0);equal("1",first.rows().get(0).get(0).toString());equal(null,first.rows().get(0).get(3));live=true;}
+                debug.step();event=paused(events);
+            }equal(true,live);debug.resume();var done=finished(events);equal(MysqlDebugSession.State.COMPLETED,done.state());equal(stop==0?6:stop+1,done.results().size());if(stop==0){equal(0,done.results().get(3).rows().size());equal(10000,done.results().get(4).rows().size());equal(true,done.results().get(4).truncated());}equal(stop==1?"0.00":stop==2?"300.50":"275.50",done.results().get(done.results().size()-1).rows().get(0).get(1).toString());assertClean(session,debug.helperPrefix());
+            }finally{if(!debug.finished()){debug.stop();finished(events);}}
+        }
+        System.out.println("Streaming SP regression: OK (live SELECTs, NULL/decimal values, labeled LEAVE, empty/truncated sets and OUT parameters)");
     }
     private static void lineByLine(JdbcSession session)throws Exception{
         exec(session,"DROP PROCEDURE IF EXISTS debug_inspect");exec(session,DebugExample.sql("`nexodb_stored_test`.`debug_inspect`"));

@@ -2,13 +2,13 @@
 
 ## Descargar e instalar
 
-La versión Android actual es **0.14.5**. El APK firmado se genera en
-[`dist/AdisDB-0.14.5-android.apk`](../dist/AdisDB-0.14.5-android.apk).
+La versión Android actual es **0.14.6**. El APK firmado se genera en
+[`dist/AdisDB-0.14.6-android.apk`](../dist/AdisDB-0.14.6-android.apk).
 No se necesita Java ni un ordenador encendido para utilizarla.
 
 Después de publicar los archivos en la rama `main`, la descarga es:
 
-https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.14.5-android.apk
+https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.14.6-android.apk
 
 1. Descarga el APK en el teléfono y ábrelo desde Descargas.
 2. Si Android lo solicita, permite instalar aplicaciones desde ese navegador o gestor de archivos.
@@ -16,6 +16,10 @@ https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.14.5-and
 4. Crea una conexión con un servidor accesible desde el teléfono. La dirección `localhost` corresponde al teléfono, no al ordenador.
 
 Requiere Android 8.0 o posterior y Android System WebView actualizado. El APK es universal para las arquitecturas del dispositivo, sin bibliotecas nativas específicas de CPU.
+
+## Icono de AdisDB — 0.14.6
+
+La base de datos original es el símbolo principal y una A pequeña identifica AdisDB, tanto en el icono del sistema como en la cabecera de la aplicación.
 
 ## AdisDB · AdisOne — 0.14.5
 
@@ -42,7 +46,7 @@ La versión móvil comparte componentes del motor SQL con escritorio, pero todav
 
 https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/android-update-manifest.json
 
-La aplicación requiere una licencia vigente. **Descargar e instalar** solicita confirmación, verifica el SHA-256, el identificador, la versión y la firma de la APK, y abre el instalador de Android. La primera vez, Android solicita permitir instalaciones desde AdisDB; al volver, se continúa con el instalador. Confirma la instalación para actualizar conservando licencia, perfiles y borradores. Desde versiones anteriores a 0.14.5, instala esta APK una vez mediante el archivo descargado; las siguientes actualizaciones ya podrán iniciar la instalación desde AdisDB. Las versiones futuras deben conservar el identificador `com.nexodb.android`, la misma clave de firma y un `versionCode` mayor.
+La aplicación requiere una licencia vigente. **Descargar e instalar** solicita confirmación, verifica el SHA-256, el identificador, la versión y la firma de la APK, y abre el instalador de Android. La primera vez, Android solicita permitir instalaciones desde AdisDB; al volver, se continúa con el instalador. Confirma la instalación para actualizar conservando licencia, perfiles y borradores. Desde versiones anteriores a 0.14.6, instala esta APK una vez mediante el archivo descargado; las siguientes actualizaciones ya podrán iniciar la instalación desde AdisDB. Las versiones futuras deben conservar el identificador `com.nexodb.android`, la misma clave de firma y un `versionCode` mayor.
 
 La versión y el código de actualización se obtienen de [`android/VERSION`](VERSION); `major.minor.patch` se convierte en `major * 10000 + minor * 100 + patch`.
 

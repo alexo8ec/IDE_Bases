@@ -1,28 +1,28 @@
 {
-  "version": "0.18.0",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-win64.zip",
-  "sha256": "3fc2957bf4a11187855a3427ca0d13c5efa81cfe535f267f9145ac1e71f31fdf",
-  "notes": "AdisDB 0.18.0, producto de la suite AdisOne. Nueva identidad e icono. Conserva conexiones, preferencias, borradores y licencias. Compatible con actualizaciones desde NexoDB Studio.",
+  "version": "0.18.1",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.1-win64.zip",
+  "sha256": "563ce0bf7d00dd7d60ac360affb444ca090ea3ac6849e386132d43cb39d88405",
+  "notes": "AdisDB 0.18.1: corrige el error Streaming result set is still active de MySQL Connector/J al depurar SP. Conserva resultados en tiempo real y variables; consume correctamente conjuntos limitados a 10000 filas. Icono original de base de datos con una A pequena.",
   "platforms": {
     "windows-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-win64.zip",
-      "sha256": "3fc2957bf4a11187855a3427ca0d13c5efa81cfe535f267f9145ac1e71f31fdf"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.1-win64.zip",
+      "sha256": "563ce0bf7d00dd7d60ac360affb444ca090ea3ac6849e386132d43cb39d88405"
     },
     "linux-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-linux-x64.deb",
-      "sha256": "0e15832036df742cea72dd3b8fe48247204b328c2689b7b989029da76a2dfe68"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.1-linux-x64.deb",
+      "sha256": "e5f0f03e51ab644712f305a7248cdaacdb1b4aa8e7aa7fff106d150c79d9a86b"
     },
     "linux-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-linux-arm64.deb",
-      "sha256": "df6b399cc3820b84e34999a2a77545b5e73f1b3758c0db3e15711ead9b86852c"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.1-linux-arm64.deb",
+      "sha256": "efbe057541b20f843eb816924cdfb5fe3f144706ba0d765d0129a68a9ae66f22"
     },
     "macos-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-macos-x64.zip",
-      "sha256": "80f6738ad78363065e05da7df3ece84f8b0b730d7f44db94d093680d89721f61"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.1-macos-x64.zip",
+      "sha256": "ab0432137e336abc0704278f40dd095c0f3455b7fd6d67ad06b7882a1bc61a4a"
     },
     "macos-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-macos-arm64.zip",
-      "sha256": "371b0f3cbb60a0cf7ca9ef045c3272479cd854662eb5edc3a46d0213285b26c4"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.1-macos-arm64.zip",
+      "sha256": "1a5b67af51e8a47c741ea6763e1785fda82a43b8556fa70acaa5da712a7e7126"
     }
   }
 }

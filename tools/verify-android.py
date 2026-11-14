@@ -34,7 +34,7 @@ with zipfile.ZipFile(apk) as archive:
             assert b'Lcom/nexodb/android/AndroidResultUiTest;' not in archive.read(name), 'Instrumentation code bundled in client'
     assert 'assets/query-results-test.js' not in archive.namelist(), 'UI test harness bundled in client'
     assert all('assets/'+name in archive.namelist() for name in ('index.html','app.js','app.css','tools.js'))
-    assert b'AdisDB' in archive.read('assets/index.html') and 'assets/adisdb-icon.svg' in archive.namelist()
+    assert b'AdisDB' in archive.read('assets/index.html') and 'assets/adisdb-icon.png' in archive.namelist()
 tools = args.sdk/'build-tools/35.0.0'
 badging = subprocess.check_output([str(tools/'aapt.exe'), 'dump', 'badging', str(apk)], text=True, encoding='utf-8')
 assert "name='com.nexodb.android'" in badging
