@@ -1,6 +1,28 @@
-﻿{
-    "version":  "0.14.3",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.3-win64.zip",
-    "sha256":  "7803d374d284e7efb4dd3accdb6bbf5db6b1608bdcaa645ae74e00452a873ab9",
-    "notes":  "Edicion con doble clic, filas marcadas resaltadas y menu de acciones para insertar, duplicar, eliminar, copiar, filtrar y exportar. Las consultas y el cursor se recuperan al abrir. La firma digital de distribucion requiere los certificados del editor."
+{
+  "version": "0.14.3",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.3-win64.zip",
+  "sha256": "7803d374d284e7efb4dd3accdb6bbf5db6b1608bdcaa645ae74e00452a873ab9",
+  "notes": "Formularios adaptados a cada motor, apertura de archivos SQLite, administracion de usuarios para seis motores y generacion de contrasenas. Android mantiene su version independiente.",
+  "platforms": {
+    "windows-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.3-win64.zip",
+      "sha256": "7803d374d284e7efb4dd3accdb6bbf5db6b1608bdcaa645ae74e00452a873ab9"
+    },
+    "linux-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.3-linux-x64.deb",
+      "sha256": "5d7951c73f451b52d3324203a330149b3855bb37a2dac7f75a1cf5b2615dbfda"
+    },
+    "linux-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.3-linux-arm64.deb",
+      "sha256": "f83ce8175942b1b60b1d65a9136afd97be550cf96df4ea05413b685f15272fa9"
+    },
+    "macos-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.3-macos-x64.zip",
+      "sha256": "5c66f71772e68c83f56a427a9e2cec67b5dfe34e26adc553247b5385386c19af"
+    },
+    "macos-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.3-macos-arm64.zip",
+      "sha256": "4511067fb68d516cbd078e784afded1df08a540de4ab3e53a74436f22c256cde"
+    }
+  }
 }
