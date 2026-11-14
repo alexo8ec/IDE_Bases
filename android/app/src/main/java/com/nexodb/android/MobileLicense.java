@@ -11,7 +11,7 @@ final class MobileLicense {
     private final Path file;private final MobileStore store;private final PublicKey key;
     MobileLicense(Context context,MobileStore store)throws Exception{
         this.store=store;file=context.getFilesDir().toPath().resolve("license.nexolicense");
-        try(var input=MobileLicense.class.getResourceAsStream("/com/nexodb/licensing/public-key.der")){if(input==null)throw new GeneralSecurityException("No se encontró la clave pública de NexoDB.");key=LicenseCodec.publicKey(input.readAllBytes());}
+        try(var input=MobileLicense.class.getResourceAsStream("/com/nexodb/licensing/public-key.der")){if(input==null)throw new GeneralSecurityException("No se encontró la clave pública de NexoDB.");key=LicenseCodec.publicKey(StreamCompat.readNBytes(input,8192));}
     }
     LicenseCodec.License current()throws Exception{
         if(!Files.isRegularFile(file))throw new GeneralSecurityException("Activa una licencia de NexoDB para continuar.");

@@ -38,6 +38,8 @@ $variant=if($Debug){'Debug'}else{'Release'}
 if($LASTEXITCODE -ne 0){throw 'La compilación Android falló.'}
 $source=Join-Path $buildRoot ("app/outputs/apk/$($variant.ToLower())/app-$($variant.ToLower()).apk")
 $version=(Get-Content -LiteralPath (Join-Path $repository 'VERSION') -Raw).Trim()
+$parts=$version.Split('.')
+$versionCode=([int]$parts[0]*10000)+([int]$parts[1]*100)+[int]$parts[2]
 $target=Join-Path $repository ("dist/NexoDB-Studio-$version-android"+$(if($Debug){'-debug'}else{''})+'.apk')
 Copy-Item -LiteralPath $source -Destination $target -Force
 if(-not $Debug){
@@ -46,5 +48,5 @@ if(-not $Debug){
 }
 $hash=(Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
 "$hash  $([IO.Path]::GetFileName($target))" | Set-Content -LiteralPath ($target+'.sha256') -Encoding ASCII
-if(-not $Debug){[ordered]@{version=$version;versionCode=140;downloadUrl='https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/'+[IO.Path]::GetFileName($target);sha256=$hash} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $repository 'dist/android-update-manifest.json') -Encoding UTF8}
+if(-not $Debug){[ordered]@{version=$version;versionCode=$versionCode;downloadUrl='https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/'+[IO.Path]::GetFileName($target);sha256=$hash} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $repository 'dist/android-update-manifest.json') -Encoding UTF8}
 Write-Output "APK lista: $target"

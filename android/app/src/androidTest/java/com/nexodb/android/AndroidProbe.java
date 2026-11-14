@@ -18,6 +18,9 @@ public final class AndroidProbe extends Instrumentation {
     @Override public void onCreate(Bundle arguments){super.onCreate(arguments);args=arguments;start();}
     @Override public void onStart(){Bundle output=new Bundle();try{probe();output.putString("stream","NEXODB_ANDROID_PROBE_OK: direct JDBC, metadata, unlimited reads, row updates, SQL backup/restore, Keystore and signatures\n");finish(Activity.RESULT_OK,output);}catch(Throwable error){output.putString("stream","NEXODB_ANDROID_PROBE_FAILED: "+error.toString()+"\n"+android.util.Log.getStackTraceString(error));finish(Activity.RESULT_CANCELED,output);}}
     private void probe()throws Exception{
+        Path document=getTargetContext().getCacheDir().toPath().resolve("probe-document.sql");
+        com.nexodb.util.SqlFiles.write(document,"SELECT 'Android';\n");
+        check(com.nexodb.util.SqlFiles.read(document).text().equals("SELECT 'Android';\n"),"SQL document round trip on ART");Files.delete(document);
         var profile=new ConnectionProfile("android-probe","Android probe",DatabaseType.MARIADB,"10.0.2.2",43183,"","root","jdbc:mariadb://10.0.2.2:43183/?sslMode=disable","org.mariadb.jdbc.Driver","",false);
         try(JdbcSession session=JdbcSession.open(profile,new char[0])){
             try(Statement s=session.connection().createStatement();ResultSet r=s.executeQuery("SELECT @@datadir")){r.next();String data=r.getString(1).replace('\\','/').replaceAll("/+$","").toLowerCase(Locale.ROOT);String hash=HexCompat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(data.getBytes(java.nio.charset.StandardCharsets.UTF_8)));check(hash.equals(args.getString("datadirSha")),"Refusing a database outside the isolated fixture");}

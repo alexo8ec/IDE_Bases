@@ -1,6 +1,10 @@
 plugins { id 'com.android.application' }
 
 def rootRepo = rootProject.projectDir.parentFile
+def productVersion = new File(rootRepo, 'VERSION').getText('UTF-8').trim()
+def versionParts = productVersion.tokenize('.').collect { Integer.parseInt(it) }
+if (versionParts.size() != 3 || versionParts.any { it < 0 || it > 99 }) throw new GradleException('VERSION must contain major.minor.patch, each between 0 and 99.')
+def productVersionCode = versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
 def generatedCore = layout.buildDirectory.dir('generated/core')
 def sharedFiles = [
     'model/AuthenticationMode.java','model/DatabaseType.java','model/ConnectionProfile.java',
@@ -12,7 +16,7 @@ def sharedFiles = [
     'licensing/LicenseCodec.java','util/DataExporter.java','util/SqlFiles.java'
 ]
 tasks.register('prepareSharedCore', Copy) {
-    inputs.property('androidJdbcCompatibility',3)
+    inputs.property('androidJdbcCompatibility',4)
     from(new File(rootRepo,'src/com/nexodb')) { sharedFiles.each { include it } }
     into generatedCore.map { it.dir('com/nexodb') }
     filter { line -> line.replace('HexFormat.of()', 'com.nexodb.android.HexCompat.of()')
@@ -21,12 +25,14 @@ tasks.register('prepareSharedCore', Copy) {
         .replace('session.connection().getSchema()','com.nexodb.android.JdbcCompat.schema(session.connection())')
         .replace('connection.getSchema()','com.nexodb.android.JdbcCompat.schema(connection)')
         .replace('KeyFactory.getInstance("Ed25519")','com.nexodb.android.Ed25519.keyFactory()')
-        .replace('Signature.getInstance("Ed25519")','com.nexodb.android.Ed25519.signature()') }
+        .replace('Signature.getInstance("Ed25519")','com.nexodb.android.Ed25519.signature()')
+        .replace('Channels.newReader(channel,StandardCharsets.UTF_8)','Channels.newReader(channel,StandardCharsets.UTF_8.newDecoder(),-1)')
+        .replace('input.readNBytes(MAX_BYTES+1)','com.nexodb.android.StreamCompat.readNBytes(input,MAX_BYTES+1)') }
 }
 android {
     namespace 'com.nexodb.android'
     compileSdk 35
-    defaultConfig { applicationId 'com.nexodb.android'; minSdk 26; targetSdk 35; versionCode 140; versionName '0.14.0'; testInstrumentationRunner 'com.nexodb.android.AndroidProbe' }
+    defaultConfig { applicationId 'com.nexodb.android'; minSdk 26; targetSdk 35; versionCode productVersionCode; versionName productVersion; testInstrumentationRunner 'com.nexodb.android.AndroidProbe' }
     buildFeatures { buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17; coreLibraryDesugaringEnabled true }
     sourceSets { main { java.srcDir generatedCore; resources.srcDir new File(rootRepo,'resources') } }
