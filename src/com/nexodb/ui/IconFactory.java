@@ -17,7 +17,8 @@ public final class IconFactory {
         ADD, CONNECT, DISCONNECT, REFRESH, PLAY, STOP, COMMIT, ROLLBACK, EXPORT,
         EDIT, DELETE, DATABASE, SCHEMA, TABLE, VIEW, COLUMN, SETTINGS, UPDATE,
         INFO, EXIT, SAVE, TEST, CANCEL, FOLDER, CONNECTIONS, OBJECTS,
-        KEY, SQL, PROCEDURE, FUNCTION, TRIGGER, EVENT, COMPARE, USER, SEARCH
+        KEY, SQL, PROCEDURE, FUNCTION, TRIGGER, EVENT, COMPARE, USER, SEARCH,
+        UNDO, REDO, COPY, IMPORT, BACKUP, TOOLS, DIAGRAM, FILTER, HISTORY
     }
 
     public static final Color BLUE = new Color(0x2563EB);
@@ -31,6 +32,7 @@ public final class IconFactory {
 
     public static Icon of(Kind kind) { return of(kind, 18); }
     public static Icon of(Kind kind, int size) { return new VectorIcon(kind, size, color(kind)); }
+    public static Icon of(Kind kind,int size,Color color){return new VectorIcon(kind,size,color);}
     public static Icon database(DatabaseType type, int size) {
         DatabaseType engine = type == null ? DatabaseType.GENERIC : type;
         if (engine == DatabaseType.GENERIC) return of(Kind.DATABASE, size);
@@ -129,6 +131,14 @@ public final class IconFactory {
                 }
                 case PLAY -> { Path2D p = new Path2D.Double(); p.moveTo(5, 3); p.lineTo(14.5, 9); p.lineTo(5, 15); p.closePath(); g.fill(p); }
                 case STOP -> g.fill(new RoundRectangle2D.Double(4, 4, 10, 10, 2, 2));
+                case IMPORT -> {g.draw(new RoundRectangle2D.Double(3,10.5,12,5,1.5,1.5));line(g,9,11,9,2.5);line(g,5.8,5.7,9,2.5);line(g,12.2,5.7,9,2.5);}
+                case UNDO, REDO -> {Graphics2D draw=(Graphics2D)g.create();if(kind==Kind.REDO){draw.translate(18,0);draw.scale(-1,1);}draw.draw(new Arc2D.Double(3,5,12,10,0,180,Arc2D.OPEN));line(draw,3,10,3,4);line(draw,3,4,8,4);draw.dispose();}
+                case COPY -> {g.draw(new RoundRectangle2D.Double(6,5,9,11,1.5,1.5));line(g,3,12,3,2);line(g,3,2,12,2);}
+                case BACKUP -> {paintDatabase(g,false);g.setColor(ThemeManager.color(0xF8FAFC,0x26323E));g.fill(new Ellipse2D.Double(9,9,8,8));g.setColor(ThemeManager.color(0x167567,0x62CEB0));g.draw(new Ellipse2D.Double(9.5,9.5,7,7));line(g,13,11,13,13);line(g,13,13,15,14);}
+                case TOOLS -> {g.draw(new RoundRectangle2D.Double(2,6,14,10,2,2));g.draw(new RoundRectangle2D.Double(6,2,6,4,1,1));line(g,2,10,16,10);line(g,7,10,7,12);line(g,11,10,11,12);}
+                case DIAGRAM -> {g.draw(new RoundRectangle2D.Double(1.5,2.5,6,5,1,1));g.draw(new RoundRectangle2D.Double(10.5,10.5,6,5,1,1));line(g,4.5,7.5,4.5,13);line(g,4.5,13,10.5,13);line(g,1.5,4.5,7.5,4.5);line(g,10.5,12.5,16.5,12.5);}
+                case FILTER -> {Path2D p=new Path2D.Double();p.moveTo(2,3);p.lineTo(16,3);p.lineTo(11,9);p.lineTo(11,14);p.lineTo(7,16);p.lineTo(7,9);p.closePath();g.draw(p);}
+                case HISTORY -> {g.draw(new Arc2D.Double(3,2.5,13,13,-25,295,Arc2D.OPEN));line(g,2,3,2,8);line(g,2,8,7,8);line(g,9.5,5,9.5,9.5);line(g,9.5,9.5,12.5,11);}
                 case COMMIT -> { line(g, 3, 9, 7, 13); line(g, 7, 13, 15, 4); }
                 case ROLLBACK -> {
                     g.draw(new Arc2D.Double(3, 3, 12, 12, 70, 245, Arc2D.OPEN));

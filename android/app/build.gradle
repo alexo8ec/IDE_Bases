@@ -1,0 +1,52 @@
+plugins { id 'com.android.application' }
+
+def rootRepo = rootProject.projectDir.parentFile
+def generatedCore = layout.buildDirectory.dir('generated/core')
+def sharedFiles = [
+    'model/AuthenticationMode.java','model/DatabaseType.java','model/ConnectionProfile.java',
+    'db/SchemaItem.java','db/SchemaMetadataReader.java','db/QueryResult.java','db/QueryEditSupport.java',
+    'db/VisualQuery.java','db/DataSearch.java','db/SqlExecutionPolicy.java','db/SqlScriptTools.java',
+    'db/ForeignKeyDefinition.java','db/MysqlTableDesign.java','db/SqlBackupService.java',
+    'db/SqlImportService.java','db/SqlScriptReader.java','db/SqlTransferControl.java',
+    'db/CsvReader.java','db/CsvImportService.java','db/SqlColumnCompletion.java','db/SqlJoinCompletion.java',
+    'licensing/LicenseCodec.java','util/DataExporter.java','util/SqlFiles.java'
+]
+tasks.register('prepareSharedCore', Copy) {
+    inputs.property('androidJdbcCompatibility',3)
+    from(new File(rootRepo,'src/com/nexodb')) { sharedFiles.each { include it } }
+    into generatedCore.map { it.dir('com/nexodb') }
+    filter { line -> line.replace('HexFormat.of()', 'com.nexodb.android.HexCompat.of()')
+        .replace('java.sql.Types.TIME_WITH_TIMEZONE','2013').replace('java.sql.Types.TIMESTAMP_WITH_TIMEZONE','2014')
+        .replace('Types.TIME_WITH_TIMEZONE','2013').replace('Types.TIMESTAMP_WITH_TIMEZONE','2014')
+        .replace('session.connection().getSchema()','com.nexodb.android.JdbcCompat.schema(session.connection())')
+        .replace('connection.getSchema()','com.nexodb.android.JdbcCompat.schema(connection)')
+        .replace('KeyFactory.getInstance("Ed25519")','com.nexodb.android.Ed25519.keyFactory()')
+        .replace('Signature.getInstance("Ed25519")','com.nexodb.android.Ed25519.signature()') }
+}
+android {
+    namespace 'com.nexodb.android'
+    compileSdk 35
+    defaultConfig { applicationId 'com.nexodb.android'; minSdk 26; targetSdk 35; versionCode 140; versionName '0.14.0'; testInstrumentationRunner 'com.nexodb.android.AndroidProbe' }
+    buildFeatures { buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17; coreLibraryDesugaringEnabled true }
+    sourceSets { main { java.srcDir generatedCore; resources.srcDir new File(rootRepo,'resources') } }
+    packaging { resources { excludes += ['META-INF/versions/**','META-INF/LICENSE*','META-INF/NOTICE*','META-INF/DEPENDENCIES','META-INF/*.SF','META-INF/*.RSA','META-INF/*.DSA'] } }
+    def signingFile = new File(rootRepo,'.signing/android-signing.properties')
+    if (signingFile.isFile()) {
+        def signing = new Properties()
+        signingFile.withInputStream { signing.load(it) }
+        signingConfigs { release { storeFile new File(signing.getProperty('storeFile')); storePassword signing.getProperty('storePassword'); keyAlias signing.getProperty('keyAlias'); keyPassword signing.getProperty('keyPassword') } }
+        buildTypes { release { minifyEnabled false; signingConfig signingConfigs.release } }
+    } else {
+        buildTypes { release { minifyEnabled false } }
+        if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }) throw new GradleException('Run android/build.ps1 to initialize the private APK signing key.')
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'prepareSharedCore' }
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation files(new File(rootRepo,'third-party/mariadb-java-client-3.5.11/mariadb-java-client-3.5.11.jar'))
+    implementation 'org.postgresql:postgresql:42.7.8'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.79'
+}

@@ -95,6 +95,7 @@ public final class MainFrame extends JFrame {
         scheduledTasks.setLicenseCheck(LicenseGate::licensed);
         setJMenuBar(buildMenu());
         setContentPane(buildContent());
+        UiDesign.enhance(this);
         configureProfiles();
         configureTree();
         loadProfilesAsync();
@@ -395,7 +396,7 @@ public final class MainFrame extends JFrame {
     }
 
     private JMenuItem toolMenuItem(String text,IconFactory.Kind icon,int key,int modifiers,Runnable action){JMenuItem item=UiLanguage.text(new JMenuItem(tr(text),IconFactory.of(icon,16)),UiLanguage.key(text));if(key!=0)item.setAccelerator(KeyStroke.getKeyStroke(key,modifiers));item.addActionListener(e->action.run());return item;}
-    private void addToolTab(String title,JComponent panel){workspaceTabs.addTab(title,IconFactory.of(IconFactory.Kind.SQL,16),panel);int index=workspaceTabs.indexOfComponent(panel);workspaceTabs.setTabComponentAt(index,closableTab(title,panel));workspaceTabs.setSelectedComponent(panel);}
+    private void addToolTab(String title,JComponent panel){UiDesign.enhance(panel);workspaceTabs.addTab(title,IconFactory.of(panel instanceof VisualDatabasePanel?IconFactory.Kind.DIAGRAM:panel instanceof DataSearchPanel?IconFactory.Kind.SEARCH:panel instanceof ScheduledTasksPanel?IconFactory.Kind.EVENT:IconFactory.Kind.SQL,16),panel);int index=workspaceTabs.indexOfComponent(panel);workspaceTabs.setTabComponentAt(index,closableTab(title,panel));workspaceTabs.setSelectedComponent(panel);}
     private boolean requireDatabase(){if(!LicenseGate.ensure(this))return false;if(session==null||!session.isOpen()||queryPanel.activeDatabase().isBlank()){JOptionPane.showMessageDialog(this,tr("Conecta y selecciona una base de datos primero."));return false;}return true;}
     private void openQueryTool(String tool){
         if(!requireDatabase())return;JdbcSession origin=session;String database=queryPanel.activeDatabase();
@@ -1366,6 +1367,7 @@ public final class MainFrame extends JFrame {
             }
         }
         TableWorkbenchPanel panel = new TableWorkbenchPanel(target, item, qualifiedName(target, item), this::setStatus);
+        UiDesign.enhance(panel);
         panel.setStructureChanged(queryPanel::refreshCompletions);
         panel.selectSection(section);
         String tabTitle = target.profile().name() + " · " + item.name();

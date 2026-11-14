@@ -5,6 +5,7 @@ import static com.nexodb.util.I18n.tr;
 import com.nexodb.db.JdbcSession;
 import com.nexodb.db.QueryResult;
 import com.nexodb.db.SqlColumnCompletion;
+import com.nexodb.db.SqlJoinCompletion;
 import com.nexodb.db.SqlExecutionPolicy;
 import com.nexodb.util.DataExporter;
 import com.nexodb.util.SqlText;
@@ -53,7 +54,7 @@ public final class QueryPanel extends JPanel {
     private final JButton newQueryButton=new JButton("+");
     private final JButton openSqlButton=new JButton(IconFactory.of(IconFactory.Kind.FOLDER,17));
     private final JButton saveSqlButton=new JButton(IconFactory.of(IconFactory.Kind.SAVE,17));
-    private final JButton undoButton=new JButton("↶"),redoButton=new JButton("↷");
+    private final JButton undoButton=new JButton(IconFactory.of(IconFactory.Kind.UNDO,17)),redoButton=new JButton(IconFactory.of(IconFactory.Kind.REDO,17));
     private boolean fileBusy;
     private final QueryHistoryStore history=QueryHistoryStore.configured();
     private int activeQuery;
@@ -90,6 +91,8 @@ public final class QueryPanel extends JPanel {
     private boolean savingResult;
     private boolean queryRunning;
     private SqlColumnCompletion columnCompletion;
+    private SqlJoinCompletion joinCompletion;
+    private final java.util.Map<String,String> joinInsertions=new java.util.LinkedHashMap<>();
     private SwingWorker<List<String>,Void> columnWorker;
     private final Set<String> columnWords = new LinkedHashSet<>();
     private long completionGeneration, completionCatalogGeneration;
@@ -205,6 +208,7 @@ public final class QueryPanel extends JPanel {
         completionGeneration++;completionCatalogGeneration++;
         if(columnWorker!=null)columnWorker.cancel(true);
         columnCompletion=session==null?null:new SqlColumnCompletion(session);
+        joinCompletion=session==null?null:new SqlJoinCompletion(session);joinInsertions.clear();
         columnWords.clear();completionWords.clear();addSqlKeywords();completionPopup.setVisible(false);
         if (session == null) {
             UiLanguage.text(state, UiLanguage.key("Sin conexión"));
@@ -942,10 +946,16 @@ public final class QueryPanel extends JPanel {
         String prefix = token.contains(".") ? token.substring(token.lastIndexOf('.') + 1) : token;
         final String filterPrefix = prefix.replace("`", "").replace("\"", "").replace("[", "").toLowerCase(Locale.ROOT);
         int caret=editor.getCaretPosition();String text=editor.getText();
-        if (!SqlColumnCompletion.inCode(text.substring(0,caret)) || !forced && filterPrefix.length() < 2 && !token.contains(".")) { completionPopup.setVisible(false);completionGeneration++;return; }
+        boolean joinPosition=SqlJoinCompletion.atJoin(text.substring(0,caret));
+        if (!SqlColumnCompletion.inCode(text.substring(0,caret)) || !forced && !joinPosition && filterPrefix.length() < 2 && !token.contains(".")) { completionPopup.setVisible(false);completionGeneration++;return; }
         boolean tablePosition=Pattern.compile("(?is)\\b(?:FROM|JOIN|UPDATE|INTO)\\s+[^\\s,()]*$").matcher(text.substring(0,caret)).find();
         boolean qualified=token.contains(".")&&!tablePosition;
-        columnWords.clear();renderCompletions(filterPrefix,List.of(),qualified);
+        columnWords.clear();joinInsertions.clear();renderCompletions(filterPrefix,List.of(),qualified);
+        if(tablePosition){for(int i=completionModel.size()-1;i>=0;i--)if(isKeyword(completionModel.get(i)))completionModel.remove(i);if(completionModel.isEmpty())completionPopup.setVisible(false);else showCompletionList();}
+        if(joinPosition&&joinCompletion!=null){
+            long request=++completionGeneration;JdbcSession target=session;SqlJoinCompletion provider=joinCompletion;String db=activeDatabase();
+            new SwingWorker<List<SqlJoinCompletion.Suggestion>,Void>(){protected List<SqlJoinCompletion.Suggestion> doInBackground()throws Exception{return provider.suggestions(text,caret,db);}protected void done(){if(request!=completionGeneration||session!=target||caret!=editor.getCaretPosition()||!text.equals(editor.getText())||!editor.isFocusOwner())return;try{List<String> fallback=new ArrayList<>();for(int i=0;i<completionModel.size();i++)fallback.add(completionModel.get(i));var suggestions=get();if(suggestions.isEmpty())return;completionModel.clear();joinInsertions.clear();for(var suggestion:suggestions){joinInsertions.put(suggestion.label(),suggestion.insertion());completionModel.addElement(suggestion.label());}for(String value:fallback)if(completionModel.size()<60)completionModel.addElement(value);showCompletionList();}catch(Exception ignored){}}}.execute();return;
+        }
         if(tablePosition||columnCompletion==null)return;
         long request=++completionGeneration;
         if(columnWorker!=null)columnWorker.cancel(true);
@@ -976,9 +986,13 @@ public final class QueryPanel extends JPanel {
                 }).limit(60).forEach(matches::add);
         for (String match : matches.stream().limit(60).toList()) completionModel.addElement(match);
         if (completionModel.isEmpty()) { completionPopup.setVisible(false); return; }
+        showCompletionList();
+    }
+
+    private void showCompletionList(){
         completionList.setSelectedIndex(0);
         int visibleRows = Math.max(1, Math.min(10, completionModel.size()));
-        completionScroll.setPreferredSize(new Dimension(330, visibleRows * completionList.getFixedCellHeight() + 5));
+        completionScroll.setPreferredSize(new Dimension(joinInsertions.isEmpty()?330:Math.min(780,Math.max(420,editor.getWidth()-30)), visibleRows * completionList.getFixedCellHeight() + 5));
         completionPopup.setPopupSize(completionScroll.getPreferredSize());
         try {
             Rectangle2D caret = editor.modelToView2D(editor.getCaretPosition());
@@ -1028,6 +1042,7 @@ public final class QueryPanel extends JPanel {
         if (selected == null) return;
         int caret = editor.getCaretPosition();
         String token = completionToken();
+        if(joinInsertions.containsKey(selected)){String insertion=joinInsertions.get(selected);int length=token.length();editor.editAtomically(()->{try{editor.getDocument().remove(caret-length,length);editor.getDocument().insertString(caret-length,insertion,null);}catch(Exception ignored){}});completionGeneration++;completionTimer.stop();completionPopup.setVisible(false);editor.requestFocusInWindow();return;}
         int tail = token.lastIndexOf('.') + 1;
         int replaceLength = token.length() - tail;
         boolean column=columnWords.contains(selected);

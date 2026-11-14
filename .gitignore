@@ -23,4 +23,8 @@ __pycache__/
 /license-issuer/private-dist/
 *.nexolicense
 *.nxvault
+/android/.gradle/
+/android/**/build/
+/android/local.properties
+/android/.test/
 

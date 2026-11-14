@@ -42,13 +42,33 @@ public final class ThemeManager {
         UIManager.put("Component.arc", 10);
         UIManager.put("Button.arc", 10);
         UIManager.put("TextComponent.arc", 9);
-        UIManager.put("Component.focusWidth", 1);
+        UIManager.put("Component.focusWidth", 2);
+        UIManager.put("Component.accentColor",new Color(0x167567));
+        UIManager.put("Button.margin",new Insets(6,11,6,11));
+        UIManager.put("Button.iconTextGap",7);
+        UIManager.put("MenuItem.margin",new Insets(6,10,6,10));
+        UIManager.put("MenuItem.minimumIconSize",new Dimension(18,18));
+        UIManager.put("TabbedPane.tabHeight",35);
+        UIManager.put("Tree.rowHeight",27);
+        Color accent=new Color(0x167567);
+        UIManager.put("Component.focusColor",accent);
+        UIManager.put("ProgressBar.foreground",accent);
+        UIManager.put("Panel.background",new Color(dark?0x1B2632:0xF4F7F9));
+        UIManager.put("MenuBar.background",new Color(dark?0x18232E:0xFFFFFF));
+        UIManager.put("ToolBar.background",new Color(dark?0x202D39:0xFFFFFF));
+        UIManager.put("Table.background",new Color(dark?0x202D39:0xFFFFFF));
+        UIManager.put("Table.alternateRowColor",new Color(dark?0x243341:0xF7FAFC));
+        UIManager.put("Table.selectionBackground",new Color(dark?0x244E4B:0xDDF1EB));
+        UIManager.put("Table.selectionForeground",new Color(dark?0xEDF4F8:0x134337));
+        UIManager.put("List.selectionBackground",new Color(dark?0x244E4B:0xDDF1EB));
+        UIManager.put("List.selectionForeground",new Color(dark?0xEDF4F8:0x134337));
         UIManager.put("ScrollBar.thumbArc", 999);
         UIManager.put("TabbedPane.showTabSeparators", true);
         UIManager.put("Table.showHorizontalLines", true);
         UIManager.put("Table.showVerticalLines", false);
         UIManager.put("Table.intercellSpacing", new Dimension(0, 1));
         FlatLaf.updateUI();
+        for(Window window:Window.getWindows())if(window instanceof MainFrame)UiDesign.enhance(window);
     }
     static boolean detectSystemDark() {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
