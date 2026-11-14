@@ -26,6 +26,7 @@ async function openRelated(row,column,referenceIndex){
                 const parent=last.rows[Number(el.dataset.referenceRow)],chosen={};for(const part of ref.parts){const at=last.columns.indexOf(part.referenced);if(at<0||parent[at]===null)throw new Error(t('La columna referenciada ya no existe.'));chosen[part.column]=parent[at];}
                 if(!await confirmLocal('Cambiar referencia','Se actualizarán juntas las columnas de esta relación en el borrador. Pulsa Guardar para aplicar a la base. ¿Continuar?'))return;const staged=q.changes[row]||{row,kind:'UPDATE',values:{}};Object.assign(staged.values,chosen);q.changes[row]=staged;closeSheet();renderResult();
             }));
+        }catch(error){if(instance===relatedSequence&&token===request&&$('#reference-data')){last=null;$('#reference-data').innerHTML='';$('#reference-status').textContent=t('No se pudo consultar la referencia.');}throw error;
         }finally{if(instance===relatedSequence&&token===request&&$('#reference-find'))$('#reference-find').disabled=false;}
     }
     on('#reference-find','click',()=>{first=0;return load();});on('#reference-search','keydown',e=>{if(e.key==='Enter'){first=0;return load();}});on('#reference-limit','change',()=>{first=0;return load();});on('#reference-column','change',()=>{first=0;return load();});on('#reference-others','change',()=>{first=0;return load();});

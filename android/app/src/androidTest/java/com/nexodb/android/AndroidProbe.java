@@ -28,10 +28,22 @@ public final class AndroidProbe extends Instrumentation {
         store.removeProfile("__nexodb-upgrade-proof__");check(digest(store.profiles().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)).equals(store.get("upgrade-probe-profiles","")),"Existing profiles changed during upgrade");store.put("draft",store.get("upgrade-probe-old-draft","{}"));for(String key:List.of("upgrade-probe-old-draft","upgrade-probe-settings","upgrade-probe-profiles","upgrade-probe-license"))store.put(key,"");
     }
     private void installUpgrade()throws Exception{
-        Activity activity=startActivitySync(new android.content.Intent(getTargetContext(),MainActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+        Activity activity=startActivitySync(new android.content.Intent(getTargetContext(),MainActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK|android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK));
         java.io.File file=new java.io.File(activity.getCacheDir(),"updates/update.apk");file.getParentFile().mkdirs();
         try(android.os.ParcelFileDescriptor pipe=getUiAutomation().executeShellCommand("cat /data/local/tmp/nexodb-upgrade.apk");java.io.InputStream input=new java.io.FileInputStream(pipe.getFileDescriptor())){Files.copy(input,file.toPath(),StandardCopyOption.REPLACE_EXISTING);}
-        Object result=new UpdateInstaller((MainActivity)activity).request(file,1404);Bundle progress=new Bundle();progress.putString("stream","NEXODB_UPGRADE_INSTALLER_OPENED: "+result+"\n");sendStatus(0,progress);Thread.sleep(120000);throw new AssertionError("System installer did not complete the upgrade");
+        Object result=new UpdateInstaller((MainActivity)activity).request(file,1404);Bundle progress=new Bundle();progress.putString("stream","NEXODB_UPGRADE_INSTALLER_OPENED: "+result+"\n");sendStatus(0,progress);
+        boolean returned=false,confirmed=false;long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
+        while(System.nanoTime()<deadline){
+            android.view.accessibility.AccessibilityNodeInfo root=getUiAutomation().getRootInActiveWindow();
+            if(root!=null){String owner=String.valueOf(root.getPackageName());java.util.ArrayDeque<android.view.accessibility.AccessibilityNodeInfo> nodes=new java.util.ArrayDeque<>();nodes.add(root);
+                while(!nodes.isEmpty()){var node=nodes.removeFirst();String text=String.valueOf(node.getText());
+                    if(owner.equals("com.android.settings")&&node.isVisibleToUser()&&node.isCheckable()&&!node.isChecked()&&node.isEnabled()){var control=node.isClickable()?node:node.getParent();if(control!=null)control.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);}
+                    if(!confirmed&&owner.contains("packageinstaller")&&node.isVisibleToUser()&&node.isEnabled()&&(text.equalsIgnoreCase("Update")||text.equalsIgnoreCase("Install")||text.equalsIgnoreCase("Actualizar")||text.equalsIgnoreCase("Instalar"))){if(node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)){confirmed=true;Bundle accepted=new Bundle();accepted.putString("stream","NEXODB_UPGRADE_SYSTEM_CONFIRMATION_ACCEPTED\n");sendStatus(0,accepted);}}
+                    for(int i=0;i<node.getChildCount();i++){var child=node.getChild(i);if(child!=null)nodes.add(child);}
+                }
+                if(owner.equals("com.android.settings")&&activity.getPackageManager().canRequestPackageInstalls()&&!returned){returned=true;sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK);}
+            }Thread.sleep(200);
+        }throw new AssertionError("System installer did not complete the upgrade");
     }
     private static String digest(byte[] bytes)throws Exception{return HexCompat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));}
     private void probe()throws Exception{

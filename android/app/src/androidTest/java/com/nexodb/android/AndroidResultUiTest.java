@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 final class AndroidResultUiTest {
     static void run(Instrumentation test) throws Exception {
         MobileStore originalStore=new MobileStore(test.getTargetContext());String originalDraft=originalStore.get("draft","{}");
-        Activity activity = test.startActivitySync(new Intent(test.getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        Activity activity = test.startActivitySync(new Intent(test.getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
         try {
             var field = MainActivity.class.getDeclaredField("web");field.setAccessible(true);
             WebView web = (WebView)field.get(activity);
@@ -33,7 +33,7 @@ final class AndroidResultUiTest {
             Object outcome=await(test,web,"window.NexoResultUiOutcome",false);
             if(!"OK".equals(outcome))throw new AssertionError(outcome);
             java.io.File directory=new java.io.File(test.getTargetContext().getCacheDir(),"updates");directory.mkdirs();
-            java.io.File apk=new java.io.File(directory,"installer-test.apk");
+            java.io.File apk=new java.io.File(directory,"installer-test.pending.apk");
             try{
                 java.nio.file.Files.copy(java.nio.file.Path.of(test.getTargetContext().getApplicationInfo().sourceDir),apk.toPath(),java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 UpdateInstaller.verify(test.getTargetContext(),apk,BuildConfig.VERSION_CODE,false);

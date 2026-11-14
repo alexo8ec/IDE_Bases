@@ -10,6 +10,7 @@
         if (method === 'update.status') return { pending:pendingUpdate,state:pendingUpdate?'permission':'idle',installedVersion:S.version };
         if (method === 'update.download') { updateRequested++; pendingUpdate=true; return 'permission'; }
         if (method === 'update.resume') { resumeRequested++; return 'installer'; }
+        if (method === 'draft.save') { check(Array.isArray(payload.draft.tabs),'Update must preserve the query tabs before installing'); return true; }
         if (method === 'references.search') return {result:{columns:['id','nombre'],rows:[['1','Cliente original'],['3','Cliente nuevo']],truncated:false},exact:true};
         if (method === 'query') {
             check(/^SELECT\b/i.test(payload.sql.trim()), 'The UI test must execute only SELECT fixtures');

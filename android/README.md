@@ -2,13 +2,13 @@
 
 ## Descargar e instalar
 
-La versión Android actual es **0.14.2**. El APK firmado se genera en
-[`dist/NexoDB-Studio-0.14.2-android.apk`](../dist/NexoDB-Studio-0.14.2-android.apk).
+La versión Android actual es **0.14.4**. El APK firmado se genera en
+[`dist/NexoDB-Studio-0.14.4-android.apk`](../dist/NexoDB-Studio-0.14.4-android.apk).
 No se necesita Java ni un ordenador encendido para utilizarla.
 
 Después de publicar los archivos en la rama `main`, la descarga es:
 
-https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.2-android.apk
+https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.4-android.apk
 
 1. Descarga el APK en el teléfono y ábrelo desde Descargas.
 2. Si Android lo solicita, permite instalar aplicaciones desde ese navegador o gestor de archivos.
@@ -17,7 +17,7 @@ https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.1
 
 Requiere Android 8.0 o posterior y Android System WebView actualizado. El APK es universal para las arquitecturas del dispositivo, sin bibliotecas nativas específicas de CPU.
 
-## Corrección 0.14.2
+## Corrección 0.14.4
 
 Corrige el error `Cannot read properties of null (reading forEach)` al ejecutar un SELECT. Las consultas con filas, las consultas vacías y las pestañas de resultados se comprueban en el WebView Android real mediante una prueba de interfaz con datos de prueba, sin consultar bases personales ni requerir una licencia administrativa.
 
@@ -38,7 +38,7 @@ La versión móvil comparte componentes del motor SQL con escritorio, pero todav
 
 https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/android-update-manifest.json
 
-La aplicación requiere una licencia vigente. **Descargar e instalar** solicita confirmación, verifica el SHA-256, el identificador, la versión y la firma de la APK, y abre el instalador de Android. La primera vez, Android solicita permitir instalaciones desde NexoDB; al volver, se continúa con el instalador. Confirma la instalación para actualizar conservando licencia, perfiles y borradores. Desde versiones anteriores a 0.14.2, instala esta APK una vez mediante el archivo descargado; las siguientes actualizaciones ya podrán iniciar la instalación desde NexoDB. Las versiones futuras deben conservar el identificador `com.nexodb.android`, la misma clave de firma y un `versionCode` mayor.
+La aplicación requiere una licencia vigente. **Descargar e instalar** solicita confirmación, verifica el SHA-256, el identificador, la versión y la firma de la APK, y abre el instalador de Android. La primera vez, Android solicita permitir instalaciones desde NexoDB; al volver, se continúa con el instalador. Confirma la instalación para actualizar conservando licencia, perfiles y borradores. Desde versiones anteriores a 0.14.4, instala esta APK una vez mediante el archivo descargado; las siguientes actualizaciones ya podrán iniciar la instalación desde NexoDB. Las versiones futuras deben conservar el identificador `com.nexodb.android`, la misma clave de firma y un `versionCode` mayor.
 
 La versión y el código de actualización se obtienen de [`android/VERSION`](VERSION); `major.minor.patch` se convierte en `major * 10000 + minor * 100 + patch`.
 
