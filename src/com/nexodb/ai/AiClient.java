@@ -26,13 +26,16 @@ public final class AiClient {
         if(response.statusCode()<200||response.statusCode()>=300)throw new IOException("El proveedor de IA respondió HTTP "+response.statusCode()+". Revisa endpoint, modelo, clave y cuota.");
         Map<String,Object> json;
         try{json=Json.object(payload);}catch(IllegalArgumentException error){throw new IOException("El proveedor no devolvió JSON compatible.",error);}
+        if(config.provider()==AiConfig.Provider.VICKY){String text=json.get("text") instanceof String value?value.trim():"";String proposed=json.get("sql") instanceof String value?value.trim():"";if(json.get("warnings") instanceof List<?> warnings&&!warnings.isEmpty()){StringBuilder joined=new StringBuilder(text);for(Object warning:warnings)if(warning instanceof String value&&!value.isBlank())joined.append("\n\n⚠ ").append(value.trim());text=joined.toString().trim();}if(text.isBlank()&&proposed.isBlank())throw new IOException("Vicky no devolvió una propuesta de texto o SQL.");return new Answer(text,proposed);}
         String text=extract(config.provider(),json);
         if(text.isBlank())throw new IOException("La IA no devolvió una propuesta de texto. Revisa el modelo y vuelve a intentar.");
         var matcher=Pattern.compile("(?is)```(?:sql|tsql|mysql|postgresql)?\\s*\\n(.*?)```").matcher(text);
         return new Answer(text,matcher.find()?matcher.group(1).trim():"");
     }
     static Map<String,Object> requestBody(AiConfig config,Task task,String instruction,String sql,String schema,String plan) {
-        String prompt=prompt(task,instruction,sql,schema,plan);Map<String,Object> body=new LinkedHashMap<>();body.put("model",config.model());
+        String prompt=prompt(task,instruction,sql,schema,plan);Map<String,Object> body=new LinkedHashMap<>();
+        if(config.provider()==AiConfig.Provider.VICKY){body.put("task",task.toString());body.put("instruction",instruction);body.put("sql",sql);body.put("schema",schema);body.put("plan",plan);body.put("sessionId","nexodb-studio");return body;}
+        body.put("model",config.model());
         if(config.provider()==AiConfig.Provider.OPENAI){body.put("instructions",INSTRUCTIONS);body.put("input",prompt);body.put("store",false);body.put("max_output_tokens",6000);}
         else {body.put("messages",List.of(Map.of("role","system","content",INSTRUCTIONS),Map.of("role","user","content",prompt)));body.put("stream",false);}
         return body;

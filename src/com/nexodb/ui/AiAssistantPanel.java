@@ -26,7 +26,7 @@ public final class AiAssistantPanel extends JPanel {
     private String secretEndpoint="";
     public AiAssistantPanel(String initialSql,String context,Consumer<String> openSql) {
         super(new BorderLayout(8,8));this.openSql=openSql;setBorder(BorderFactory.createEmptyBorder(10,10,10,10));setName("ai-assistant");
-        provider.setSelectedItem(providerFromSettings());endpoint.setText(AppSettings.get("ai.endpoint",((AiConfig.Provider)provider.getSelectedItem()).defaultEndpoint()));model.setText(AppSettings.get("ai.model",""));
+        provider.setSelectedItem(providerFromSettings());AiConfig.Provider initialProvider=(AiConfig.Provider)provider.getSelectedItem();endpoint.setText(AppSettings.get("ai.endpoint",initialProvider.defaultEndpoint()));model.setText(AppSettings.get("ai.model",initialProvider.defaultModel()));
         sql.restoreText(initialSql);schema.setText(context);schema.setName("ai-schema-context");plan.setName("ai-plan-context");answer.setEditable(false);answer.setLineWrap(true);answer.setWrapStyleWord(true);
         JPanel settings=new JPanel(new GridLayout(0,1,3,3));JPanel p=new JPanel(new com.nexodb.reporting.ui.WrapLayout());p.add(UiLanguage.label("Proveedor:"));p.add(provider);p.add(UiLanguage.label("Modelo:"));p.add(model);settings.add(p);
         p=new JPanel(new com.nexodb.reporting.ui.WrapLayout());p.add(new JLabel("Endpoint:"));p.add(endpoint);p.add(UiLanguage.label("Clave API:"));p.add(key);settings.add(p);
@@ -37,11 +37,11 @@ public final class AiAssistantPanel extends JPanel {
         JSplitPane split=new JSplitPane(JSplitPane.VERTICAL_SPLIT,request,outputs);split.setResizeWeight(.5);split.setDividerLocation(280);add(split);
         JPanel bottom=new JPanel(new BorderLayout());JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEFT));actions.add(send);actions.add(cancel);actions.add(open);bottom.add(actions,BorderLayout.NORTH);bottom.add(status,BorderLayout.SOUTH);add(bottom,BorderLayout.SOUTH);
         send.addActionListener(e->send());cancel.addActionListener(e->{if(worker!=null)worker.cancel(true);});open.addActionListener(e->{if(!proposal.getText().isBlank())openSql.accept(proposal.getText());});cancel.setEnabled(false);open.setEnabled(false);
-        provider.addActionListener(e->{endpoint.setText(((AiConfig.Provider)provider.getSelectedItem()).defaultEndpoint());key.setText("");secretEndpoint="";});
+        provider.addActionListener(e->{AiConfig.Provider selected=(AiConfig.Provider)provider.getSelectedItem();endpoint.setText(selected.defaultEndpoint());model.setText(selected.defaultModel());model.setEnabled(selected!=AiConfig.Provider.VICKY);key.setText("");secretEndpoint="";});model.setEnabled(initialProvider!=AiConfig.Provider.VICKY);
         endpoint.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){private void changed(){if(!endpoint.getText().equals(secretEndpoint)){key.setText("");secretEndpoint="";}}public void insertUpdate(javax.swing.event.DocumentEvent e){changed();}public void removeUpdate(javax.swing.event.DocumentEvent e){changed();}public void changedUpdate(javax.swing.event.DocumentEvent e){}});
         status.setText(tr("Se enviarán la solicitud, el SQL y el contexto visibles al endpoint elegido. No se envían filas de resultados automáticamente."));loadSavedKey();
     }
-    private AiConfig.Provider providerFromSettings(){try{return AiConfig.Provider.valueOf(AppSettings.get("ai.provider","OPENAI"));}catch(IllegalArgumentException error){return AiConfig.Provider.OPENAI;}}
+    private AiConfig.Provider providerFromSettings(){try{return AiConfig.Provider.valueOf(AppSettings.get("ai.provider","VICKY"));}catch(IllegalArgumentException error){return AiConfig.Provider.VICKY;}}
     public void setPlanContext(String value){plan.setText(value);plan.setCaretPosition(0);task.setSelectedItem(AiClient.Task.OPTIMIZE_QUERY);}
     private AiConfig config(){return new AiConfig((AiConfig.Provider)provider.getSelectedItem(),URI.create(endpoint.getText().trim()),model.getText().trim());}
     private void loadSavedKey(){
