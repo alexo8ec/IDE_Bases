@@ -17,6 +17,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del nucleo fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.JdbcSessionTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de credenciales JDBC fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.MysqlTableDesignTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diseno de tablas fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.PostgresSupportTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de seleccion de bases PostgreSQL fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.CompletionInteractionTest
@@ -62,6 +64,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de archivos SQL y deshacer/rehacer
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.licensing.LicenseTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de licencias y autoridad cifrada fallaron.' }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
+    & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.JdbcRowLimitTest
+    if ($LASTEXITCODE -ne 0) { throw 'La prueba de consultas sin limite fallo.' }
+    & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.ForeignKeyDefinitionTest
+    if ($LASTEXITCODE -ne 0) { throw 'La prueba de claves foraneas fallo.' }
+    & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.ForeignKeyDesignerTest
+    if ($LASTEXITCODE -ne 0) { throw 'La prueba de relaciones con arrastre fallo.' }
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.QueryEditIntegrationTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de escritura y transacciones fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.QueryGridIntegrationTest

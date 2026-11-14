@@ -42,9 +42,26 @@ if($Package){
     $destination=Join-Path $issuerRoot 'private-dist'
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
     $image=Join-Path $destination 'NexoDB License Manager'
-    if(Test-Path -LiteralPath $image){throw 'Issuer app image already exists. Preserve it or choose a new private output directory.'}
-    & jpackage --type app-image --name 'NexoDB License Manager' --app-version '1.0.0' --vendor 'NexoDB' --description 'Administrador privado de licencias NexoDB' --input $issuerInput --main-jar 'nexodb-license-issuer.jar' --main-class com.nexodb.issuer.IssuerApp --dest $destination --add-modules 'java.desktop,jdk.crypto.ec' --java-options '-Dfile.encoding=UTF-8' --java-options "-Dnexodb.issuerVault=$(Join-Path $private 'issuer.nxvault')"
+    $staging=Join-Path $build ('package-'+[Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $staging | Out-Null
+    & jpackage --type app-image --name 'NexoDB License Manager' --app-version '1.0.1' --vendor 'NexoDB' --description 'Administrador privado de licencias NexoDB' --input $issuerInput --main-jar 'nexodb-license-issuer.jar' --main-class com.nexodb.issuer.IssuerApp --dest $staging --add-modules 'java.desktop,jdk.crypto.ec' --java-options '-Dfile.encoding=UTF-8'
     if($LASTEXITCODE -ne 0){throw 'Cannot package license manager'}
-    Compress-Archive -LiteralPath $image -DestinationPath (Join-Path $destination 'NexoDB-License-Manager-1.0.0-win64.zip') -CompressionLevel Optimal -Force
+    $stagedImage=Join-Path $staging 'NexoDB License Manager'
+    # Paths with spaces/accents belong in UTF-8 configuration, never in JVM argument parsing.
+    $vaultPath=(Join-Path $private 'issuer.nxvault').Replace('\','/')
+    [IO.File]::WriteAllText((Join-Path $stagedImage 'app/issuer.properties'),"vault.path=$vaultPath`n",[Text.UTF8Encoding]::new($false))
+    $config=Get-Content -LiteralPath (Join-Path $stagedImage 'app/NexoDB License Manager.cfg')
+    $options=@($config | Where-Object {$_ -like 'java-options=*'})
+    if($options.Count -ne 2 -or $options -notcontains 'java-options=-Dfile.encoding=UTF-8' -or $options -notcontains 'java-options=-Djpackage.app-version=1.0.1'){throw 'Unexpected launcher arguments'}
+    $zip=Join-Path $staging 'NexoDB-License-Manager-1.0.1-win64.zip'
+    Compress-Archive -LiteralPath $stagedImage -DestinationPath $zip -CompressionLevel Optimal
+    # Preserve the previous image until the replacement has been built successfully.
+    if(Test-Path -LiteralPath $image){
+        $resolved=[IO.Path]::GetFullPath($image)
+        if($resolved -ne [IO.Path]::GetFullPath((Join-Path $issuerRoot 'private-dist/NexoDB License Manager'))){throw 'Unexpected previous image path'}
+        Move-Item -LiteralPath $resolved -Destination (Join-Path $staging 'previous-image')
+    }
+    Move-Item -LiteralPath $stagedImage -Destination $image
+    Move-Item -LiteralPath $zip -Destination (Join-Path $destination 'NexoDB-License-Manager-1.0.1-win64.zip') -Force
 }
 Write-Output "Generador compilado. La autoridad privada permanece en .signing y no se incluye en los paquetes."

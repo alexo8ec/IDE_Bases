@@ -1,28 +1,28 @@
 {
-  "version": "0.13.0",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.0-win64.zip",
-  "sha256": "c944ff027602d6a1346bea59b8bd04fccb749e35a2aed4592b5282789597c34d",
-  "notes": "Archivos SQL y deshacer/rehacer, menu compacto y herramientas visuales, modo de solo lectura y limite de 1000 filas opcional, confirmaciones de cambios y licencias firmadas transferibles. Requiere activar una licencia vigente. Firma comercial de instaladores pendiente.",
+  "version": "0.13.1",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.1-win64.zip",
+  "sha256": "270233e8eb352179b481d9f39f59fce056149fbce19b97c474ae0568cbb1c1d2",
+  "notes": "Relaciones visuales por arrastre y clic derecho; editor de estructura con columnas, indices, claves foraneas, opciones avanzadas y SQL revisable; correccion de consultas sin limite y doble clic en busqueda.",
   "platforms": {
     "windows-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.0-win64.zip",
-      "sha256": "c944ff027602d6a1346bea59b8bd04fccb749e35a2aed4592b5282789597c34d"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.1-win64.zip",
+      "sha256": "270233e8eb352179b481d9f39f59fce056149fbce19b97c474ae0568cbb1c1d2"
     },
     "linux-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.0-linux-x64.deb",
-      "sha256": "dc569d3f9430f9ecc6a7317576fb2b6832334c9fc38f55ec4269237b192886a9"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.1-linux-x64.deb",
+      "sha256": "e9d8a832a4f650b5a770f9b2386ae544376ebd608455051b28f477a1da5b8cc6"
     },
     "linux-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.0-linux-arm64.deb",
-      "sha256": "66b62d435667a7ab6fbd337f378ee20902166d4c7cd31c0d5d9dffcc8044043e"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.1-linux-arm64.deb",
+      "sha256": "c0f895fe905abdd958409d9810e4276233fbd14ffc675df3a7b01bfcd7979aa5"
     },
     "macos-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.0-macos-x64.zip",
-      "sha256": "6b041929b26fdba639fdeb92cd2168ac2679e3d97278ef315c07902e3d12e494"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.1-macos-x64.zip",
+      "sha256": "eef9fd8d8187ea2dd2c774ae92de737dc1c564e8def3eb5575f2809b83fccd00"
     },
     "macos-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.0-macos-arm64.zip",
-      "sha256": "5ad161c27fd5917203c0b679190892a171ec0fd4f3cb00eeba5e37d42e36aa32"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.13.1-macos-arm64.zip",
+      "sha256": "dd8d05b8a7d90113eaeab72a6247f2011633547677f8f7a6f7511bc06c174a3e"
     }
   }
 }

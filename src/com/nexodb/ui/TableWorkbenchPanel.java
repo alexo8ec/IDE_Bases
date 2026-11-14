@@ -36,6 +36,7 @@ public final class TableWorkbenchPanel extends JPanel {
     private final String qualifiedName;
     private final Consumer<String> statusConsumer;
     private final JTabbedPane sections = new JTabbedPane();
+    private final TableDesignPanel design;
     private final EditableDataModel dataModel = new EditableDataModel();
     private final JTable dataTable = createTable(dataModel);
     private final DefaultTableModel columnsModel = readOnlyModel(
@@ -67,14 +68,21 @@ public final class TableWorkbenchPanel extends JPanel {
         this.item = item;
         this.qualifiedName = qualifiedName;
         this.statusConsumer = statusConsumer;
+        boolean visualStructure=item.kind()==SchemaItem.Kind.TABLE&&(session.profile().type()==DatabaseType.MYSQL||session.profile().type()==DatabaseType.MARIADB);
+        design=visualStructure?new TableDesignPanel(session,item.catalog(),item.name(),()->{structureChanged.run();refresh();}):null;
         setBorder(new EmptyBorder(0, 8, 8, 8));
         add(buildToolbar(), BorderLayout.NORTH);
         configureDdl();
         UiLanguage.addTab(sections, new Object[]{UiLanguage.key("Datos")}, IconFactory.of(IconFactory.Kind.TABLE, 16), new JScrollPane(dataTable));
+        if(design!=null){
+            UiLanguage.addTab(sections,new Object[]{UiLanguage.key("Estructura")},IconFactory.of(IconFactory.Kind.COLUMN,16),design);
+            sections.addChangeListener(e->{if(sections.getSelectedComponent()==design)design.loadIfNeeded();});
+        }else{
         UiLanguage.addTab(sections, new Object[]{UiLanguage.key("Columnas")}, IconFactory.of(IconFactory.Kind.COLUMN, 16), columnSection());
         UiLanguage.addTab(sections, new Object[]{UiLanguage.key("Índices")}, IconFactory.of(IconFactory.Kind.KEY, 16), indexSection());
         UiLanguage.addTab(sections, new Object[]{UiLanguage.key("Relaciones")}, IconFactory.of(IconFactory.Kind.COMPARE, 16), foreignKeySection());
         sections.addTab("SQL / DDL", IconFactory.of(IconFactory.Kind.SQL, 16), new JScrollPane(ddl));
+        }
         sections.putClientProperty("JTabbedPane.tabType", "card");
         add(sections, BorderLayout.CENTER);
         refresh();
@@ -82,10 +90,12 @@ public final class TableWorkbenchPanel extends JPanel {
 
     public SchemaItem item() { return item; }
     public JdbcSession session() { return session; }
-    public void selectSection(int section) { sections.setSelectedIndex(Math.max(0, Math.min(section, sections.getTabCount() - 1))); }
+    public void selectSection(int section) { if(design!=null&&section!=DATA){sections.setSelectedIndex(1);design.select(section==COLUMNS?0:section==INDEXES?1:section==FOREIGN_KEYS?2:4);}else sections.setSelectedIndex(Math.max(0, Math.min(section, sections.getTabCount() - 1))); }
+    public boolean canClose(){return design==null||design.canClose();}
     public void setStructureChanged(Runnable callback){structureChanged=callback;}
     public void requestColumnAction(String column,boolean delete){
         selectSection(COLUMNS);
+        if(design!=null){design.requestColumn(column,delete);return;}
         pendingColumnAction=()->{
             if(!delete){editColumn(false);return;}
             for(int row=0;row<columnsModel.getRowCount();row++)if(column.equals(value(columnsModel,row,0))){int view=columnsTable.convertRowIndexToView(row);columnsTable.setRowSelectionInterval(view,view);deleteColumn();return;}
@@ -104,7 +114,7 @@ public final class TableWorkbenchPanel extends JPanel {
         title.setBorder(new EmptyBorder(0, 4, 0, 14));
         JButton refresh = UiLanguage.text(new JButton(tr("Actualizar"), IconFactory.of(IconFactory.Kind.REFRESH, 16)), UiLanguage.key("Actualizar"));
         refresh.putClientProperty("JButton.buttonType", "toolBarButton");
-        refresh.addActionListener(e -> refresh());
+        refresh.addActionListener(e -> {refresh();if(design!=null)design.refreshIfLoaded();});
         bar.add(title);
         bar.addSeparator();
         bar.add(UiLanguage.text(new JLabel(tr("Modo: ")), UiLanguage.key("Modo: ")));
@@ -188,8 +198,10 @@ public final class TableWorkbenchPanel extends JPanel {
         int limit = limitRows.isSelected()?((Number)maxRows.getValue()).intValue():Integer.MAX_VALUE;
         worker = new SwingWorker<>() {
             @Override protected Snapshot doInBackground() throws Exception {
+                synchronized(session.connection()){
                 QueryResult data = session.execute("SELECT * FROM " + qualifiedName, limit);
                 return new Snapshot(data, readColumns(), readIndexes(), readForeignKeys(), readDdl(), readPrimaryKeys());
+                }
             }
 
             @Override protected void done() {

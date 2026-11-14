@@ -293,8 +293,7 @@ public final class JdbcSession implements AutoCloseable {
         long started = System.nanoTime();
         try (Statement statement = connection.createStatement()) {
             activeStatement = statement;
-            statement.setMaxRows(maxRows < Integer.MAX_VALUE ? maxRows + 1 : maxRows);
-            statement.setFetchSize(Math.min(maxRows, 500));
+            configureRowLimit(statement,maxRows);
             boolean hasResult = statement.execute(sql);
             if (hasResult) {
                 try (ResultSet resultSet = statement.getResultSet()) {
@@ -312,6 +311,12 @@ public final class JdbcSession implements AutoCloseable {
     public void cancel() throws SQLException {
         Statement statement = activeStatement;
         if (statement != null) statement.cancel();
+    }
+
+    static void configureRowLimit(Statement statement,int maxRows)throws SQLException {
+        // JDBC uses zero for unlimited. Integer.MAX_VALUE exceeds limits in MariaDB/MySQL drivers.
+        statement.setMaxRows(maxRows==Integer.MAX_VALUE?0:Math.addExact(maxRows,1));
+        statement.setFetchSize(Math.min(maxRows,500));
     }
 
     public void setAutoCommit(boolean autoCommit) throws SQLException { connection.setAutoCommit(autoCommit); }

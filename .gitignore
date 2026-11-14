@@ -1,14 +1,14 @@
 /build/
 /dist/*
 !/dist/update-manifest.json
-!/dist/NexoDB-Studio-0.13.0-win64.zip
-!/dist/NexoDB-Studio-0.13.0-linux-x64.deb
-!/dist/NexoDB-Studio-0.13.0-linux-arm64.deb
-!/dist/NexoDB-Studio-0.13.0-macos-x64.zip
-!/dist/NexoDB-Studio-0.13.0-macos-arm64.zip
+!/dist/NexoDB-Studio-0.13.1-win64.zip
+!/dist/NexoDB-Studio-0.13.1-linux-x64.deb
+!/dist/NexoDB-Studio-0.13.1-linux-arm64.deb
+!/dist/NexoDB-Studio-0.13.1-macos-x64.zip
+!/dist/NexoDB-Studio-0.13.1-macos-arm64.zip
 !/dist/installer/
 /dist/installer/*
-!/dist/installer/NexoDB Studio-0.13.0.exe
+!/dist/installer/NexoDB Studio-0.13.1.exe
 /.tools/
 /.github/
 *.log

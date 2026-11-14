@@ -261,7 +261,7 @@ public final class MainFrame extends JFrame {
                         && !selected.name().equals(tr("Buscando…")) && !selected.name().equals(tr("Sin resultados"))
                         && !selected.name().equals(tr("Error al buscar"))) {
                     if (selected.kind() == SchemaItem.Kind.TABLE || selected.kind() == SchemaItem.Kind.VIEW) {
-                        openTable(session, selected, TableWorkbenchPanel.DATA);
+                        openTable(session, selected, selected.kind()==SchemaItem.Kind.TABLE?TableWorkbenchPanel.COLUMNS:TableWorkbenchPanel.DATA);
                     } else if (isProgrammableObject(selected.kind())) {
                         openDefinition(session, selected);
                     }
@@ -623,7 +623,7 @@ public final class MainFrame extends JFrame {
                 SchemaItem item = node.item();
                 JdbcSession target = node.nodeSession();
                 if (item.kind() == SchemaItem.Kind.ROOT && target != null) activateSession(target);
-                else if (item.kind() == SchemaItem.Kind.TABLE || item.kind() == SchemaItem.Kind.VIEW) openTable(target, item, TableWorkbenchPanel.DATA);
+                else if (item.kind() == SchemaItem.Kind.TABLE || item.kind() == SchemaItem.Kind.VIEW) openTable(target, item, item.kind()==SchemaItem.Kind.TABLE?TableWorkbenchPanel.COLUMNS:TableWorkbenchPanel.DATA);
                 else if (isProgrammableObject(item.kind())) openDefinition(target, item);
             }
         });
@@ -1386,7 +1386,7 @@ public final class MainFrame extends JFrame {
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
         UiLanguage.tooltip(close, UiLanguage.key("Cerrar pestaña"));
-        close.addActionListener(e -> workspaceTabs.remove(component));
+        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;workspaceTabs.remove(component);});
         tab.add(close);
         return tab;
     }
@@ -1597,6 +1597,7 @@ public final class MainFrame extends JFrame {
     }
 
     private void exitApplication() {
+        for(Component component:workspaceTabs.getComponents())if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;
         if(!queryPanel.confirmDiscardResults())return;
         if(!queryPanel.saveDraftBeforeClose())return;
         closeAllSessions();

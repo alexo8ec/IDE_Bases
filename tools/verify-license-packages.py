@@ -26,9 +26,14 @@ def jar_check(data,issuer):
             assert all(secret not in content for secret in secrets if secret), 'An administrative secret was bundled'
 
 jar_check((root/'build/nexodb-studio.jar').read_bytes(),False)
-issuer=root/'license-issuer/private-dist/NexoDB-License-Manager-1.0.0-win64.zip'
+issuer=root/'license-issuer/private-dist/NexoDB-License-Manager-1.0.1-win64.zip'
 with zipfile.ZipFile(issuer) as archive:
     assert archive.testzip() is None
+    cfg=archive.read('NexoDB License Manager/app/NexoDB License Manager.cfg').decode('utf-8')
+    options=[line for line in cfg.splitlines() if line.startswith('java-options=')]
+    assert options==['java-options=-Djpackage.app-version=1.0.1','java-options=-Dfile.encoding=UTF-8'], 'Malformed native launcher options'
+    settings=archive.read('NexoDB License Manager/app/issuer.properties').decode('utf-8')
+    assert settings.strip()=='vault.path='+str(private/'issuer.nxvault').replace('\\','/'), 'Incorrect authority location'
     for name in archive.namelist():
         assert not name.endswith(('.nxvault','.nexolicense','contraseña-inicial.txt'))
         if name.endswith('/app/nexodb-license-issuer.jar'):
