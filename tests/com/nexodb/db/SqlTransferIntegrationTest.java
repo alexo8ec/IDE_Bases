@@ -77,6 +77,13 @@ public final class SqlTransferIntegrationTest {
                 var nativeAnalysis=SqlImportService.analyze(nativeDump,new SqlTransferControl());equal(Set.of("nexodb_transfer_source"),nativeAnalysis.databases());
                 SqlImportService.restore(connection,nativeAnalysis,new SqlImportService.Options("nexodb_transfer_native",true,false,true),new SqlTransferControl(),p->{});connection.setAutoCommit(true);
                 verify(connection,"nexodb_transfer_native",text,bytes);
+                // Dedicated scheduled backup/report connections exercise the real native server.
+                var jobProfile=new com.nexodb.model.ConnectionProfile("native-jobs","Isolated MariaDB",DatabaseType.MARIADB,"127.0.0.1",43179,"nexodb_transfer_source","root","jdbc:mariadb://127.0.0.1:43179/nexodb_transfer_source?sslMode=disable","org.mariadb.jdbc.Driver",jar.toString(),false);
+                Path jobRoot=Files.createTempDirectory(Path.of("build"),"native-jobs-");
+                try(ScheduledTasks tasks=new ScheduledTasks(jobRoot.resolve("jobs.properties"),id->jobProfile,id->new char[0],message->{},false)){
+                    var task=new ScheduledTasks.Task("backup","native-backup",jobProfile.id(),"nexodb_transfer_source",ScheduledTasks.Kind.BACKUP,"","",jobRoot.toAbsolutePath().toString(),0,java.time.Instant.now(),false);tasks.put(task);tasks.runNow(task.id());long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(20);while(tasks.state(task.id()).running()&&System.nanoTime()<deadline)Thread.sleep(25);if(!tasks.state(task.id()).status().contains("Respaldo completo"))throw new AssertionError(tasks.state(task.id()).status());Path backup=Path.of(tasks.state(task.id()).output());equal(true,Files.size(backup)>0);equal(Set.of("nexodb_transfer_source"),SqlImportService.analyze(backup,new SqlTransferControl()).databases());
+                    tasks.setLicenseCheck(()->false);tasks.put(new ScheduledTasks.Task("blocked","license-block",jobProfile.id(),"nexodb_transfer_source",ScheduledTasks.Kind.BACKUP,"","",jobRoot.toAbsolutePath().toString(),0,java.time.Instant.now(),false));tasks.runNow("blocked");deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(10);while(tasks.state("blocked").running()&&System.nanoTime()<deadline)Thread.sleep(25);equal(true,tasks.state("blocked").status().contains("licencia"));
+                }
             }
         }
         System.out.println("SqlTransferIntegrationTest: OK (MariaDB native round trips, 1205 rows, Unicode, blobs/bits, decimal precision, zero dates, TIMESTAMP, generated columns, geometry, views, routines, triggers, events, modes, remapping, cancellation, changed files and stop/rollback on error)");

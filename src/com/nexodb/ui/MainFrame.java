@@ -71,6 +71,11 @@ public final class MainFrame extends JFrame {
     private boolean checkingUpdates;
     private final ComparisonChoices schemaChoices = new ComparisonChoices();
     private final ComparisonChoices dataChoices = new ComparisonChoices();
+    private final com.nexodb.db.ScheduledTasks scheduledTasks=new com.nexodb.db.ScheduledTasks(
+            Boolean.getBoolean("nexodb.disableDraftPersistence")?null:com.nexodb.util.AppSettings.file().resolveSibling("scheduled-tasks.properties"),
+            id->profileStore.load().stream().filter(p->p.id().equals(id)).findFirst().orElse(null),
+            id->secretStore.has(id)?secretStore.load(id):null,
+            message->SwingUtilities.invokeLater(()->setStatus(message)),!Boolean.getBoolean("nexodb.disableDraftPersistence"));
 
     public MainFrame() {
         super("NexoDB Studio");
@@ -86,6 +91,8 @@ public final class MainFrame extends JFrame {
             TableWorkbenchPanel panel=openTable(origin,target.table(),TableWorkbenchPanel.COLUMNS);
             if(panel!=null)panel.requestColumnAction(column,delete);
         });
+        queryPanel.setToolHandler(this::openQueryTool);
+        scheduledTasks.setLicenseCheck(LicenseGate::licensed);
         setJMenuBar(buildMenu());
         setContentPane(buildContent());
         configureProfiles();
@@ -290,7 +297,16 @@ public final class MainFrame extends JFrame {
         file.add(connect);
         file.add(disconnect);
         file.addSeparator();
+        file.add(toolMenuItem("Nueva consulta",IconFactory.Kind.ADD,KeyEvent.VK_T,KeyEvent.CTRL_DOWN_MASK,()->{workspaceTabs.setSelectedIndex(0);queryPanel.openNewQuery("");}));
+        file.add(toolMenuItem("Abrir archivo SQL…",IconFactory.Kind.FOLDER,KeyEvent.VK_O,KeyEvent.CTRL_DOWN_MASK,queryPanel::openSqlFile));
+        file.add(toolMenuItem("Guardar consulta SQL…",IconFactory.Kind.SAVE,KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK,()->queryPanel.saveSqlFile(false)));
+        file.add(toolMenuItem("Guardar SQL como…",IconFactory.Kind.SAVE,KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK,()->queryPanel.saveSqlFile(true)));
+        file.addSeparator();
         file.add(exit);
+
+        JMenu edit=UiLanguage.text(new JMenu(tr("Editar")),UiLanguage.key("Editar"));
+        edit.add(toolMenuItem("Deshacer",IconFactory.Kind.ROLLBACK,KeyEvent.VK_Z,KeyEvent.CTRL_DOWN_MASK,queryPanel::undoCurrent));
+        edit.add(toolMenuItem("Rehacer",IconFactory.Kind.REFRESH,KeyEvent.VK_Y,KeyEvent.CTRL_DOWN_MASK,queryPanel::redoCurrent));
 
         JMenu database = UiLanguage.text(new JMenu(tr("Base de datos")), UiLanguage.key("Base de datos"));
         database.setIcon(IconFactory.of(IconFactory.Kind.DATABASE, 16));
@@ -321,6 +337,11 @@ public final class MainFrame extends JFrame {
         newQuery.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N,KeyEvent.CTRL_DOWN_MASK));
         newQuery.addActionListener(e->{workspaceTabs.setSelectedIndex(0);queryPanel.openNewQuery("");});
         query.add(newQuery);query.addSeparator();
+        query.add(toolMenuItem("Constructor visual de consultas",IconFactory.Kind.TABLE,KeyEvent.VK_K,KeyEvent.CTRL_DOWN_MASK,()->openQueryTool("builder")));
+        query.add(toolMenuItem("Diseñador de esquemas",IconFactory.Kind.SCHEMA,KeyEvent.VK_D,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openQueryTool("designer")));
+        query.add(toolMenuItem("Buscar datos",IconFactory.Kind.SEARCH,KeyEvent.VK_D,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK,()->openQueryTool("search")));
+        query.add(toolMenuItem("Historial SQL",IconFactory.Kind.SQL,KeyEvent.VK_H,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK,queryPanel::showHistory));
+        query.add(toolMenuItem("Renombrar consulta…",IconFactory.Kind.EDIT,KeyEvent.VK_F2,KeyEvent.ALT_DOWN_MASK,queryPanel::renameCurrentQuery));query.addSeparator();
         JMenuItem executeQuery = UiLanguage.text(new JMenuItem(tr("Ejecutar"), IconFactory.of(IconFactory.Kind.PLAY)), UiLanguage.key("Ejecutar"));
         executeQuery.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0));
         executeQuery.addActionListener(e -> queryPanel.executeCurrent());
@@ -329,6 +350,18 @@ public final class MainFrame extends JFrame {
         cancelQuery.addActionListener(e -> queryPanel.cancelCurrent());
         query.add(executeQuery);
         query.add(cancelQuery);
+
+        JMenu power=UiLanguage.text(new JMenu(tr("Herramientas avanzadas")),UiLanguage.key("Herramientas avanzadas"));
+        power.add(toolMenuItem("Sincronizar bases de datos…",IconFactory.Kind.COMPARE,KeyEvent.VK_W,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->{
+            Object[] options={tr("Comparar esquemas"),tr("Comparar datos")};int choice=JOptionPane.showOptionDialog(this,tr("Selecciona qué deseas comparar. El script se abrirá en una consulta nueva para revisarlo antes de ejecutar."),tr("Sincronizar bases de datos"),JOptionPane.DEFAULT_OPTION,JOptionPane.PLAIN_MESSAGE,null,options,options[0]);if(choice==0)compareSchemas();if(choice==1)compareData();
+        }));
+        power.add(toolMenuItem("Comparación visual de datos…",IconFactory.Kind.TABLE,KeyEvent.VK_Q,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,this::compareData));
+        power.add(toolMenuItem("Sincronizar esquemas…",IconFactory.Kind.COMPARE,KeyEvent.VK_Q,KeyEvent.CTRL_DOWN_MASK,this::compareSchemas));power.addSeparator();
+        power.add(toolMenuItem("Importar datos externos…",IconFactory.Kind.DATABASE,KeyEvent.VK_O,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,this::importExternal));power.addSeparator();
+        power.add(toolMenuItem("Programar consultas y reportes…",IconFactory.Kind.SQL,KeyEvent.VK_N,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openTasks(com.nexodb.db.ScheduledTasks.Kind.REPORT)));
+        power.add(toolMenuItem("Respaldos programados…",IconFactory.Kind.SAVE,KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openTasks(com.nexodb.db.ScheduledTasks.Kind.BACKUP)));
+        power.add(toolMenuItem("Tareas programadas…",IconFactory.Kind.SETTINGS,0,0,()->openTasks(null)));power.addSeparator();
+        power.add(toolMenuItem("Reconstruir autocompletado",IconFactory.Kind.REFRESH,0,0,()->{queryPanel.refreshCompletions();setStatus(tr("Autocompletado actualizado."));}));
 
         JMenu help = UiLanguage.text(new JMenu(tr("Ayuda")), UiLanguage.key("Ayuda"));
         JMenu view = UiLanguage.text(new JMenu(com.nexodb.util.I18n.tr("Preferencias")), UiLanguage.key("Preferencias"));
@@ -349,13 +382,38 @@ public final class MainFrame extends JFrame {
         help.add(updateChannel);
         help.addSeparator();
         help.add(about);
+        help.add(toolMenuItem("Licencia de NexoDB…",IconFactory.Kind.KEY,0,0,()->LicenseGate.show(this)));
         bar.add(file);
+        bar.add(edit);
         bar.add(database);
         bar.add(query);
         bar.add(comparison);
+        bar.add(power);
         bar.add(view);
         bar.add(help);
         return bar;
+    }
+
+    private JMenuItem toolMenuItem(String text,IconFactory.Kind icon,int key,int modifiers,Runnable action){JMenuItem item=UiLanguage.text(new JMenuItem(tr(text),IconFactory.of(icon,16)),UiLanguage.key(text));if(key!=0)item.setAccelerator(KeyStroke.getKeyStroke(key,modifiers));item.addActionListener(e->action.run());return item;}
+    private void addToolTab(String title,JComponent panel){workspaceTabs.addTab(title,IconFactory.of(IconFactory.Kind.SQL,16),panel);int index=workspaceTabs.indexOfComponent(panel);workspaceTabs.setTabComponentAt(index,closableTab(title,panel));workspaceTabs.setSelectedComponent(panel);}
+    private boolean requireDatabase(){if(!LicenseGate.ensure(this))return false;if(session==null||!session.isOpen()||queryPanel.activeDatabase().isBlank()){JOptionPane.showMessageDialog(this,tr("Conecta y selecciona una base de datos primero."));return false;}return true;}
+    private void openQueryTool(String tool){
+        if(!requireDatabase())return;JdbcSession origin=session;String database=queryPanel.activeDatabase();
+        if(origin.profile().type()!=DatabaseType.MYSQL&&origin.profile().type()!=DatabaseType.MARIADB&&origin.profile().type()!=DatabaseType.H2){JOptionPane.showMessageDialog(this,tr("Las herramientas visuales de esta versión están disponibles para MySQL y MariaDB. El editor SQL sigue disponible para esta conexión."));return;}
+        java.util.function.Consumer<String> open=sql->insertTemplate(origin,sql);
+        if(tool.equals("search")){addToolTab(tr("Buscar datos")+" · "+database,new DataSearchPanel(origin,database,sql->{activateSession(origin);queryPanel.runSql(sql);workspaceTabs.setSelectedIndex(0);}));return;}
+        boolean designer=tool.equals("designer");addToolTab(tr(designer?"Diseñador de esquemas":"Constructor visual de consultas")+" · "+database,new VisualDatabasePanel(origin,database,designer,open,item->openTable(origin,item,TableWorkbenchPanel.COLUMNS)));
+    }
+    private void openTasks(com.nexodb.db.ScheduledTasks.Kind kind){
+        ScheduledTasksPanel panel=null;for(int i=1;i<workspaceTabs.getTabCount();i++)if(workspaceTabs.getComponentAt(i) instanceof ScheduledTasksPanel found){panel=found;break;}
+        if(panel==null){panel=new ScheduledTasksPanel(scheduledTasks,profileStore::load,session==null?"":session.profile().id(),queryPanel.activeDatabase());addToolTab(tr("Tareas programadas"),panel);}else workspaceTabs.setSelectedComponent(panel);
+        if(kind!=null)panel.create(kind);
+    }
+    private void importExternal(){
+        if(!requireDatabase())return;Object[] options={tr("Archivo CSV / TSV"),tr("Otra tabla o conexión")};int choice=JOptionPane.showOptionDialog(this,tr("Origen de los datos:"),tr("Importar datos externos"),JOptionPane.DEFAULT_OPTION,JOptionPane.PLAIN_MESSAGE,null,options,options[0]);
+        if(choice==1){chooseTableToCopy(session,new SchemaItem(SchemaItem.Kind.SCHEMA,queryPanel.activeDatabase(),null,queryPanel.activeDatabase(),""));return;}if(choice!=0)return;ConnectionProfile profile=session.profile();if(profile.readOnly()){JOptionPane.showMessageDialog(this,tr("La conexión es de solo lectura."));return;}
+        if(profile.type()!=DatabaseType.MYSQL&&profile.type()!=DatabaseType.MARIADB){JOptionPane.showMessageDialog(this,tr("La importación CSV de esta versión está disponible para MySQL y MariaDB."));return;}
+        char[] password=null;try{if(secretStore.has(profile.id()))password=secretStore.load(profile.id());else{JPasswordField field=new JPasswordField(24);if(JOptionPane.showConfirmDialog(this,new Object[]{tr("Contraseña para abrir una conexión independiente:"),field},tr("Importar datos"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;password=field.getPassword();}new CsvImportDialog(this,profile,password,queryPanel.activeDatabase()).setVisible(true);refreshConnectionObjects(session);}catch(Exception error){showError(tr("Importar datos"),error);}finally{if(password!=null)Arrays.fill(password,'\0');}
     }
 
     private void showAbout() {
@@ -427,6 +485,7 @@ public final class MainFrame extends JFrame {
     }
 
     private void checkForUpdates(boolean manual) {
+        if(manual&&!LicenseGate.ensure(this)||!manual&&!LicenseGate.licensed())return;
         if (checkingUpdates) return;
         if (updateService.getManifestUrl().isBlank()) {
             if (manual) JOptionPane.showMessageDialog(this,
@@ -482,6 +541,7 @@ public final class MainFrame extends JFrame {
     }
 
     private void downloadAndInstall(UpdateService.UpdateInfo update) {
+        if(!LicenseGate.ensure(this))return;
         JDialog progressDialog = new JDialog(this, tr("Descargando actualización"), true);
         JProgressBar progress = new JProgressBar(0, 100);
         progress.setStringPainted(true);
@@ -504,6 +564,7 @@ public final class MainFrame extends JFrame {
                 progressDialog.dispose();
                 try {
                     Path zip = get();
+                    if(!LicenseGate.ensure(MainFrame.this))return;
                     int install = JOptionPane.showConfirmDialog(MainFrame.this,
                             UpdateService.canInstallInPlace()
                                     ? tr("La actualización fue descargada y verificada.\n\n¿Instalarla ahora? NexoDB se cerrará y volverá a abrir.")
@@ -833,6 +894,7 @@ public final class MainFrame extends JFrame {
     }
 
     private void closeAllSessions() {
+        scheduledTasks.close();
         for (JdbcSession open : new ArrayList<>(sessions.values())) closeSpecificSession(open);
         sessions.clear();
         session = null;

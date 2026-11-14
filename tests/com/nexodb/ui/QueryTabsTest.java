@@ -42,6 +42,7 @@ public final class QueryTabsTest {
                 SwingUtilities.invokeAndWait(()->{
                     QueryPanel panel=new QueryPanel(text->{},busy::set,null);active.set(panel);try{Field f=QueryPanel.class.getDeclaredField("session");f.setAccessible(true);f.set(panel,session);}catch(Exception error){throw new RuntimeException(error);}
                     editor(panel).restoreText("DELETE FROM keep_me;");panel.insertSql("CREATE TABLE generated(id INT);\nINSERT INTO generated VALUES(2);");
+                    try{Field mode=QueryPanel.class.getDeclaredField("readOnly");mode.setAccessible(true);((JCheckBox)mode.get(panel)).setSelected(false);Field confirm=QueryPanel.class.getDeclaredField("confirm");confirm.setAccessible(true);confirm.set(panel,(java.util.function.BiPredicate<String,String>)(title,text)->true);}catch(Exception error){throw new RuntimeException(error);}
                     equal(1,tabs(panel).getSelectedIndex());equal(false,busy.get());editor(panel).selectAll();panel.executeCurrent();
                 });
                 long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(10);while(busy.get()&&System.nanoTime()<deadline)Thread.sleep(20);SwingUtilities.invokeAndWait(()->{});

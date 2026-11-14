@@ -117,22 +117,25 @@ public final class SqlTransferDialog extends JDialog {
         run("Revisando archivo SQL…",()->SqlImportService.analyze(path,control),value->{analysis=value;preview.setText(value.preview());preview.setCaretPosition(0);summary.setText(tr("%s sentencias · %s modifican o eliminan objetos/datos",value.statements(),value.destructive()));});
     }
     private void backup(){
+        if(!LicenseGate.ensure(this))return;
         if(table.isEditing())table.getCellEditor().stopCellEditing();List<SqlBackupService.ObjectInfo> selected=objects.selected();if(selected.isEmpty())return;
         String selectedDatabase=selectedDatabase();Path target;try{target=Path.of(file.getText().trim()).toAbsolutePath();}catch(Exception error){showError(error);return;}
         if(Files.exists(target)&&JOptionPane.showConfirmDialog(this,tr("¿Reemplazar el archivo existente?")+"\n"+target,tr("Respaldo SQL"),JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
         var selectedMode=SqlBackupService.Mode.values()[mode.getSelectedIndex()];List<String> nonTransactional=SqlBackupService.nonTransactional(selected);
         if(consistent.isSelected()&&selectedMode!=SqlBackupService.Mode.STRUCTURE&&!nonTransactional.isEmpty()&&JOptionPane.showConfirmDialog(this,tr("Hay tablas que no son InnoDB. Su lectura no garantiza un estado consistente si cambian durante el respaldo. ¿Continuar?")+"\n"+String.join(", ",nonTransactional.subList(0,Math.min(nonTransactional.size(),12))),tr("Lectura del respaldo"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)!=JOptionPane.YES_OPTION)return;
         var options=new SqlBackupService.Options(selectedMode,create.isSelected(),drop.isSelected(),fk.isSelected(),consistent.isSelected(),omit.isSelected());
+        if(!Confirmations.ask(this,"Crear respaldo SQL",profile.name()+" · "+selectedDatabase+"\n"+tr("Se guardarán %s objetos en el archivo indicado. No se modificarán los datos de origen.",selected.size())+"\n"+target+"\n"+tr("¿Crear el respaldo?")))return;
         run("Creando respaldo…",()->SqlBackupService.write(dedicated.connection(),profile.type(),selectedDatabase,selected,options,target,control,p->updateProgress(p.object()+" · "+p.rows()+" "+tr("filas"))),report->{
             status.setText(tr("Respaldo completo: %s objetos · %s filas",report.objects(),report.rows()));JOptionPane.showMessageDialog(this,status.getText()+"\n"+report.file(),tr("Respaldo SQL"),JOptionPane.INFORMATION_MESSAGE);
         });
     }
     private void restore(){
+        if(!LicenseGate.ensure(this))return;
         if(analysis==null)return;String target=selectedDatabase();
         if(!preserve.isSelected()&&analysis.databases().size()>1){showError(new IllegalArgumentException(tr("El archivo contiene varias bases. Usa un respaldo de una sola base o revisa la opción de respetar sus nombres originales.")));return;}
         String scope=preserve.isSelected()?tr("Bases del archivo: ")+String.join(", ",analysis.databases()):tr("Base de destino: ")+target;
         JTextArea confirmation=new JTextArea(profile.name()+" · "+profile.host()+":"+profile.port()+"\n"+scope+"\n"+analysis.file()+"\n\n"+tr("%s sentencias · %s modifican o eliminan objetos/datos",analysis.statements(),analysis.destructive())+"\n\n"+tr("¿Importar este archivo ahora? Los cambios de estructura pueden permanecer si hay un error."));confirmation.setEditable(false);confirmation.setLineWrap(true);confirmation.setWrapStyleWord(true);confirmation.setColumns(55);confirmation.setRows(9);confirmation.setOpaque(false);
-        if(JOptionPane.showConfirmDialog(this,confirmation,tr("Confirmar importación SQL"),JOptionPane.OK_CANCEL_OPTION,JOptionPane.WARNING_MESSAGE)!=JOptionPane.OK_OPTION)return;
+        if(!Confirmations.ask(this,"Confirmar importación SQL",confirmation.getText()))return;
         var options=new SqlImportService.Options(target,createTarget.isSelected(),preserve.isSelected(),omit.isSelected());SqlImportService.Analysis reviewed=analysis;
         run("Importando SQL…",()->SqlImportService.restore(dedicated.connection(),reviewed,options,control,p->updateProgress(tr("%s de %s sentencias · línea %s",p.completed(),p.total(),p.line()))),report->{restored=true;status.setText(tr("Importación completa: %s sentencias ejecutadas",report.executed()));JOptionPane.showMessageDialog(this,status.getText(),tr("Importar / restaurar SQL"),JOptionPane.INFORMATION_MESSAGE);});
     }

@@ -34,8 +34,10 @@ public final class QueryGridIntegrationTest {
             SwingUtilities.invokeAndWait(()->{
                 ResultTableModel model=new ResultTableModel();model.setResult(result);JTable table=new JTable(model);table.setRowHeight(26);table.setAutoCreateRowSorter(true);table.setCellSelectionEnabled(true);
                 QueryResultPanel panel=new QueryResultPanel(session,result,model,table,"SELECT * FROM people ORDER BY id",10,busy::set,text->{},t->{});reference.set(panel);
+                try{Field confirm=QueryResultPanel.class.getDeclaredField("confirm");confirm.setAccessible(true);confirm.set(panel,(java.util.function.BiPredicate<String,String>)(title,text)->true);}catch(Exception error){throw new RuntimeException(error);}
                 JFrame window=new JFrame();frame.set(window);window.setContentPane(panel);window.setSize(1100,420);window.setVisible(true);window.validate();
                 Rectangle cell=table.getCellRect(0,1,true);table.dispatchEvent(new MouseEvent(table,MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,cell.x+12,cell.y+12,2,false,MouseEvent.BUTTON1));
+                equal(false,table.isEditing());button(panel,"query-edit").doClick();table.dispatchEvent(new MouseEvent(table,MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,cell.x+12,cell.y+12,2,false,MouseEvent.BUTTON1));
                 equal(true,table.isEditing());equal(true,button(panel,"query-edit").isSelected());((JTextField)table.getEditorComponent()).setText("Alice changed");table.getCellEditor().stopCellEditing();
                 equal(1,model.changeCount());equal(1,model.changes().get(0).values().size());
                 snapshot(panel,"query-grid-light.png");
@@ -58,7 +60,7 @@ public final class QueryGridIntegrationTest {
                 JTable rows=find(panel,"query-row-selector",JTable.class);rows.setValueAt(true,3,0);var actions=field(panel,"grid",ResultGridActions.class);
                 menuItem(invoke(actions,"menu",new Class[]{boolean.class},false),"Eliminar filas seleccionadas").doClick();equal(true,field(panel,"model",ResultTableModel.class).isDeleted(3));
             });equal(4,session.execute("SELECT * FROM people",10).rows().size());
-            SwingUtilities.invokeAndWait(()->{acceptConfirmation();menuItem(invoke(field(panel,"grid",ResultGridActions.class),"menu",new Class[]{boolean.class},false),"Guardar cambios").doClick();});
+            SwingUtilities.invokeAndWait(()->{menuItem(invoke(field(panel,"grid",ResultGridActions.class),"menu",new Class[]{boolean.class},false),"Guardar cambios").doClick();});
             await(()->!busy.get());equal(3,session.execute("SELECT * FROM people",10).rows().size());
             SwingUtilities.invokeAndWait(()->{
                 JTable table=field(panel,"table",JTable.class);ResultTableModel model=field(panel,"model",ResultTableModel.class);

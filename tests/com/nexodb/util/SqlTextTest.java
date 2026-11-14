@@ -6,6 +6,8 @@ public final class SqlTextTest {
         assertEquals("SELECT ';' AS value", SqlText.currentStatement("SELECT ';' AS value; SELECT 2", 8).trim());
         assertEquals("SELECT 1 -- ; ignored", SqlText.currentStatement("SELECT 1 -- ; ignored\n; SELECT 2", 5).trim());
         assertEquals("SELECT 1 /* ; */", SqlText.currentStatement("SELECT 1 /* ; */; SELECT 2", 5).trim());
+        assertEquals("SELECT 2",SqlText.currentStatement("SELECT 1; SELECT 2;",18).trim());
+        assertEquals("",SqlText.currentStatement("DELETE FROM x;\n",15).trim());
         SqlText.Batch batch = SqlText.splitCompleteStatements("SELECT ';' AS value;\nSELECT * FROM `ct;bancos`;\nSELECT 3");
         if (batch.statements().size() != 2) throw new AssertionError("Expected two complete statements: " + batch.statements());
         assertEquals("SELECT ';' AS value", batch.statements().get(0));

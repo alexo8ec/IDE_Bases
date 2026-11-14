@@ -162,6 +162,7 @@ public final class TableCopyDialog extends JDialog {
         if (source == target && namespace(sourceTable).equalsIgnoreCase(database) && sourceTable.name().equalsIgnoreCase(name)) {
             warn(tr("El origen y el destino son la misma tabla.")); return;
         }
+        if(!LicenseGate.ensure(this)||!Confirmations.ask(this,"Copiar tabla",source.profile().name()+" · "+sourceTable.name()+" → "+target.profile().name()+" · "+database+"."+name+"\n"+tr("Estructura: ")+copyStructure.isSelected()+" · "+tr("Datos: ")+copyData.isSelected()+" · "+tr("Reemplazar: ")+replace.isSelected()+"\n"+tr("¿Iniciar la copia con estas opciones?")))return;
         setRunning(true, tr("Copiando tabla…"));
         new SwingWorker<CopyReport, Integer>() {
             @Override protected CopyReport doInBackground() throws Exception {

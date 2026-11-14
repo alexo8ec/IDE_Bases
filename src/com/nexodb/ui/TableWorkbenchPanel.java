@@ -52,6 +52,7 @@ public final class TableWorkbenchPanel extends JPanel {
     private final JProgressBar progress = new JProgressBar();
     private final JComboBox<String> editMode = new JComboBox<>(new String[]{"Solo lectura", "Editable · guardado inmediato"});
     private final JSpinner maxRows = new JSpinner(new SpinnerNumberModel(1000, 1, 100000, 100));
+    private final JCheckBox limitRows=UiLanguage.text(new JCheckBox("",true),UiLanguage.key("Limitar filas"));
     private SwingWorker<Snapshot, Void> worker;
     private List<String> primaryKeys = List.of();
     private boolean updatingMode;
@@ -113,7 +114,7 @@ public final class TableWorkbenchPanel extends JPanel {
         editMode.addActionListener(e -> changeEditMode());
         bar.add(editMode);
         bar.addSeparator();
-        bar.add(UiLanguage.text(new JLabel(tr("Máx. filas: ")), UiLanguage.key("Máx. filas: ")));
+        bar.add(limitRows);limitRows.addActionListener(e->maxRows.setEnabled(limitRows.isSelected()));
         bar.add(maxRows);
         bar.add(refresh);
         bar.add(Box.createHorizontalGlue());
@@ -180,10 +181,11 @@ public final class TableWorkbenchPanel extends JPanel {
     }
 
     private void refresh() {
+        if(!LicenseGate.ensure(this))return;
         if (worker != null && !worker.isDone()) return;
         UiLanguage.text(state, UiLanguage.key("Cargando…"));
         progress.setVisible(true);
-        int limit = ((Number) maxRows.getValue()).intValue();
+        int limit = limitRows.isSelected()?((Number)maxRows.getValue()).intValue():Integer.MAX_VALUE;
         worker = new SwingWorker<>() {
             @Override protected Snapshot doInBackground() throws Exception {
                 QueryResult data = session.execute("SELECT * FROM " + qualifiedName, limit);
@@ -195,7 +197,7 @@ public final class TableWorkbenchPanel extends JPanel {
                     Snapshot snapshot = get();
                     primaryKeys = snapshot.primaryKeys();
                     dataModel.setResult(snapshot.data());
-                    editMode.setEnabled(item.kind() == SchemaItem.Kind.TABLE && !primaryKeys.isEmpty());
+                    editMode.setEnabled(item.kind() == SchemaItem.Kind.TABLE && !primaryKeys.isEmpty()&&!session.profile().readOnly());
                     replaceRows(columnsModel, snapshot.columns());
                     replaceRows(indexesModel, snapshot.indexes());
                     replaceRows(foreignKeysModel, snapshot.foreignKeys());
@@ -274,6 +276,7 @@ public final class TableWorkbenchPanel extends JPanel {
 
     private void changeEditMode() {
         if (updatingMode) return;
+        if(session.profile().readOnly()){resetEditMode();return;}
         boolean editable = editMode.getSelectedIndex() == 1;
         if (!editable) {
             dataModel.setEditable(false);
@@ -485,6 +488,7 @@ public final class TableWorkbenchPanel extends JPanel {
     }
 
     private void executeDdl(List<String> statements, String success) {
+        if(!LicenseGate.ensure(this)||!Confirmations.ask(this,"Aplicar cambio de estructura",qualifiedName+"\n\n"+String.join(";\n",statements)+"\n\n"+tr("¿Aplicar este cambio en la base de datos?")))return;
         progress.setVisible(true); UiLanguage.text(state, UiLanguage.key("Aplicando cambio de estructura…")); sections.setEnabled(false);
         new SwingWorker<Integer, Void>() {
             @Override protected Integer doInBackground() throws Exception {
@@ -505,6 +509,7 @@ public final class TableWorkbenchPanel extends JPanel {
     }
 
     private boolean ensureStructureWritable() {
+        if(session.profile().readOnly()){info(tr("La conexión es de solo lectura."));return false;}
         if (item.kind() != SchemaItem.Kind.TABLE) { info(tr("Las vistas no permiten modificar columnas, índices ni relaciones desde este editor.")); return false; }
         try {
             if (session.connection().isReadOnly() || (session.profile().readOnly() && !structureWriteConfirmed)) {
@@ -592,6 +597,7 @@ public final class TableWorkbenchPanel extends JPanel {
     private void warn(String message) { JOptionPane.showMessageDialog(this, message, tr("Revisa la estructura"), JOptionPane.WARNING_MESSAGE); }
 
     private void saveCell(int row, int column, Object oldValue, Object newValue, List<Object> originalRow) {
+        if(!LicenseGate.ensure(this)||!Confirmations.ask(this,"Guardar cambio de celda",qualifiedName+" · "+dataModel.getColumnName(column)+"\n"+tr("Valor anterior: ")+oldValue+"\n"+tr("Nuevo valor: ")+newValue+"\n"+tr("¿Guardar este cambio en la base de datos?"))){dataModel.revertCell(row,column,oldValue);return;}
         dataTable.setEnabled(false);
         progress.setVisible(true);
         UiLanguage.text(state, UiLanguage.key("Guardando cambio…"));

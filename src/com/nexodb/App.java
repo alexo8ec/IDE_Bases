@@ -21,6 +21,7 @@ public final class App {
         I18n.initialize(AppSettings.get("language", "es"));
         ThemeManager.initialize();
         SwingUtilities.invokeLater(() -> {
+            if(!com.nexodb.ui.LicenseGate.start())return;
             new MainFrame().setVisible(true);
         });
     }

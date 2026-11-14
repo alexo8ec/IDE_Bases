@@ -1,4 +1,4 @@
-param([string]$MariaDbBin = 'C:\Program Files\MariaDB 12.3\bin')
+param([string]$MariaDbBin = 'C:\Program Files\MariaDB 12.3\bin', [switch]$SkipGeneralSuite)
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $data = [IO.Path]::GetFullPath((Join-Path $root 'build/sql-transfer-test-data'))
@@ -24,8 +24,10 @@ try {
         try { $client.Connect('127.0.0.1',43179); $ready=$true; break } catch { Start-Sleep -Milliseconds 250 } finally { $client.Dispose() }
     }
     if (-not $ready) { throw 'Isolated MariaDB startup timed out' }
-    & (Join-Path $root 'test.ps1')
-    if ($LASTEXITCODE -ne 0) { throw 'Base test suite failed' }
+    if (-not $SkipGeneralSuite) {
+        & (Join-Path $root 'test.ps1')
+        if ($LASTEXITCODE -ne 0) { throw 'Base test suite failed' }
+    }
     $classpath = "$root/build/classes;$root/build/test-classes;$root/build/lib/*"
     & java '-Dnexodb.disableDraftPersistence=true' '-Dnexodb.test.transfer=true' "-Dnexodb.test.mariaDbBin=$MariaDbBin" -cp $classpath com.nexodb.db.SqlTransferIntegrationTest
     if ($LASTEXITCODE -ne 0) { throw 'SQL backup/import round trip failed' }

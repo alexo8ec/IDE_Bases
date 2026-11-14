@@ -4,6 +4,8 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.*;
+import javax.swing.undo.*;
+import java.awt.event.*;
 import java.awt.*;
 import com.nexodb.util.SqlVocabulary;
 import java.util.Locale;
@@ -23,6 +25,12 @@ public final class SqlEditorPane extends JTextPane {
     private final Style identifierStyle;
     private final Timer highlightTimer;
     private boolean highlighting;
+    private boolean restoring, replaying;
+    private int editDepth;
+    private CompoundEdit compound;
+    private boolean compoundChanged;
+    private final UndoManager undo = new UndoManager();
+    private Runnable undoStateChanged=()->{};
 
     public SqlEditorPane() {
         StyledDocument document = getStyledDocument();
@@ -51,8 +59,30 @@ public final class SqlEditorPane extends JTextPane {
             @Override public void removeUpdate(DocumentEvent e) { changed(); }
             @Override public void changedUpdate(DocumentEvent e) { changed(); }
         });
+        undo.setLimit(1000);
+        document.addUndoableEditListener(event->{
+            if(highlighting||restoring||replaying||event.getEdit() instanceof DocumentEvent change&&change.getType()==DocumentEvent.EventType.CHANGE)return;
+            if(compound!=null){compound.addEdit(event.getEdit());compoundChanged=true;}else{undo.addEdit(event.getEdit());undoStateChanged.run();}
+        });
+        bindUndo(KeyEvent.CTRL_DOWN_MASK);
+        if(!GraphicsEnvironment.isHeadless())bindUndo(Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
         updatePalette();
     }
+    private void bindUndo(int mask){
+        getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_Z,mask),"sql-undo");
+        getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_Y,mask),"sql-redo");
+        getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_Z,mask|KeyEvent.SHIFT_DOWN_MASK),"sql-redo");
+        getActionMap().put("sql-undo",new AbstractAction(){public void actionPerformed(ActionEvent e){undoEdit();}});
+        getActionMap().put("sql-redo",new AbstractAction(){public void actionPerformed(ActionEvent e){redoEdit();}});
+    }
+    public void onUndoStateChanged(Runnable listener){undoStateChanged=listener==null?()->{}:listener;}
+    public boolean canUndoEdit(){return undo.canUndo();}
+    public boolean canRedoEdit(){return undo.canRedo();}
+    public void undoEdit(){if(undo.canUndo()){replaying=true;try{undo.undo();}finally{replaying=false;highlightTimer.restart();undoStateChanged.run();}}}
+    public void redoEdit(){if(undo.canRedo()){replaying=true;try{undo.redo();}finally{replaying=false;highlightTimer.restart();undoStateChanged.run();}}}
+    public void editAtomically(Runnable action){beginEdit();try{action.run();}finally{endEdit();}}
+    private void beginEdit(){if(editDepth++==0){compound=new CompoundEdit();compoundChanged=false;}}
+    private void endEdit(){if(--editDepth==0){compound.end();if(compoundChanged&&!restoring&&!replaying)undo.addEdit(compound);compound=null;undoStateChanged.run();}}
 
     @Override public void updateUI() {
         super.updateUI();
@@ -154,18 +184,17 @@ public final class SqlEditorPane extends JTextPane {
 
     public void restoreText(String text){
         AbstractDocument document=(AbstractDocument)getDocument();DocumentFilter filter=document.getDocumentFilter();
-        try{document.setDocumentFilter(null);setText(text);}finally{document.setDocumentFilter(filter);}
+        restoring=true;try{document.setDocumentFilter(null);setText(text);}finally{document.setDocumentFilter(filter);restoring=false;undo.discardAllEdits();undoStateChanged.run();}
     }
 
     private final class KeywordFilter extends DocumentFilter {
         @Override public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr) throws BadLocationException {
-            fb.insertString(offset, string, attr);
-            normalize(fb, offset + (string == null ? 0 : string.length()), string);
+            beginEdit();try{fb.insertString(offset, string, attr);normalize(fb, offset + (string == null ? 0 : string.length()), string);}finally{endEdit();}
         }
         @Override public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs) throws BadLocationException {
-            fb.replace(offset, length, text, attrs);
-            normalize(fb, offset + (text == null ? 0 : text.length()), text);
+            beginEdit();try{fb.replace(offset, length, text, attrs);normalize(fb, offset + (text == null ? 0 : text.length()), text);}finally{endEdit();}
         }
+        @Override public void remove(FilterBypass fb,int offset,int length)throws BadLocationException{beginEdit();try{fb.remove(offset,length);}finally{endEdit();}}
         private void normalize(FilterBypass fb, int caret, String inserted) throws BadLocationException {
             if (inserted == null || inserted.isEmpty() || isWord(inserted.charAt(inserted.length() - 1))) return;
             Document doc = fb.getDocument();

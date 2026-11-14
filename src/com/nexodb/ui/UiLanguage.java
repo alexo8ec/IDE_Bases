@@ -28,6 +28,8 @@ public final class UiLanguage {
     private UiLanguage() {}
     public static Key key(String source) { return new Key(source); }
     public static Key caption(String displayed) { return key(I18n.source(displayed)); }
+    public static JLabel label(String source){return text(new JLabel(),key(source));}
+    public static JButton button(String source){return text(new JButton(),key(source));}
 
     public static <T extends JComponent> T text(T component, Object... parts) {
         if (!(component instanceof JLabel) && !(component instanceof AbstractButton)) {

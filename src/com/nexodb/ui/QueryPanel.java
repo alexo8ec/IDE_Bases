@@ -5,10 +5,13 @@ import static com.nexodb.util.I18n.tr;
 import com.nexodb.db.JdbcSession;
 import com.nexodb.db.QueryResult;
 import com.nexodb.db.SqlColumnCompletion;
+import com.nexodb.db.SqlExecutionPolicy;
 import com.nexodb.util.DataExporter;
 import com.nexodb.util.SqlText;
 import com.nexodb.util.SqlDraftStore;
 import com.nexodb.util.SqlVocabulary;
+import com.nexodb.util.SqlFiles;
+import com.nexodb.util.QueryHistoryStore;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -21,6 +24,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
+import java.nio.file.*;
 import java.sql.SQLException;
 import java.sql.ResultSet;
 import java.util.ArrayList;
@@ -43,6 +47,15 @@ public final class QueryPanel extends JPanel {
     private SqlEditorPane editor;
     private final JTabbedPane queryTabs = new JTabbedPane();
     private final List<SqlEditorPane> queryEditors = new ArrayList<>();
+    private static final class DocumentState {Path path;String savedHash="",diskHash="",title="";int number;JLabel label=new JLabel();}
+    private final java.util.Map<SqlEditorPane,DocumentState> documents=new java.util.IdentityHashMap<>();
+    private Consumer<String> toolHandler=name->{};
+    private final JButton newQueryButton=new JButton("+");
+    private final JButton openSqlButton=new JButton(IconFactory.of(IconFactory.Kind.FOLDER,17));
+    private final JButton saveSqlButton=new JButton(IconFactory.of(IconFactory.Kind.SAVE,17));
+    private final JButton undoButton=new JButton("↶"),redoButton=new JButton("↷");
+    private boolean fileBusy;
+    private final QueryHistoryStore history=QueryHistoryStore.configured();
     private int activeQuery;
     private int querySequence;
     private boolean changingQuery;
@@ -50,6 +63,9 @@ public final class QueryPanel extends JPanel {
     private final JScrollPane messagesScroll = new JScrollPane(messages);
     private final JTabbedPane outputTabs = new JTabbedPane();
     private final JSpinner maxRows = new JSpinner(new SpinnerNumberModel(1000, 1, 100000, 100));
+    private final JCheckBox limitRows=UiLanguage.text(new JCheckBox("",true),UiLanguage.key("Limitar filas"));
+    private final JCheckBox readOnly=UiLanguage.text(new JCheckBox("",true),UiLanguage.key("Solo lectura"));
+    private java.util.function.BiPredicate<String,String> confirm=(title,message)->Confirmations.ask(this,title,message);
     private final JCheckBox autoCommit = new JCheckBox("Auto-commit", true);
     private final JButton execute = UiLanguage.text(new JButton(tr("Ejecutar")), UiLanguage.key("Ejecutar"));
     private final JButton cancel = UiLanguage.text(new JButton(tr("Cancelar")), UiLanguage.key("Cancelar"));
@@ -100,8 +116,9 @@ public final class QueryPanel extends JPanel {
         configureCompletionPopup();
         add(buildToolbar(), BorderLayout.NORTH);
         JPanel queries=new JPanel(new BorderLayout());queries.add(queryTabs,BorderLayout.CENTER);
-        JButton newQuery=new JButton("+");UiLanguage.tooltip(newQuery,UiLanguage.key("Nueva consulta (Ctrl+N)"));
-        newQuery.addActionListener(event->openNewQuery(""));queryTabs.putClientProperty("JTabbedPane.trailingComponent",newQuery);
+        UiLanguage.tooltip(newQueryButton,UiLanguage.key("Crear consulta o abrir una herramienta"));newQueryButton.setFocusable(false);newQueryButton.setMargin(new Insets(3,10,3,10));
+        newQueryButton.addActionListener(event->newQueryMenu().show(newQueryButton,0,newQueryButton.getHeight()));
+        JPanel tabActions=new JPanel(new FlowLayout(FlowLayout.LEFT,3,0));tabActions.setOpaque(false);tabActions.add(newQueryButton);queryTabs.putClientProperty("JTabbedPane.trailingComponent",tabActions);
         queryTabs.addChangeListener(event->changeQuery());
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, queries, buildOutput());
         split.setResizeWeight(0.55);
@@ -112,6 +129,8 @@ public final class QueryPanel extends JPanel {
             if(drafts!=null)drafts.loadWorkspace().ifPresent(workspace->{
                 for(SqlDraftStore.Draft draft:workspace.tabs()){
                     String text=withoutStartupHeader(draft.text());SqlEditorPane pane=addQuery(text);
+                    DocumentState info=documents.get(pane);if(!draft.path().isBlank())try{info.path=Path.of(draft.path());}catch(InvalidPathException ignored){}
+                    info.savedHash=draft.savedHash();info.diskHash=draft.diskHash();info.title=draft.title();refreshTitle(pane);
                     pane.setCaretPosition(Math.max(0,Math.min(text.length(),draft.caret()-(draft.text().length()-text.length()))));
                 }
                 activeQuery=workspace.activeTab();
@@ -130,38 +149,48 @@ public final class QueryPanel extends JPanel {
     }
     private SqlEditorPane addQuery(String sql){
         SqlEditorPane pane=new SqlEditorPane();configureEditor(pane);pane.setKeywords(sqlKeywords);pane.restoreText(sql);
-        queryEditors.add(pane);JScrollPane scroll=new JScrollPane(pane);int number=++querySequence;
+        queryEditors.add(pane);JScrollPane scroll=new JScrollPane(pane);scroll.setRowHeaderView(new SqlLineNumbers(pane));int number=++querySequence;
+        DocumentState info=new DocumentState();info.number=number;documents.put(pane,info);
         UiLanguage.addTab(queryTabs,new Object[]{UiLanguage.key("Consulta")," ",number},IconFactory.of(IconFactory.Kind.SQL,14),scroll);
         JPanel label=new JPanel(new FlowLayout(FlowLayout.LEFT,3,0));label.setOpaque(false);
-        label.add(UiLanguage.text(new JLabel(),UiLanguage.key("Consulta")," ",number));
+        label.add(info.label);
         JButton close=new JButton("×");close.setMargin(new Insets(0,4,0,4));close.setFocusable(false);
         UiLanguage.tooltip(close,UiLanguage.key("Cerrar consulta"));close.addActionListener(event->closeQuery(pane));label.add(close);
         queryTabs.setTabComponentAt(queryEditors.size()-1,label);
-        pane.getDocument().addDocumentListener(new DocumentListener(){public void insertUpdate(DocumentEvent e){scheduleDraft();}public void removeUpdate(DocumentEvent e){scheduleDraft();}public void changedUpdate(DocumentEvent e){}});
-        pane.addCaretListener(event->scheduleDraft());return pane;
+        pane.getDocument().addDocumentListener(new DocumentListener(){private void changed(){refreshTitle(pane);scheduleDraft();}public void insertUpdate(DocumentEvent e){changed();}public void removeUpdate(DocumentEvent e){changed();}public void changedUpdate(DocumentEvent e){}});
+        pane.onUndoStateChanged(this::updateEditorActions);pane.addCaretListener(event->scheduleDraft());refreshTitle(pane);return pane;
     }
-    private boolean canChangeQuery(){return !savingResult&&!queryRunning&&finishResultEditing()&&confirmDiscardResults();}
+    private boolean canChangeQuery(){return !fileBusy&&!savingResult&&!queryRunning&&finishResultEditing()&&confirmDiscardResults();}
     private void changeQuery(){
         if(changingQuery||queryTabs.getSelectedIndex()<0)return;
         int selected=queryTabs.getSelectedIndex();if(selected==activeQuery)return;
         if(!canChangeQuery()){changingQuery=true;try{queryTabs.setSelectedIndex(activeQuery);}finally{changingQuery=false;}return;}
         editor=queryEditors.get(selected);activeQuery=selected;completionGeneration++;completionTimer.stop();completionPopup.setVisible(false);
-        clearResultTabs();messages.setText("");scheduleDraft();editor.requestFocusInWindow();
+        readOnly.setSelected(true);
+        clearResultTabs();messages.setText("");scheduleDraft();updateEditorActions();editor.requestFocusInWindow();
     }
     private void closeQuery(SqlEditorPane pane){
         if(!canChangeQuery())return;
-        if(!pane.getText().isBlank()&&JOptionPane.showConfirmDialog(this,tr("¿Cerrar esta consulta? El texto de las otras pestañas se conservará."),tr("Cerrar consulta"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;
+        if(isDirty(pane)){
+            int answer=JOptionPane.showOptionDialog(this,tr("¿Guardar los cambios de esta consulta en un archivo SQL antes de cerrarla?"),tr("Cerrar consulta"),JOptionPane.DEFAULT_OPTION,JOptionPane.QUESTION_MESSAGE,null,new String[]{tr("Guardar"),tr("No guardar"),tr("Cancelar")},tr("Guardar"));
+            if(answer==0){saveSql(pane,false,()->removeQuery(pane));return;}if(answer!=1)return;
+        }
+        removeQuery(pane);
+    }
+    private void removeQuery(SqlEditorPane pane){
         int index=queryEditors.indexOf(pane);if(index<0)return;changingQuery=true;
-        try{queryEditors.remove(index);queryTabs.removeTabAt(index);if(queryEditors.isEmpty())addQuery("");activeQuery=Math.min(index,queryEditors.size()-1);editor=queryEditors.get(activeQuery);queryTabs.setSelectedIndex(activeQuery);}
+        SqlEditorPane previous=editor;boolean active=pane==previous;
+        try{queryEditors.remove(index);documents.remove(pane);queryTabs.removeTabAt(index);if(queryEditors.isEmpty())addQuery("");activeQuery=active?Math.min(index,queryEditors.size()-1):queryEditors.indexOf(previous);editor=queryEditors.get(activeQuery);queryTabs.setSelectedIndex(activeQuery);}
         finally{changingQuery=false;}clearResultTabs();messages.setText("");scheduleDraft();
     }
     private void scheduleDraft(){if(drafts!=null&&!restoringDraft){draftDirty=true;draftTimer.restart();}}
-    private SqlDraftStore.Workspace draftSnapshot(){return new SqlDraftStore.Workspace(queryEditors.stream().map(pane->new SqlDraftStore.Draft(pane.getText(),pane.getCaretPosition())).toList(),activeQuery);}
+    private SqlDraftStore.Workspace draftSnapshot(){return new SqlDraftStore.Workspace(queryEditors.stream().map(pane->{DocumentState d=documents.get(pane);return new SqlDraftStore.Draft(pane.getText(),pane.getCaretPosition(),d.path==null?"":d.path.toString(),d.savedHash,d.diskHash,d.title);}).toList(),activeQuery);}
     private void saveDraftAsync(){
         if(drafts==null||!draftDirty)return;SqlDraftStore.Workspace snapshot=draftSnapshot();draftDirty=false;
         draftWriter.submit(()->{try{drafts.saveWorkspace(snapshot);}catch(Exception error){SwingUtilities.invokeLater(()->{draftDirty=true;statusConsumer.accept(tr("No se pudieron guardar automáticamente las consultas."));});}});
     }
     public boolean saveDraftBeforeClose(){
+        if(fileBusy){statusConsumer.accept(tr("Espera a que termine la operación del archivo SQL."));return false;}
         draftTimer.stop();if(drafts==null)return true;SqlDraftStore.Workspace snapshot=draftSnapshot();
         try{draftWriter.submit(()->{drafts.saveWorkspace(snapshot);return null;}).get(5,java.util.concurrent.TimeUnit.SECONDS);draftDirty=false;return true;}
         catch(Exception error){return JOptionPane.showConfirmDialog(this,tr("No se pudo guardar el texto de las consultas. ¿Salir sin guardar el borrador?"),tr("Consultas sin guardar"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)==JOptionPane.YES_OPTION;}
@@ -171,6 +200,7 @@ public final class QueryPanel extends JPanel {
         if (this.session != session) for (int i=0;i<outputTabs.getTabCount();i++)
             if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && panel.isShowing()) panel.finishEditing();
         this.session = session;
+        readOnly.setSelected(true);
         sqlKeywords=SqlVocabulary.base();for(SqlEditorPane pane:queryEditors)pane.setKeywords(sqlKeywords);
         completionGeneration++;completionCatalogGeneration++;
         if(columnWorker!=null)columnWorker.cancel(true);
@@ -197,7 +227,8 @@ public final class QueryPanel extends JPanel {
         changingQuery=true;
         try{editor=addQuery(sql);activeQuery=queryEditors.size()-1;queryTabs.setSelectedIndex(activeQuery);editor.setCaretPosition(0);}
         finally{changingQuery=false;}
-        completionGeneration++;completionPopup.setVisible(false);clearResultTabs();messages.setText("");scheduleDraft();editor.requestFocusInWindow();return true;
+        readOnly.setSelected(true);
+        completionGeneration++;completionPopup.setVisible(false);clearResultTabs();messages.setText("");scheduleDraft();updateEditorActions();editor.requestFocusInWindow();return true;
     }
 
     public void runSql(String sql) {
@@ -229,6 +260,77 @@ public final class QueryPanel extends JPanel {
         databaseChangeConsumer = consumer == null ? name -> {} : consumer;
     }
 
+    public void setToolHandler(Consumer<String> handler){toolHandler=handler;}
+    public String currentSql(){return editor==null?"":editor.getText();}
+    public JdbcSession currentSession(){return session;}
+    public void undoCurrent(){if(editor!=null&&!fileBusy)editor.undoEdit();}
+    public void redoCurrent(){if(editor!=null&&!fileBusy)editor.redoEdit();}
+    private void updateEditorActions(){undoButton.setEnabled(editor!=null&&!fileBusy&&editor.canUndoEdit());redoButton.setEnabled(editor!=null&&!fileBusy&&editor.canRedoEdit());saveSqlButton.setEnabled(editor!=null&&!fileBusy);openSqlButton.setEnabled(!fileBusy);}
+    boolean isDirty(SqlEditorPane pane){DocumentState info=documents.get(pane);return info!=null&&(info.savedHash.isEmpty()?!pane.getText().isEmpty():!SqlFiles.hash(pane.getText()).equals(info.savedHash));}
+    private void refreshTitle(SqlEditorPane pane){
+        DocumentState d=documents.get(pane);if(d==null)return;String mark=isDirty(pane)?" *":"";
+        String name=d.path!=null?d.path.getFileName().toString():d.title;
+        if(name.isBlank())UiLanguage.text(d.label,UiLanguage.key("Consulta")," ",d.number,mark);else UiLanguage.text(d.label,name,mark);
+        int index=queryEditors.indexOf(pane);if(index>=0){queryTabs.setTitleAt(index,d.label.getText());queryTabs.setToolTipTextAt(index,d.path==null?d.label.getText():d.path.toString());}
+        updateEditorActions();
+    }
+    private JMenuItem menuItem(JPopupMenu menu,String caption,IconFactory.Kind icon,String key,Runnable action){
+        JMenuItem item=UiLanguage.text(new JMenuItem(tr(caption),IconFactory.of(icon,16)),UiLanguage.key(caption));if(key!=null)item.setAccelerator(KeyStroke.getKeyStroke(key));item.addActionListener(e->action.run());menu.add(item);return item;
+    }
+    JPopupMenu newQueryMenu(){
+        JPopupMenu menu=new JPopupMenu();
+        menuItem(menu,"Nueva consulta",IconFactory.Kind.ADD,"control T",()->openNewQuery(""));
+        menuItem(menu,"Abrir archivo SQL…",IconFactory.Kind.FOLDER,"control O",this::openSqlFile);
+        menu.addSeparator();
+        menuItem(menu,"Constructor visual de consultas",IconFactory.Kind.TABLE,"control K",()->toolHandler.accept("builder"));
+        menuItem(menu,"Diseñador de esquemas",IconFactory.Kind.SCHEMA,"control alt D",()->toolHandler.accept("designer"));
+        menuItem(menu,"Buscar datos",IconFactory.Kind.SEARCH,"control shift D",()->toolHandler.accept("search"));
+        menu.addSeparator();menuItem(menu,"Historial SQL",IconFactory.Kind.SQL,"control shift H",this::showHistory);return menu;
+    }
+    private JPopupMenu editorMenu(SqlEditorPane pane){
+        JPopupMenu menu=new JPopupMenu();
+        JMenuItem undo=menuItem(menu,"Deshacer",IconFactory.Kind.ROLLBACK,"control Z",pane::undoEdit),redo=menuItem(menu,"Rehacer",IconFactory.Kind.REFRESH,"control Y",pane::redoEdit);
+        menu.addSeparator();menuItem(menu,"Cortar",IconFactory.Kind.EDIT,"control X",pane::cut);menuItem(menu,"Copiar",IconFactory.Kind.SQL,"control C",pane::copy);menuItem(menu,"Pegar",IconFactory.Kind.FOLDER,"control V",pane::paste);menuItem(menu,"Seleccionar todo",IconFactory.Kind.TABLE,"control A",pane::selectAll);
+        menu.addSeparator();menuItem(menu,"Guardar consulta SQL…",IconFactory.Kind.SAVE,"control S",()->saveSql(pane,false,()->{}));
+        menu.addPopupMenuListener(new javax.swing.event.PopupMenuListener(){public void popupMenuWillBecomeVisible(javax.swing.event.PopupMenuEvent e){undo.setEnabled(!fileBusy&&pane.canUndoEdit());redo.setEnabled(!fileBusy&&pane.canRedoEdit());}public void popupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent e){}public void popupMenuCanceled(javax.swing.event.PopupMenuEvent e){}});return menu;
+    }
+    public void renameCurrentQuery(){DocumentState d=documents.get(editor);String name=JOptionPane.showInputDialog(this,tr("Nombre de la consulta:"),d.title);if(name!=null&&!name.isBlank()){d.title=name.trim();refreshTitle(editor);scheduleDraft();}}
+    private JFileChooser sqlChooser(){JFileChooser chooser=new JFileChooser();chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(tr("Archivo SQL"),"sql"));DocumentState d=documents.get(editor);if(d!=null&&d.path!=null)chooser.setSelectedFile(d.path.toFile());return chooser;}
+    public void openSqlFile(){if(!canChangeQuery())return;JFileChooser chooser=sqlChooser();if(chooser.showOpenDialog(this)==JFileChooser.APPROVE_OPTION)openSqlPath(chooser.getSelectedFile().toPath());}
+    void openSqlPath(Path path){fileOperation(()->SqlFiles.read(path),loaded->{openSqlLoaded(loaded);statusConsumer.accept(tr("Archivo SQL abierto: ")+loaded.path());});}
+    boolean openSqlLoaded(SqlFiles.Loaded loaded){
+        for(SqlEditorPane pane:queryEditors){DocumentState d=documents.get(pane);if(loaded.path().equals(d.path)){queryTabs.setSelectedIndex(queryEditors.indexOf(pane));return true;}}
+        if(!openNewQuery(loaded.text()))return false;DocumentState d=documents.get(editor);d.path=loaded.path();d.savedHash=SqlFiles.hash(editor.getText());d.diskHash=loaded.diskHash();refreshTitle(editor);scheduleDraft();return true;
+    }
+    public void saveSqlFile(boolean saveAs){if(editor!=null)saveSql(editor,saveAs,()->{});}
+    private void saveSql(SqlEditorPane pane,boolean saveAs,Runnable after){
+        if(fileBusy)return;DocumentState d=documents.get(pane);Path target=d.path;
+        if(saveAs||target==null){JFileChooser chooser=sqlChooser();chooser.setSelectedFile(new File(d.path!=null?d.path.toString():(d.title.isBlank()?"consulta":d.title)+".sql"));if(chooser.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return;target=SqlFiles.withExtension(chooser.getSelectedFile().toPath()).toAbsolutePath();
+            if(Files.exists(target)&&JOptionPane.showConfirmDialog(this,tr("¿Reemplazar el archivo existente?")+"\n"+target,tr("Guardar SQL"),JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
+        }
+        Path destination=target;String text=pane.getText();boolean check=d.path!=null&&d.path.equals(destination)&&!d.diskHash.isEmpty();String expected=d.diskHash;
+        if(!confirm.test("Guardar archivo SQL",tr("Se guardará el texto de esta pestaña en el archivo indicado. ¿Continuar?")+"\n"+destination))return;
+        pane.setEditable(false);
+        fileOperation(()->{if(check&&(!Files.exists(destination)||!SqlFiles.diskHash(destination).equals(expected)))throw new java.io.IOException(tr("El archivo cambió fuera de NexoDB. Usa Guardar como para conservar tus cambios sin sobrescribirlo."));return SqlFiles.write(destination,text);},hash->{markSaved(pane,destination,text,hash);statusConsumer.accept(tr("Consulta guardada: ")+destination);if(!isDirty(pane))after.run();},()->pane.setEditable(true));
+    }
+    void markSaved(SqlEditorPane pane,Path path,String text,String diskHash){DocumentState d=documents.get(pane);d.path=path.toAbsolutePath();d.savedHash=SqlFiles.hash(text);d.diskHash=diskHash;refreshTitle(pane);scheduleDraft();}
+    private <T> void fileOperation(java.util.concurrent.Callable<T> operation,Consumer<T> success){fileOperation(operation,success,()->{});}
+    private <T> void fileOperation(java.util.concurrent.Callable<T> operation,Consumer<T> success,Runnable finished){
+        if(fileBusy)return;fileBusy=true;updateEditorActions();busyConsumer.accept(true);
+        new SwingWorker<T,Void>(){protected T doInBackground()throws Exception{return operation.call();}protected void done(){fileBusy=false;try{success.accept(get());}catch(Exception error){JOptionPane.showMessageDialog(QueryPanel.this,rootCause(error).getMessage(),tr("Archivo SQL"),JOptionPane.ERROR_MESSAGE);}finally{finished.run();busyConsumer.accept(false);updateEditorActions();}}}.execute();
+    }
+    public void showHistory(){
+        var entries=history.entries();javax.swing.table.DefaultTableModel model=new javax.swing.table.DefaultTableModel(new Object[]{tr("Fecha"),tr("Conexión"),tr("Base"),"ms",tr("Filas"),tr("Estado")},0){public boolean isCellEditable(int r,int c){return false;}};
+        for(var entry:entries)model.addRow(new Object[]{java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(java.time.ZoneId.systemDefault()).format(entry.time()),entry.connection(),entry.database(),entry.millis(),entry.rows(),entry.error().isEmpty()?"OK":entry.error()});
+        JTable table=new JTable(model);table.setAutoCreateRowSorter(true);SqlEditorPane sql=new SqlEditorPane();sql.setEditable(false);JTextField filter=new JTextField();UiLanguage.placeholder(filter,"Filtrar historial…");
+        filter.getDocument().addDocumentListener(new DocumentListener(){void update(){@SuppressWarnings("unchecked") var sorter=(javax.swing.table.TableRowSorter<javax.swing.table.DefaultTableModel>)table.getRowSorter();sorter.setRowFilter(filter.getText().isBlank()?null:RowFilter.regexFilter("(?iu)"+Pattern.quote(filter.getText())));}public void insertUpdate(DocumentEvent e){update();}public void removeUpdate(DocumentEvent e){update();}public void changedUpdate(DocumentEvent e){}});
+        table.getSelectionModel().addListSelectionListener(e->{int row=table.getSelectedRow();if(row>=0)sql.restoreText(entries.get(table.convertRowIndexToModel(row)).sql());});
+        JDialog dialog=new JDialog(SwingUtilities.getWindowAncestor(this),tr("Historial SQL"),Dialog.ModalityType.MODELESS);JPanel content=new JPanel(new BorderLayout(8,8));content.setBorder(new EmptyBorder(12,12,12,12));content.add(filter,BorderLayout.NORTH);JSplitPane split=new JSplitPane(JSplitPane.VERTICAL_SPLIT,new JScrollPane(table),new JScrollPane(sql));split.setResizeWeight(.55);content.add(split);
+        JButton reuse=new JButton(tr("Abrir en una consulta nueva")),clear=new JButton(tr("Limpiar historial"));JPanel actions=new JPanel(new FlowLayout(FlowLayout.RIGHT));actions.add(clear);actions.add(reuse);content.add(actions,BorderLayout.SOUTH);
+        reuse.addActionListener(e->{if(!sql.getText().isBlank()&&openNewQuery(sql.getText()))dialog.dispose();});clear.addActionListener(e->{if(JOptionPane.showConfirmDialog(dialog,tr("¿Borrar el historial local de consultas?"),tr("Historial SQL"),JOptionPane.YES_NO_OPTION)==JOptionPane.YES_OPTION)try{history.clear();dialog.dispose();}catch(Exception error){statusConsumer.accept(error.getMessage());}});
+        dialog.setContentPane(content);dialog.setSize(1000,650);dialog.setLocationRelativeTo(this);dialog.setVisible(true);
+    }
+
     private void configureEditor(SqlEditorPane editor) {
         editor.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 14));
         editor.setMargin(new Insets(12, 14, 12, 14));
@@ -238,11 +340,19 @@ public final class QueryPanel extends JPanel {
         InputMap input = editor.getInputMap(JComponent.WHEN_FOCUSED);
         ActionMap actions = editor.getActionMap();
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_N,KeyEvent.CTRL_DOWN_MASK),"new-query");
+        input.put(KeyStroke.getKeyStroke(KeyEvent.VK_T,KeyEvent.CTRL_DOWN_MASK),"new-query");
         actions.put("new-query",new AbstractAction(){@Override public void actionPerformed(ActionEvent e){openNewQuery("");}});
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK), "execute-sql");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0), "execute-sql");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "cancel-sql");
-        input.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK), "export-csv");
+        input.put(KeyStroke.getKeyStroke(KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK),"save-sql");
+        input.put(KeyStroke.getKeyStroke(KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK),"save-sql-as");
+        input.put(KeyStroke.getKeyStroke(KeyEvent.VK_O,KeyEvent.CTRL_DOWN_MASK),"open-sql");
+        input.put(KeyStroke.getKeyStroke(KeyEvent.VK_E,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK),"export-csv");
+        actions.put("save-sql",new AbstractAction(){public void actionPerformed(ActionEvent e){saveSqlFile(false);}});
+        actions.put("save-sql-as",new AbstractAction(){public void actionPerformed(ActionEvent e){saveSqlFile(true);}});
+        actions.put("open-sql",new AbstractAction(){public void actionPerformed(ActionEvent e){openSqlFile();}});
+        editor.setComponentPopupMenu(editorMenu(editor));
         actions.put("execute-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { executeSql(); }});
         actions.put("cancel-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { cancelSql(); }});
         actions.put("export-csv", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { exportData(); }});
@@ -284,15 +394,24 @@ public final class QueryPanel extends JPanel {
         styleAction(cancel, IconFactory.Kind.STOP, tr("Cancelar la consulta en ejecución (Esc)"));
         styleAction(commit, IconFactory.Kind.COMMIT, tr("Confirmar la transacción"));
         styleAction(rollback, IconFactory.Kind.ROLLBACK, tr("Revertir la transacción"));
-        styleAction(export, IconFactory.Kind.EXPORT, tr("Exportar a CSV, TSV, JSON, XML, HTML o SQL (Ctrl+S)"));
+        styleAction(export, IconFactory.Kind.EXPORT, tr("Exportar resultados (Ctrl+Shift+E)"));
         execute.addActionListener(e -> executeSql());
         cancel.addActionListener(e -> cancelSql());
         commit.addActionListener(e -> transaction(true));
         rollback.addActionListener(e -> transaction(false));
         export.addActionListener(e -> exportData());
         autoCommit.addActionListener(e -> changeAutoCommit());
+        UiLanguage.tooltip(openSqlButton,UiLanguage.key("Abrir archivo SQL (Ctrl+O)"));openSqlButton.addActionListener(e->openSqlFile());
+        UiLanguage.tooltip(saveSqlButton,UiLanguage.key("Guardar consulta SQL (Ctrl+S)"));saveSqlButton.addActionListener(e->saveSqlFile(false));
+        UiLanguage.tooltip(undoButton,UiLanguage.key("Deshacer (Ctrl+Z)"));undoButton.addActionListener(e->undoCurrent());
+        UiLanguage.tooltip(redoButton,UiLanguage.key("Rehacer (Ctrl+Y)"));redoButton.addActionListener(e->redoCurrent());
+        for(JButton button:List.of(openSqlButton,saveSqlButton,undoButton,redoButton)){button.putClientProperty("JButton.buttonType","toolBarButton");toolbar.add(button);}toolbar.addSeparator();
         toolbar.add(execute);
         toolbar.add(cancel);
+        toolbar.add(readOnly);readOnly.addActionListener(e->{
+            if(!readOnly.isSelected()&&(session==null||session.profile().readOnly()||!confirm.test("Habilitar cambios",tr("La conexión podrá ejecutar instrucciones que modifican datos o estructura. Cada ejecución de cambios pedirá confirmación. ¿Habilitar cambios?")+"\n"+session.profile().name())))readOnly.setSelected(true);
+            if(readOnly.isSelected())for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel)panel.resetReadOnly();updateActions();
+        });
         toolbar.addSeparator();
         toolbar.add(UiLanguage.text(new JLabel(tr("Base: ")), UiLanguage.key("Base: ")));
         database.setPrototypeDisplayValue("base_de_datos_XX");
@@ -310,7 +429,7 @@ public final class QueryPanel extends JPanel {
         database.addActionListener(e -> changeDatabase());
         toolbar.add(database);
         toolbar.addSeparator();
-        toolbar.add(UiLanguage.text(new JLabel(tr("Máx. filas: ")), UiLanguage.key("Máx. filas: ")));
+        toolbar.add(limitRows);limitRows.addActionListener(e->maxRows.setEnabled(limitRows.isSelected()));UiLanguage.tooltip(limitRows,UiLanguage.key("Sin marcar: leer todas las filas que devuelva el SQL. Se respeta LIMIT o TOP del texto."));
         toolbar.add(maxRows);
         toolbar.addSeparator();
         toolbar.add(autoCommit);
@@ -356,6 +475,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void executeSql() {
+        if(!LicenseGate.ensure(this))return;
         if (queryRunning || savingResult || !finishResultEditing() || savingResult || !confirmDiscardResults()) return;
         if (session == null || !session.isOpen()) {
             JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Sin conexión"), JOptionPane.INFORMATION_MESSAGE);
@@ -378,22 +498,31 @@ public final class QueryPanel extends JPanel {
         } else {
             statements = List.of(sql);
         }
-        int limit = ((Number) maxRows.getValue()).intValue();
+        boolean readsOnly=statements.stream().allMatch(SqlExecutionPolicy::readOnly);
+        if(!readsOnly&&(readOnly.isSelected()||session.profile().readOnly())){JOptionPane.showMessageDialog(this,tr("La consulta está en modo Solo lectura. Habilita cambios de forma explícita antes de ejecutar instrucciones de escritura."),tr("Solo lectura"),JOptionPane.INFORMATION_MESSAGE);return;}
+        if(!readsOnly&&!confirm.test("Ejecutar cambios SQL",session.profile().name()+" · "+activeDatabase()+"\n"+tr("Se ejecutarán %s sentencias. Pueden modificar datos o estructura. ¿Continuar?",statements.size())+"\n\n"+sql.substring(0,Math.min(sql.length(),3000))))return;
+        int limit = rowLimit();boolean executeReadOnly=readOnly.isSelected();
         clearResultTabs();
         appendMessage(tr("Ejecutando ") + statements.size() + (statements.size() == 1 ? tr(" sentencia") : tr(" sentencias")), preview(sql));
         if (!incompleteTail.isBlank()) {
             appendMessage(tr("Sentencia omitida"), tr("El texto final no termina en punto y coma:\n") + preview(incompleteTail));
         }
         JdbcSession executingSession = session;
+        String executionDatabase=activeDatabase();
         worker = new SwingWorker<>() {
             @Override protected List<StatementOutcome> doInBackground() throws Exception {
+                executingSession.setReadOnly(executeReadOnly);
                 List<StatementOutcome> outcomes = new ArrayList<>();
                 for (int i = 0; i < statements.size() && !isCancelled(); i++) {
                     String statement = statements.get(i);
+                    long started=System.nanoTime();
                     try {
-                        outcomes.add(new StatementOutcome(i + 1, statement, executingSession.execute(statement, limit), null));
+                        QueryResult result=executingSession.execute(statement,limit);outcomes.add(new StatementOutcome(i+1,statement,result,null));
+                        recordHistory(executingSession,executionDatabase,statement,result.elapsedMillis(),result.hasRows()?result.rows().size():result.updateCount(),"");
                     } catch (Exception error) {
                         outcomes.add(new StatementOutcome(i + 1, statement, null, rootCause(error)));
+                        recordHistory(executingSession,executionDatabase,statement,(System.nanoTime()-started)/1_000_000,0,rootCause(error).getMessage());
+                        if(!readsOnly)break;
                     }
                 }
                 return outcomes;
@@ -445,6 +574,8 @@ public final class QueryPanel extends JPanel {
         worker.execute();
     }
 
+    private void recordHistory(JdbcSession origin,String database,String sql,long millis,long rows,String error){try{history.add(new QueryHistoryStore.Entry(java.time.Instant.now(),origin.profile().name(),database,sql,millis,rows,error==null?"":error));}catch(Exception failure){SwingUtilities.invokeLater(()->statusConsumer.accept(tr("No se pudo guardar el historial SQL.")));}}
+
     private void cancelSql() {
         if (worker == null || worker.isDone() || session == null) return;
         try {
@@ -461,6 +592,7 @@ public final class QueryPanel extends JPanel {
         if(doCommit && hasPendingResultChanges()) {
             JOptionPane.showMessageDialog(this,tr("Pulsa Guardar en los resultados antes de hacer Commit."),tr("Cambios pendientes"),JOptionPane.INFORMATION_MESSAGE);return;
         }
+        if(!confirm.test(doCommit?"Confirmar transacción":"Revertir transacción",tr(doCommit?"¿Confirmar los cambios pendientes de la transacción en esta conexión?":"¿Revertir los cambios pendientes de la transacción en esta conexión?")+"\n"+session.profile().name()))return;
         try {
             if (doCommit) session.commit(); else session.rollback();
             for (int i=0;i<outputTabs.getTabCount();i++) if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && panel.origin()==session) panel.transactionFinished(!doCommit);
@@ -473,6 +605,7 @@ public final class QueryPanel extends JPanel {
     private void changeAutoCommit() {
         if (session == null) return;
         if(savingResult || !finishResultEditing() || savingResult){try{autoCommit.setSelected(session.getAutoCommit());}catch(SQLException ignored){}return;}
+        if(!confirm.test("Cambiar Auto-commit",tr(autoCommit.isSelected()?"Al activar Auto-commit se confirman los cambios de la transacción actual. ¿Continuar?":"Los siguientes cambios requerirán Commit o Rollback. ¿Desactivar Auto-commit?"))){autoCommit.setSelected(!autoCommit.isSelected());return;}
         try {
             session.setAutoCommit(autoCommit.isSelected());
             if(autoCommit.isSelected())for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && panel.origin()==session)panel.transactionFinished(false);
@@ -533,6 +666,7 @@ public final class QueryPanel extends JPanel {
         panel.putClientProperty(RESULT_PROPERTY, result);
         panel.setColumnEditor(columnEditor);
         panel.setExportAction(this::exportData);
+        panel.setWriteEnabled(()->readOnly.setSelected(false));panel.setRowLimit(this::rowLimit);
         panel.setAvailable(session, false);
         int messagesIndex = outputTabs.indexOfComponent(messagesScroll);
         outputTabs.insertTab(uniqueTabName(requestedName), IconFactory.of(IconFactory.Kind.TABLE, 16),
@@ -617,10 +751,12 @@ public final class QueryPanel extends JPanel {
         commit.setEnabled(manual && !running);
         rollback.setEnabled(manual && !running);
         autoCommit.setEnabled(connected && !running);
+        readOnly.setEnabled(connected&&!running&&!session.profile().readOnly());
         export.setEnabled(currentResult != null && currentResult.hasRows());
         database.setEnabled(connected && !running && database.getItemCount() > 1);
         for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel)panel.setAvailable(session,running);
     }
+    private int rowLimit(){return limitRows.isSelected()?((Number)maxRows.getValue()).intValue():Integer.MAX_VALUE;}
 
     private boolean finishResultEditing() {
         for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && !panel.finishEditing())return false;
@@ -898,11 +1034,7 @@ public final class QueryPanel extends JPanel {
         String insertion = !column && selected.contains(".") && token.contains(".") ? selected.substring(selected.lastIndexOf('.') + 1) : selected;
         String typed=token.substring(tail);
         if(column&&columnCompletion!=null&&(!insertion.matches("[\\p{L}_$][\\p{L}\\p{N}_$]*")||sqlKeywords.contains(insertion.toUpperCase(Locale.ROOT))||typed.startsWith("`")||typed.startsWith("\"")||typed.startsWith("[")))insertion=columnCompletion.identifier(insertion);
-        try {
-            editor.getDocument().remove(caret - replaceLength, replaceLength);
-            editor.getDocument().insertString(caret - replaceLength, insertion, null);
-        } catch (Exception ignored) {
-        }
+        String completed=insertion;editor.editAtomically(()->{try{editor.getDocument().remove(caret-replaceLength,replaceLength);editor.getDocument().insertString(caret-replaceLength,completed,null);}catch(Exception ignored){}});
         completionTimer.stop();
         completionPopup.setVisible(false);
         editor.requestFocusInWindow();

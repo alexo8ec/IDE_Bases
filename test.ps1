@@ -7,7 +7,8 @@ $mainClasspath = "$projectRoot\build\classes;$projectRoot\build\lib\flatlaf-3.7.
 if (Test-Path $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
 $tests = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -Filter '*.java' -Recurse | ForEach-Object { $_.FullName }
-& javac -encoding UTF-8 -cp $mainClasspath -d $testRoot $tests
+$issuerSupport = @((Join-Path $projectRoot 'license-issuer/src/com/nexodb/issuer/IssuerAuthority.java'), (Join-Path $projectRoot 'license-issuer/src/com/nexodb/issuer/IssuerVault.java'))
+& javac -encoding UTF-8 -cp $mainClasspath -d $testRoot $tests $issuerSupport
 if ($LASTEXITCODE -ne 0) { throw 'La compilacion de pruebas fallo.' }
 $testClasspath = "$testRoot;$mainClasspath"
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.SqlTextTest
@@ -56,10 +57,22 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de guardado de consultas fallaron.
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de aislamiento de consultas fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.SqlScriptReaderTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del lector de archivos SQL fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.SqlDocumentTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de archivos SQL y deshacer/rehacer fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.licensing.LicenseTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de licencias y autoridad cifrada fallaron.' }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.QueryEditIntegrationTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de escritura y transacciones fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.QueryGridIntegrationTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de la cuadricula editable fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.VisualToolsTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del constructor visual y busqueda fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.CsvJobsIntegrationTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de importacion CSV y tareas fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.QuerySafetyTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de seguridad de consultas fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.WorkbenchToolsWindowTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas visuales de herramientas fallaron.' }
 }
 

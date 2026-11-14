@@ -18,6 +18,7 @@ public final class SqlText {
     public static String currentStatement(String sql, int caret) {
         if (sql == null || sql.isEmpty()) return "";
         int safeCaret = Math.max(0, Math.min(caret, sql.length()));
+        if(safeCaret==sql.length()&&safeCaret>0&&sql.charAt(safeCaret-1)==';')safeCaret--;
         int start = 0;
         int end = sql.length();
         boolean single = false;

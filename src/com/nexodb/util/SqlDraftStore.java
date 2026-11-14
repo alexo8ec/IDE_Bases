@@ -7,7 +7,9 @@ import java.util.*;
 
 /** Local editor buffer only. Restoring a draft never executes SQL or reconnects a database. */
 public final class SqlDraftStore {
-    public record Draft(String text,int caret) {}
+    public record Draft(String text,int caret,String path,String savedHash,String diskHash,String title) {
+        public Draft(String text,int caret){this(text,caret,"","","","");}
+    }
     public record Workspace(java.util.List<Draft> tabs,int activeTab) {
         public Workspace {tabs=java.util.List.copyOf(tabs);if(tabs.isEmpty())tabs=java.util.List.of(new Draft("",0));activeTab=Math.max(0,Math.min(activeTab,tabs.size()-1));}
     }
@@ -32,7 +34,7 @@ public final class SqlDraftStore {
         return Optional.of(new Workspace(tabs,number(values,"activeTab",0)));
     }
     private static int number(Properties values,String key,int fallback){try{return Integer.parseInt(values.getProperty(key,Integer.toString(fallback)));}catch(NumberFormatException ignored){return fallback;}}
-    private static Draft read(Properties values,String prefix){String text=values.getProperty(prefix+"text","");return new Draft(text,Math.max(0,Math.min(number(values,prefix+"caret",0),text.length())));}
+    private static Draft read(Properties values,String prefix){String text=values.getProperty(prefix+"text","");return new Draft(text,Math.max(0,Math.min(number(values,prefix+"caret",0),text.length())),values.getProperty(prefix+"path",""),values.getProperty(prefix+"savedHash",""),values.getProperty(prefix+"diskHash",""),values.getProperty(prefix+"title",""));}
     public synchronized void save(Draft draft)throws IOException {
         saveWorkspace(new Workspace(java.util.List.of(draft),0));
     }
@@ -41,7 +43,7 @@ public final class SqlDraftStore {
         try {
             try{Files.setPosixFilePermissions(temporary,PosixFilePermissions.fromString("rw-------"));}catch(UnsupportedOperationException ignored){}
             Properties values=new Properties();values.setProperty("tabs",Integer.toString(workspace.tabs().size()));values.setProperty("activeTab",Integer.toString(workspace.activeTab()));
-            for(int i=0;i<workspace.tabs().size();i++){Draft draft=workspace.tabs().get(i);values.setProperty("tab."+i+".text",draft.text());values.setProperty("tab."+i+".caret",Integer.toString(Math.max(0,Math.min(draft.caret(),draft.text().length()))));}
+            for(int i=0;i<workspace.tabs().size();i++){Draft draft=workspace.tabs().get(i);String prefix="tab."+i+".";values.setProperty(prefix+"text",draft.text());values.setProperty(prefix+"caret",Integer.toString(Math.max(0,Math.min(draft.caret(),draft.text().length()))));values.setProperty(prefix+"path",draft.path());values.setProperty(prefix+"savedHash",draft.savedHash());values.setProperty(prefix+"diskHash",draft.diskHash());values.setProperty(prefix+"title",draft.title());}
             try(var writer=Files.newBufferedWriter(temporary)){values.store(writer,"NexoDB Studio SQL editor draft");}
             try{Files.move(temporary,file,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}catch(AtomicMoveNotSupportedException error){Files.move(temporary,file,StandardCopyOption.REPLACE_EXISTING);}
         }finally{Files.deleteIfExists(temporary);}

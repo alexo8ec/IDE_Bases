@@ -1,14 +1,14 @@
 /build/
 /dist/*
 !/dist/update-manifest.json
-!/dist/NexoDB-Studio-0.12.0-win64.zip
-!/dist/NexoDB-Studio-0.12.0-linux-x64.deb
-!/dist/NexoDB-Studio-0.12.0-linux-arm64.deb
-!/dist/NexoDB-Studio-0.12.0-macos-x64.zip
-!/dist/NexoDB-Studio-0.12.0-macos-arm64.zip
+!/dist/NexoDB-Studio-0.13.0-win64.zip
+!/dist/NexoDB-Studio-0.13.0-linux-x64.deb
+!/dist/NexoDB-Studio-0.13.0-linux-arm64.deb
+!/dist/NexoDB-Studio-0.13.0-macos-x64.zip
+!/dist/NexoDB-Studio-0.13.0-macos-arm64.zip
 !/dist/installer/
 /dist/installer/*
-!/dist/installer/NexoDB Studio-0.12.0.exe
+!/dist/installer/NexoDB Studio-0.13.0.exe
 /.tools/
 /.github/
 *.log
@@ -19,4 +19,8 @@ __pycache__/
 *.key
 /.signing/
 /.env.signing*
+/license-issuer/build/
+/license-issuer/private-dist/
+*.nexolicense
+*.nxvault
 

@@ -1,18 +1,20 @@
 # Distribución para Windows, Linux y macOS
 
-NexoDB Studio 0.12.0 utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas.
+NexoDB Studio 0.13.0 utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas.
 
 ## Archivos disponibles
 
-Todos incluyen Java 17 para su sistema y arquitectura y corresponden a 0.12.0. Se generan directamente en `dist`, sin copias en otra carpeta de publicación. Los paquetes están sin firma: la distribución macOS firmada queda pendiente de Developer ID y notarización. Consulta la [guía de firma](signing.md).
+Todos incluyen Java 17 para su sistema y arquitectura y corresponden a 0.13.0. Se generan directamente en `dist`, sin copias en otra carpeta de publicación. Al iniciar requieren una licencia vigente, transferible entre equipos, mediante archivo `.nexolicense` o clave completa. Las actualizaciones conservan la licencia del perfil del usuario. El generador administrativo y su autoridad privada se distribuyen por separado y no forman parte de estos paquetes.
+
+Los ejecutables están sin firma comercial: la distribución macOS firmada queda pendiente de Developer ID y notarización. La firma criptográfica de las licencias no firma los ejecutables. Consulta la [guía de firma](signing.md).
 
 | Sistema | Archivo | Instalación |
 | --- | --- | --- |
-| Windows x64 | [NexoDB Studio-0.12.0.exe](../dist/installer/NexoDB%20Studio-0.12.0.exe) | Ejecutar el instalador |
-| Debian/Ubuntu x64 | [NexoDB-Studio-0.12.0-linux-x64.deb](../dist/NexoDB-Studio-0.12.0-linux-x64.deb) | `sudo apt install ./NexoDB-Studio-0.12.0-linux-x64.deb` |
-| Debian/Ubuntu ARM64 | [NexoDB-Studio-0.12.0-linux-arm64.deb](../dist/NexoDB-Studio-0.12.0-linux-arm64.deb) | `sudo apt install ./NexoDB-Studio-0.12.0-linux-arm64.deb` |
-| macOS Intel | [NexoDB-Studio-0.12.0-macos-x64.zip](../dist/NexoDB-Studio-0.12.0-macos-x64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
-| macOS Apple Silicon | [NexoDB-Studio-0.12.0-macos-arm64.zip](../dist/NexoDB-Studio-0.12.0-macos-arm64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
+| Windows x64 | [NexoDB Studio-0.13.0.exe](../dist/installer/NexoDB%20Studio-0.13.0.exe) | Ejecutar el instalador |
+| Debian/Ubuntu x64 | [NexoDB-Studio-0.13.0-linux-x64.deb](../dist/NexoDB-Studio-0.13.0-linux-x64.deb) | `sudo apt install ./NexoDB-Studio-0.13.0-linux-x64.deb` |
+| Debian/Ubuntu ARM64 | [NexoDB-Studio-0.13.0-linux-arm64.deb](../dist/NexoDB-Studio-0.13.0-linux-arm64.deb) | `sudo apt install ./NexoDB-Studio-0.13.0-linux-arm64.deb` |
+| macOS Intel | [NexoDB-Studio-0.13.0-macos-x64.zip](../dist/NexoDB-Studio-0.13.0-macos-x64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
+| macOS Apple Silicon | [NexoDB-Studio-0.13.0-macos-arm64.zip](../dist/NexoDB-Studio-0.13.0-macos-arm64.zip) | Extraer el ZIP y abrir `Instalar NexoDB Studio.command` |
 
 En macOS también puedes arrastrar `NexoDB Studio.app` a Aplicaciones. El comando instala en `~/Applications`. La aplicación no tiene firma Developer ID ni notarización; macOS puede solicitar autorización para abrirla. Estos ZIP contienen una aplicación macOS y su instalador por usuario; no son DMG ni PKG.
 

@@ -21,6 +21,11 @@ final class QueryResultPanel extends JPanel {
     private final String sql;
     private final int limit;
     private final JToggleButton edit = UiLanguage.text(new JToggleButton(),UiLanguage.key("Editar"));
+    private final JComboBox<String> mode=new JComboBox<>(new String[]{"Solo lectura","Editar datos"});
+    private boolean updatingMode;
+    private Runnable writeEnabled=()->{};
+    private java.util.function.IntSupplier rowLimit;
+    private java.util.function.BiPredicate<String,String> confirm=(title,text)->Confirmations.ask(this,title,text);
     private final JButton save = UiLanguage.text(new JButton(),UiLanguage.key("Guardar"));
     private final JButton discard = UiLanguage.text(new JButton(),UiLanguage.key("Descartar"));
     private final JButton setNull = new JButton("NULL");
@@ -37,6 +42,7 @@ final class QueryResultPanel extends JPanel {
     QueryResultPanel(JdbcSession origin, QueryResult result, ResultTableModel model, JTable table, String sql, int limit,
                      Consumer<Boolean> busy, Consumer<String> changed, Consumer<JTable> resize) {
         super(new BorderLayout());this.origin=origin;this.model=model;this.table=table;this.sql=sql;this.limit=limit;
+        rowLimit=()->this.limit;
         this.busy=busy;this.changed=changed;this.resize=resize;
         target=result.editing()==null?null:result.editing().target();
         table.putClientProperty("terminateEditOnFocusLost",Boolean.TRUE);
@@ -52,19 +58,20 @@ final class QueryResultPanel extends JPanel {
         button(discard,"query-discard",IconFactory.Kind.CANCEL,"Descartar cambios");
         button(setNull,"query-null",IconFactory.Kind.DELETE,"Establecer NULL");
         button(reload,"query-reload",IconFactory.Kind.REFRESH,"Recargar consulta");
-        toolbar.add(edit);toolbar.add(save);toolbar.add(discard);toolbar.add(setNull);toolbar.addSeparator();toolbar.add(reload);toolbar.addSeparator();
+        mode.setName("query-result-mode");UiLanguage.choices(mode);mode.setMaximumSize(new Dimension(180,28));toolbar.add(mode);toolbar.add(edit);toolbar.add(save);toolbar.add(discard);toolbar.add(setNull);toolbar.addSeparator();toolbar.add(reload);toolbar.addSeparator();
+        mode.addActionListener(e->{if(!updatingMode){edit.setSelected(mode.getSelectedIndex()==1);toggle();}});
         JButton actions=new JButton("▾");actions.setName("query-actions");UiLanguage.tooltip(actions,UiLanguage.key("Acciones del resultado"));toolbar.add(actions);
         toolbar.add(new JLabel(IconFactory.of(IconFactory.Kind.SEARCH,15)));
         UiLanguage.placeholder(filter,"Filtrar resultados…");filter.setName("query-filter");filter.setMaximumSize(new Dimension(200,28));toolbar.add(filter);
         JPanel footer=new JPanel(new BorderLayout(8,0));footer.setBorder(BorderFactory.createEmptyBorder(4,5,4,5));footer.add(status);footer.add(count,BorderLayout.EAST);
         JScrollPane scroll=new JScrollPane(table);
         grid=new ResultGridActions(table,model,scroll,filter,this::updateCount,changed);
-        grid.editingActions(new ResultGridActions.EditingActions(this::editSelectedCell,()->insertRow(false),this::deleteRows,this::save,this::discardChanges,this::setSelectionValue,()->insertRow(true),()->{if(exportAction!=null)exportAction.run();},this::canWrite,this::hasChanges,this::canEditSelectedCell,()->origin.profile().type()!=com.nexodb.model.DatabaseType.SQLITE,()->exportAction!=null));
+        grid.editingActions(new ResultGridActions.EditingActions(this::editSelectedCell,()->insertRow(false),this::deleteRows,this::save,this::requestDiscard,this::setSelectionValue,()->insertRow(true),()->{if(exportAction!=null)exportAction.run();},this::canWrite,this::hasChanges,this::canEditSelectedCell,()->origin.profile().type()!=com.nexodb.model.DatabaseType.SQLITE,()->exportAction!=null));
         actions.addActionListener(event->grid.showMenu(actions));
         add(toolbar,BorderLayout.NORTH);add(scroll,BorderLayout.CENTER);add(footer,BorderLayout.SOUTH);
         setHint(result);
         edit.addActionListener(event->toggle());save.addActionListener(event->save());
-        discard.addActionListener(event->discardChanges());
+        discard.addActionListener(event->requestDiscard());
         reload.addActionListener(event->reload());
         setNull.addActionListener(event->setSelectionValue(null));
         table.addMouseListener(new MouseAdapter(){public void mouseClicked(MouseEvent event){if(SwingUtilities.isLeftMouseButton(event)&&event.getClickCount()==2){int row=table.rowAtPoint(event.getPoint()),column=table.columnAtPoint(event.getPoint());if(row>=0&&column>=0)editCell(row,column,event);}}});
@@ -76,6 +83,9 @@ final class QueryResultPanel extends JPanel {
     }
     private static void button(AbstractButton button,String name,IconFactory.Kind icon,String hint){button.setName(name);button.setIcon(IconFactory.of(icon,16));UiLanguage.tooltip(button,UiLanguage.key(hint));}
     JdbcSession origin(){return origin;}
+    void setWriteEnabled(Runnable callback){writeEnabled=callback;}
+    void setRowLimit(java.util.function.IntSupplier supplier){rowLimit=supplier;}
+    void resetReadOnly(){finishEditing();edit.setSelected(false);updateActions();}
     void setExportAction(Runnable action){exportAction=action;}
     void setColumnEditor(ColumnEditor editor){
         if(editor!=null&&target!=null)grid.columnEditor((column,delete)->{
@@ -104,25 +114,28 @@ final class QueryResultPanel extends JPanel {
     }
     private void setHint(QueryResult result){
         if(target==null){String reason=result.editing()==null?"Este resultado es de solo lectura.":result.editing().reason();UiLanguage.text(status,UiLanguage.key(reason));UiLanguage.tooltip(status,UiLanguage.key(reason));}
-        else UiLanguage.text(status,UiLanguage.key("Doble clic para editar. Clic derecho o ▾ para acciones. Pulsa Guardar para aplicar."));
+        else UiLanguage.text(status,UiLanguage.key("Selecciona Editar datos para habilitar cambios. Después usa doble clic y pulsa Guardar para aplicar."));
     }
     private void updateCount(){UiLanguage.text(count,UiLanguage.key("Filas: "),table.getRowCount(),UiLanguage.key(" · Marcadas: "),grid==null?0:grid.checkedCount(),UiLanguage.key(" · Cambios: "),model.changeCount());}
     private void updateActions(){
-        boolean enabled=available&&!saving&&target!=null;
+        boolean enabled=available&&!saving&&target!=null&&!origin.profile().readOnly();
         edit.setEnabled(enabled&&!stale);model.setEditable(enabled&&!stale&&edit.isSelected());
-        save.setEnabled(enabled&&!stale&&hasChanges());discard.setEnabled(available&&!saving&&hasChanges());reload.setEnabled(enabled);
+        mode.setEnabled(enabled&&!stale);updatingMode=true;try{mode.setSelectedIndex(edit.isSelected()?1:0);}finally{updatingMode=false;}
+        save.setEnabled(enabled&&!stale&&edit.isSelected()&&hasChanges());discard.setEnabled(available&&!saving&&hasChanges());reload.setEnabled(available&&!saving&&target!=null);
         int row=table.getSelectedRow(),column=table.getSelectedColumn();
         setNull.setEnabled(canEditSelectedCell());
         updateCount();
     }
     private void toggle(){
         if(!edit.isSelected()){finishEditing();updateActions();return;}
-        try {origin.setReadOnly(false);setHint(model.definition());updateActions();}
+        if(!LicenseGate.ensure(this)){edit.setSelected(false);updateActions();return;}
+        if(origin.profile().readOnly()||!confirm.test("Habilitar edición de datos",origin.profile().name()+"\n"+target.qualifiedTable()+"\n"+tr("Podrás modificar, agregar o marcar filas para eliminar. Los cambios se aplican al pulsar Guardar. ¿Habilitar edición?"))){edit.setSelected(false);updateActions();return;}
+        try {origin.setReadOnly(false);writeEnabled.run();setHint(model.definition());updateActions();}
         catch(Exception error){edit.setSelected(false);updateActions();showError(error,"No se pudo activar la edición");}
     }
-    private boolean canWrite(){return available&&!saving&&!stale&&target!=null;}
+    private boolean canWrite(){return available&&!saving&&!stale&&target!=null&&!origin.profile().readOnly()&&edit.isSelected();}
     private boolean canEditSelectedCell(){int row=table.getSelectedRow(),column=table.getSelectedColumn();return canWrite()&&row>=0&&column>=0&&!model.isDeleted(table.convertRowIndexToModel(row))&&target.columns().get(table.convertColumnIndexToModel(column)).writable();}
-    private boolean enableEditing(){if(!canWrite())return false;if(!edit.isSelected()){edit.setSelected(true);toggle();}return edit.isSelected();}
+    private boolean enableEditing(){return canWrite();}
     private void editSelectedCell(){editCell(table.getSelectedRow(),table.getSelectedColumn(),null);}
     private void editCell(int row,int column,EventObject event){
         if(row<0||column<0||!canWrite()||!target.columns().get(table.convertColumnIndexToModel(column)).writable()||model.isDeleted(table.convertRowIndexToModel(row))||!enableEditing())return;
@@ -131,25 +144,28 @@ final class QueryResultPanel extends JPanel {
         table.changeSelection(row,column,false,false);
         if(table.editCellAt(row,column,event)&&table.getEditorComponent() instanceof JTextField field){field.requestFocusInWindow();field.selectAll();}
     }
-    private void setSelectionValue(Object value){if(!canEditSelectedCell()||!finishEditing()||!enableEditing())return;model.setValues(grid.selectedRows(),grid.selectedColumns(),value);}
+    private void setSelectionValue(Object value){if(!canEditSelectedCell()||!finishEditing()||!enableEditing())return;if(!confirm.test("Cambiar valores seleccionados",target.qualifiedTable()+"\n"+tr("Se asignará %s a las celdas seleccionadas. Se aplicará al pulsar Guardar. ¿Continuar?",value==null?"NULL":value==QueryEditSupport.DefaultValue.INSTANCE?"DEFAULT":value.toString().isEmpty()?tr("cadena vacía"):value.toString())))return;model.setValues(grid.selectedRows(),grid.selectedColumns(),value);}
+    private void requestDiscard(){if(!hasChanges()||confirm.test("Descartar cambios",tr("Se perderán %s cambios pendientes del resultado. Los datos de la base no se modificarán. ¿Descartar?",model.changeCount())))discardChanges();}
     private void discardChanges(){cancelEditing();grid.clearChecked();model.discard();setHint(model.definition());}
     private void insertRow(boolean duplicate){
         if(!finishEditing()||!enableEditing())return;
+        if(!confirm.test(duplicate?"Duplicar fila":"Agregar fila",target.qualifiedTable()+"\n"+tr(duplicate?"Se duplicará la fila seleccionada en el resultado. Se insertará al pulsar Guardar. ¿Continuar?":"Se agregará una fila al resultado. Se insertará al pulsar Guardar. ¿Continuar?")))return;
         int selected=table.getSelectedRow();if(duplicate&&selected<0)return;
         int row=model.insertRow(duplicate?table.convertRowIndexToModel(selected):null);grid.clearChecked();
         if(row>=0){int view=table.convertRowIndexToView(row);if(view>=0){table.setRowSelectionInterval(view,view);int column=0;while(column<table.getColumnCount()&&!model.isCellEditable(row,table.convertColumnIndexToModel(column)))column++;if(column<table.getColumnCount()){table.setColumnSelectionInterval(column,column);table.scrollRectToVisible(table.getCellRect(view,column,true));editCell(view,column,null);}}}
     }
-    private void deleteRows(){if(!finishEditing()||!enableEditing())return;List<Integer> rows=grid.selectedRows();grid.clearChecked();model.deleteRows(rows);UiLanguage.text(status,UiLanguage.key("Filas marcadas para eliminar. Pulsa Guardar para aplicar o Cancelar para deshacer."));}
+    private void deleteRows(){if(!finishEditing()||!enableEditing())return;List<Integer> rows=grid.selectedRows();if(rows.isEmpty()||!confirm.test("Marcar filas para eliminar",tr("Se marcarán %s filas para eliminar de %s. La eliminación se aplicará al pulsar Guardar. ¿Continuar?",rows.size(),target.qualifiedTable())))return;grid.clearChecked();model.deleteRows(rows);UiLanguage.text(status,UiLanguage.key("Filas marcadas para eliminar. Pulsa Guardar para aplicar o Cancelar para deshacer."));}
     private record SaveOutcome(QueryEditSupport.BatchSaved saved,QueryResult fresh,Exception refreshError){}
     private void save(){
+        if(!LicenseGate.ensure(this))return;
         if(!available||saving||stale||!finishEditing())return;
         List<QueryEditSupport.RowChange> changes=model.changes();if(changes.isEmpty())return;
         long deletes=changes.stream().filter(row->row.kind()==QueryEditSupport.ChangeKind.DELETE).count();
-        if(deletes>0&&JOptionPane.showConfirmDialog(this,tr("Se eliminarán %s filas de %s. ¿Guardar estos cambios?",deletes,target.qualifiedTable()),tr("Confirmar eliminación"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)!=JOptionPane.YES_OPTION)return;
+        if(!canWrite()||!confirm.test("Guardar cambios en la base",origin.profile().name()+"\n"+target.qualifiedTable()+"\n"+tr("Se aplicarán %s cambios, incluidas %s eliminaciones. ¿Guardar en la base de datos?",changes.size(),deletes)))return;
         boolean refresh=changes.stream().anyMatch(row->row.kind()!=QueryEditSupport.ChangeKind.UPDATE||row.values().containsValue(QueryEditSupport.DefaultValue.INSTANCE));
         start();UiLanguage.text(status,UiLanguage.key("Guardando cambios…"));
         new SwingWorker<SaveOutcome,Void>() {
-            protected SaveOutcome doInBackground()throws Exception{var saved=QueryEditSupport.saveChanges(origin.connection(),target,changes);if(refresh)try{return new SaveOutcome(saved,origin.execute(QueryEditSupport.qualifiedSelect(sql,target),limit),null);}catch(Exception error){return new SaveOutcome(saved,null,error);}return new SaveOutcome(saved,null,null);}
+            protected SaveOutcome doInBackground()throws Exception{var saved=QueryEditSupport.saveChanges(origin.connection(),target,changes);if(refresh)try{return new SaveOutcome(saved,origin.execute(QueryEditSupport.qualifiedSelect(sql,target),rowLimit.getAsInt()),null);}catch(Exception error){return new SaveOutcome(saved,null,error);}return new SaveOutcome(saved,null,null);}
             protected void done(){
                 try {
                     SaveOutcome outcome=get();QueryEditSupport.BatchSaved saved=outcome.saved();pendingCommit|=saved.pendingCommit();
@@ -167,7 +183,7 @@ final class QueryResultPanel extends JPanel {
         if(!available||saving||target==null||!confirmDiscard())return;
         String qualified=QueryEditSupport.qualifiedSelect(sql,target);start();UiLanguage.text(status,UiLanguage.key("Recargando consulta…"));
         new SwingWorker<QueryResult,Void>() {
-            protected QueryResult doInBackground()throws Exception{return origin.execute(qualified,limit);}
+            protected QueryResult doInBackground()throws Exception{return origin.execute(qualified,rowLimit.getAsInt());}
             protected void done(){
                 try{QueryResult fresh=get();grid.clearChecked();model.setResult(fresh);target=fresh.editing()==null?null:fresh.editing().target();stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);}
                 catch(Exception error){showError(error,"Error al ejecutar la consulta");}finally{end();}

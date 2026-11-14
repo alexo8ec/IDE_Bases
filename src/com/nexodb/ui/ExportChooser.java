@@ -45,6 +45,7 @@ public final class ExportChooser {
                     JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
             if (replace != JOptionPane.YES_OPTION) return null;
         }
+        if(!Confirmations.ask(owner,"Exportar datos",format+"\n"+selected+"\n"+tr("Se guardará el resultado en este archivo. ¿Exportar?")))return null;
         return new Request(selected.toPath(), format);
     }
 

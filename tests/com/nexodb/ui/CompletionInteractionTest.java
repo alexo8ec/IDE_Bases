@@ -22,6 +22,7 @@ public final class CompletionInteractionTest {
                 accept.setAccessible(true);
                 accept.invoke(panel);
                 if (!"SELECT".equals(editor.getText())) throw new AssertionError("Completion was not inserted: " + editor.getText());
+                editor.undoEdit();if(!"sele".equals(editor.getText()))throw new AssertionError("Completion must undo in one step: "+editor.getText());editor.redoEdit();
                 editor.setText("");
                 editor.getDocument().insertString(0, "select ", null);
                 if (!"SELECT ".equals(editor.getText())) throw new AssertionError("Keyword was not uppercased: " + editor.getText());

@@ -179,6 +179,7 @@ public final class UserManagerDialog extends JDialog {
     }
 
     private void executeChange(String running, String sql, String success) {
+        if(session.profile().readOnly()||!LicenseGate.ensure(this)||!Confirmations.ask(this,"Modificar usuarios o permisos",session.profile().name()+"\n"+sql.replaceAll("(?is)IDENTIFIED\\s+BY\\s+.*","IDENTIFIED BY [oculta]")+"\n"+tr("¿Aplicar esta operación de administración?")))return;
         run(running, () -> {
             session.setReadOnly(false);
             try (Statement statement = session.connection().createStatement()) { statement.execute(sql); }

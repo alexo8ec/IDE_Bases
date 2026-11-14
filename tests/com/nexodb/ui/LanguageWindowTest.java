@@ -37,8 +37,9 @@ public final class LanguageWindowTest {
                     int listeners = connect.getActionListeners().length;
                     JTextField user = field(dialog, "username", JTextField.class); user.setText("Usuario");
                     equal("Archivo", menu.getMenu(0).getText());
+                    JMenu preferencesMenu=menu(menu,"Preferencias"),powerMenu=menu(menu,"Herramientas avanzadas");
                     PreferencesDialog.apply("en", "light");
-                    equal("File", menu.getMenu(0).getText()); equal("Preferences", menu.getMenu(4).getText());
+                    equal("File", menu.getMenu(0).getText()); equal("Preferences",preferencesMenu.getText());equal("Power tools",powerMenu.getText());
                     equal("Connect", connect.getText()); equal("New connection", dialog.getTitle()); equal("Usuario", user.getText());
                     equal("Execute", field(query, "execute", JButton.class).getText());
                     equal(sql, editor.getText());
@@ -68,5 +69,6 @@ public final class LanguageWindowTest {
         Files.createDirectories(Path.of("build/previews")); ImageIO.write(image, "png", Path.of("build/previews", file).toFile());
     }
     private static void equal(Object a, Object b) { if (!Objects.equals(a,b)) throw new AssertionError("Expected ["+a+"] got ["+b+"]"); }
+    private static JMenu menu(JMenuBar bar,String title){for(int i=0;i<bar.getMenuCount();i++)if(bar.getMenu(i).getText().equals(title))return bar.getMenu(i);throw new AssertionError("Missing menu "+title);}
     private static <T> T field(Object target, String name, Class<T> type) throws Exception { Field field=target.getClass().getDeclaredField(name); field.setAccessible(true); return type.cast(field.get(target)); }
 }
