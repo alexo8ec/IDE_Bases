@@ -7,7 +7,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public record QueryResult(List<String> columns, List<List<Object>> rows, int updateCount, long elapsedMillis, boolean truncated,
-                          QueryEditSupport.Eligibility editing) {
+                          QueryEditSupport.Eligibility editing, List<Origin> origins) {
+    public record Origin(String catalog,String schema,String table,String column) {}
+    public QueryResult { origins=origins==null?List.of():List.copyOf(origins); }
+    public QueryResult(List<String> columns,List<List<Object>> rows,int updateCount,long elapsedMillis,boolean truncated,QueryEditSupport.Eligibility editing){this(columns,rows,updateCount,elapsedMillis,truncated,editing,List.of());}
     public QueryResult(List<String> columns, List<List<Object>> rows, int updateCount, long elapsedMillis, boolean truncated) {
         this(columns, rows, updateCount, elapsedMillis, truncated, null);
     }
@@ -15,9 +18,12 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
         ResultSetMetaData metadata = resultSet.getMetaData();
         int columnCount = metadata.getColumnCount();
         List<String> columns = new ArrayList<>(columnCount);
+        List<Origin> origins = new ArrayList<>(columnCount);
         for (int i = 1; i <= columnCount; i++) {
             String label = metadata.getColumnLabel(i);
             columns.add(label == null || label.isBlank() ? metadata.getColumnName(i) : label);
+            try {origins.add(new Origin(metadata.getCatalogName(i),metadata.getSchemaName(i),metadata.getTableName(i),metadata.getColumnName(i)));}
+            catch(SQLException | AbstractMethodError unavailable){origins.add(new Origin("","","",""));}
         }
         List<List<Object>> rows = new ArrayList<>();
         boolean truncated = false;
@@ -30,7 +36,7 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
             for (int i = 1; i <= columnCount; i++) row.add(displayValue(readValue(resultSet, metadata, i)));
             rows.add(row);
         }
-        return new QueryResult(List.copyOf(columns), List.copyOf(rows), -1, 0, truncated);
+        return new QueryResult(List.copyOf(columns), List.copyOf(rows), -1, 0, truncated,null,origins);
     }
 
     public static QueryResult update(int count, long elapsed) {
@@ -38,11 +44,11 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
     }
 
     public QueryResult withElapsed(long elapsed) {
-        return new QueryResult(columns, rows, updateCount, elapsed, truncated, editing);
+        return new QueryResult(columns, rows, updateCount, elapsed, truncated, editing,origins);
     }
 
     public QueryResult withEditing(QueryEditSupport.Eligibility eligibility) {
-        return new QueryResult(columns, rows, updateCount, elapsedMillis, truncated, eligibility);
+        return new QueryResult(columns, rows, updateCount, elapsedMillis, truncated, eligibility,origins);
     }
 
     public boolean hasRows() { return !columns.isEmpty(); }

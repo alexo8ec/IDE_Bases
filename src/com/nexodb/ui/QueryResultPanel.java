@@ -8,6 +8,7 @@ import java.awt.event.*;
 import java.awt.font.TextAttribute;
 import java.util.EventObject;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import static com.nexodb.util.I18n.tr;
 
@@ -38,6 +39,9 @@ final class QueryResultPanel extends JPanel {
     private final ResultGridActions grid;
     private Runnable exportAction;
     private boolean available, saving, pendingCommit, stale;
+    private List<ForeignKeyLookup.Reference> references=List.of();
+    private final JButton referenceButton=UiLanguage.button("Ver referencia");
+    private int referenceGeneration;
 
     QueryResultPanel(JdbcSession origin, QueryResult result, ResultTableModel model, JTable table, String sql, int limit,
                      Consumer<Boolean> busy, Consumer<String> changed, Consumer<JTable> resize) {
@@ -48,7 +52,7 @@ final class QueryResultPanel extends JPanel {
         table.putClientProperty("terminateEditOnFocusLost",Boolean.TRUE);
         table.setDefaultEditor(Object.class,new DefaultCellEditor(new JTextField()){
             private Object original;
-            public Component getTableCellEditorComponent(JTable grid,Object value,boolean selected,int row,int column){original=value;return super.getTableCellEditorComponent(grid,value==QueryEditSupport.DefaultValue.INSTANCE?"":value,selected,row,column);}
+            public Component getTableCellEditorComponent(JTable grid,Object value,boolean selected,int row,int column){original=value;Component field=super.getTableCellEditorComponent(grid,value==QueryEditSupport.DefaultValue.INSTANCE?"":value,selected,row,column);int modelRow=grid.convertRowIndexToModel(row),modelColumn=grid.convertColumnIndexToModel(column);if(!hasReference(modelColumn))return field;JPanel panel=new JPanel(new BorderLayout());panel.add(field);JButton lookup=new JButton("…");lookup.setName("reference-cell-button");lookup.setMargin(new Insets(0,5,0,5));lookup.addActionListener(e->{if(stopCellEditing())openReferenceModel(modelRow,modelColumn);});panel.add(lookup,BorderLayout.EAST);return panel;}
             public Object getCellEditorValue(){Object value=super.getCellEditorValue();return "".equals(value)&&(original==null||original==QueryEditSupport.DefaultValue.INSTANCE)?original:value;}
         });
         table.setDefaultRenderer(Object.class,new CellRenderer());
@@ -67,6 +71,9 @@ final class QueryResultPanel extends JPanel {
         JScrollPane scroll=new JScrollPane(table);
         grid=new ResultGridActions(table,model,scroll,filter,this::updateCount,changed);
         grid.editingActions(new ResultGridActions.EditingActions(this::editSelectedCell,()->insertRow(false),this::deleteRows,this::save,this::requestDiscard,this::setSelectionValue,()->insertRow(true),()->{if(exportAction!=null)exportAction.run();},this::canWrite,this::hasChanges,this::canEditSelectedCell,()->origin.profile().type()!=com.nexodb.model.DatabaseType.SQLITE,()->exportAction!=null));
+        grid.referenceAction(()->openReference(table.getSelectedRow(),table.getSelectedColumn()),()->table.getSelectedColumn()>=0&&hasReference(table.convertColumnIndexToModel(table.getSelectedColumn())));
+        referenceButton.setName("query-reference");referenceButton.setIcon(IconFactory.of(IconFactory.Kind.KEY,16));referenceButton.addActionListener(e->openReference(table.getSelectedRow(),table.getSelectedColumn()));toolbar.add(referenceButton);
+        TableCellRenderer normalHeader=table.getTableHeader().getDefaultRenderer();table.getTableHeader().setDefaultRenderer((t,v,s,f,r,c)->{Component component=normalHeader.getTableCellRendererComponent(t,v,s,f,r,c);if(component instanceof JLabel label){int index=table.convertColumnIndexToModel(c);label.setIcon(hasReference(index)?IconFactory.of(IconFactory.Kind.KEY,14):null);label.setToolTipText(references.stream().filter(ref->ref.contains(index)).map(ref->ref.label()+" · "+String.join(", ",ref.parts().stream().map(p->p.local()+" → "+p.referenced()).toList())).collect(java.util.stream.Collectors.joining("; ")));}return component;});
         actions.addActionListener(event->grid.showMenu(actions));
         add(toolbar,BorderLayout.NORTH);add(scroll,BorderLayout.CENTER);add(footer,BorderLayout.SOUTH);
         setHint(result);
@@ -75,11 +82,14 @@ final class QueryResultPanel extends JPanel {
         reload.addActionListener(event->reload());
         setNull.addActionListener(event->setSelectionValue(null));
         table.addMouseListener(new MouseAdapter(){public void mouseClicked(MouseEvent event){if(SwingUtilities.isLeftMouseButton(event)&&event.getClickCount()==2){int row=table.rowAtPoint(event.getPoint()),column=table.columnAtPoint(event.getPoint());if(row>=0&&column>=0)editCell(row,column,event);}}});
+        table.addMouseListener(new MouseAdapter(){public void mouseClicked(MouseEvent e){int row=table.rowAtPoint(e.getPoint()),col=table.columnAtPoint(e.getPoint());if(SwingUtilities.isLeftMouseButton(e)&&e.getClickCount()==1&&row>=0&&col>=0&&hasReference(table.convertColumnIndexToModel(col))){Rectangle cell=table.getCellRect(row,col,false);if(e.getX()>=cell.x+cell.width-44&&e.getX()<cell.x+cell.width-18)openReference(row,col);}}});
+        table.getInputMap().put(KeyStroke.getKeyStroke("control SPACE"),"lookup-reference");table.getActionMap().put("lookup-reference",new AbstractAction(){public void actionPerformed(ActionEvent e){openReference(table.getSelectedRow(),table.getSelectedColumn());}});
         table.getInputMap().put(KeyStroke.getKeyStroke("F2"),"edit-result-cell");table.getActionMap().put("edit-result-cell",new AbstractAction(){public void actionPerformed(ActionEvent event){editSelectedCell();}});
         table.getSelectionModel().addListSelectionListener(event->updateActions());
         table.getColumnModel().getSelectionModel().addListSelectionListener(event->updateActions());
         model.onChange(()->{updateActions();table.repaint();});
         setAvailable(origin,false);
+        loadReferences();
     }
     private static void button(AbstractButton button,String name,IconFactory.Kind icon,String hint){button.setName(name);button.setIcon(IconFactory.of(icon,16));UiLanguage.tooltip(button,UiLanguage.key(hint));}
     JdbcSession origin(){return origin;}
@@ -124,6 +134,7 @@ final class QueryResultPanel extends JPanel {
         save.setEnabled(enabled&&!stale&&edit.isSelected()&&hasChanges());discard.setEnabled(available&&!saving&&hasChanges());reload.setEnabled(available&&!saving&&target!=null);
         int row=table.getSelectedRow(),column=table.getSelectedColumn();
         setNull.setEnabled(canEditSelectedCell());
+        referenceButton.setEnabled(available&&!saving&&column>=0&&hasReference(table.convertColumnIndexToModel(column))&&row>=0);
         updateCount();
     }
     private void toggle(){
@@ -136,6 +147,29 @@ final class QueryResultPanel extends JPanel {
     private boolean canWrite(){return available&&!saving&&!stale&&target!=null&&!origin.profile().readOnly()&&edit.isSelected();}
     private boolean canEditSelectedCell(){int row=table.getSelectedRow(),column=table.getSelectedColumn();return canWrite()&&row>=0&&column>=0&&!model.isDeleted(table.convertRowIndexToModel(row))&&target.columns().get(table.convertColumnIndexToModel(column)).writable();}
     private boolean enableEditing(){return canWrite();}
+    private boolean hasReference(int column){return references.stream().anyMatch(r->r.contains(column));}
+    private void loadReferences(){
+        int generation=++referenceGeneration;references=List.of();if(origin==null||!origin.isOpen())return;
+        QueryResult definition=model.definition();
+        new SwingWorker<List<ForeignKeyLookup.Reference>,Void>(){
+            protected List<ForeignKeyLookup.Reference> doInBackground()throws Exception{return ForeignKeyLookup.describe(origin.connection(),definition);}
+            protected void done(){if(generation!=referenceGeneration||model.definition()!=definition)return;try{references=get();}catch(Exception unavailable){UiLanguage.tooltip(referenceButton,UiLanguage.key("No se pudieron leer las claves foráneas. Comprueba los permisos de metadatos."));}table.getTableHeader().repaint();table.repaint();updateActions();}
+        }.execute();
+    }
+    private void openReference(int viewRow,int viewColumn){
+        if(viewRow<0||viewColumn<0)return;int row=table.convertRowIndexToModel(viewRow),column=table.convertColumnIndexToModel(viewColumn);if(finishEditing())openReferenceModel(row,column);
+    }
+    private void openReferenceModel(int row,int column){
+        if(!available||saving||row<0||row>=model.getRowCount())return;
+        List<ForeignKeyLookup.Reference> matches=references.stream().filter(r->r.contains(column)).toList();if(matches.isEmpty())return;
+        ForeignKeyLookup.Reference reference=matches.get(0);
+        if(matches.size()>1){Object chosen=JOptionPane.showInputDialog(this,tr("Selecciona la relación que deseas consultar."),tr("Registro relacionado"),JOptionPane.QUESTION_MESSAGE,null,matches.stream().map(ForeignKeyLookup.Reference::label).toArray(),reference.label());if(chosen==null)return;for(var candidate:matches)if(candidate.label().equals(chosen)){reference=candidate;break;}}
+        boolean writable=canWrite()&&!model.isDeleted(row)&&reference.complete()&&reference.parts().stream().allMatch(p->model.isCellEditable(row,p.column()));
+        List<Object> values=new java.util.ArrayList<>();for(int i=0;i<model.getColumnCount();i++)values.add(model.getValueAt(row,i));
+        Map<Integer,Object> chosen=new ForeignKeyLookupDialog(SwingUtilities.getWindowAncestor(this),origin,reference,values,column,writable).showSelection();
+        if(chosen==null||!writable||!canWrite()||!confirm.test("Cambiar referencia",reference.childTable()+" → "+reference.parentTable()+"\n"+tr("Se actualizarán juntas las columnas de esta relación en el borrador. Pulsa Guardar para aplicar a la base. ¿Continuar?")))return;
+        model.setReference(row,chosen);
+    }
     private void editSelectedCell(){editCell(table.getSelectedRow(),table.getSelectedColumn(),null);}
     private void editCell(int row,int column,EventObject event){
         if(row<0||column<0||!canWrite()||!target.columns().get(table.convertColumnIndexToModel(column)).writable()||model.isDeleted(table.convertRowIndexToModel(row))||!enableEditing())return;
@@ -169,7 +203,7 @@ final class QueryResultPanel extends JPanel {
             protected void done(){
                 try {
                     SaveOutcome outcome=get();QueryEditSupport.BatchSaved saved=outcome.saved();pendingCommit|=saved.pendingCommit();
-                    if(outcome.fresh()!=null){grid.clearChecked();model.setResult(outcome.fresh());target=outcome.fresh().editing()==null?null:outcome.fresh().editing().target();resize.accept(table);}
+                    if(outcome.fresh()!=null){grid.clearChecked();model.setResult(outcome.fresh());target=outcome.fresh().editing()==null?null:outcome.fresh().editing().target();resize.accept(table);loadReferences();}
                     else if(outcome.refreshError()!=null){grid.clearChecked();model.discard();stale=true;edit.setSelected(false);UiLanguage.text(status,UiLanguage.key("Los cambios se guardaron, pero no se pudo recargar el resultado. Pulsa Recargar."));showError(outcome.refreshError(),"No se pudo recargar el resultado");return;}
                     else model.accept(saved.rows());
                     UiLanguage.text(status,UiLanguage.key(saved.pendingCommit()?"Cambio aplicado · pendiente de Commit":"Cambio guardado"));
@@ -185,7 +219,7 @@ final class QueryResultPanel extends JPanel {
         new SwingWorker<QueryResult,Void>() {
             protected QueryResult doInBackground()throws Exception{return origin.execute(qualified,rowLimit.getAsInt());}
             protected void done(){
-                try{QueryResult fresh=get();grid.clearChecked();model.setResult(fresh);target=fresh.editing()==null?null:fresh.editing().target();stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);}
+                try{QueryResult fresh=get();grid.clearChecked();model.setResult(fresh);target=fresh.editing()==null?null:fresh.editing().target();stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);loadReferences();}
                 catch(Exception error){showError(error,"Error al ejecutar la consulta");}finally{end();}
             }
         }.execute();
@@ -194,7 +228,7 @@ final class QueryResultPanel extends JPanel {
     private void end(){saving=false;busy.accept(false);updateActions();}
     private void showError(Throwable error,String title){while(error.getCause()!=null)error=error.getCause();JOptionPane.showMessageDialog(this,error.getMessage(),tr(title),JOptionPane.ERROR_MESSAGE);}
     private final class CellRenderer extends DefaultTableCellRenderer {
-        private boolean arrow;
+        private boolean arrow,reference;
         public Component getTableCellRendererComponent(JTable grid,Object value,boolean selected,boolean focus,int row,int column){
             int index=grid.convertRowIndexToModel(row);boolean marked=QueryResultPanel.this.grid!=null&&QueryResultPanel.this.grid.isMarked(index);
             super.getTableCellRendererComponent(grid,value,selected||marked,focus,row,column);
@@ -202,9 +236,9 @@ final class QueryResultPanel extends JPanel {
             if(model.isDeleted(index))font=font.deriveFont(java.util.Map.of(TextAttribute.STRIKETHROUGH,TextAttribute.STRIKETHROUGH_ON));setFont(font);setText(value==null?"(NULL)":String.valueOf(value));
             boolean dirty=model.isChanged(index,grid.convertColumnIndexToModel(column)),dark=com.formdev.flatlaf.FlatLaf.isLafDark();
             if(!selected&&!marked){Color background=UIManager.getColor("Table.background");setBackground(model.isDeleted(index)?(dark?new Color(85,34,34):new Color(255,221,221)):model.isNewRow(index)?(dark?new Color(25,69,49):new Color(222,247,230)):dirty?(dark?new Color(83,67,22):new Color(255,243,190)):background);setForeground(UIManager.getColor("Table.foreground"));}
-            arrow=row==grid.getSelectedRow()&&column==grid.getSelectedColumn();if(arrow)setBorder(BorderFactory.createCompoundBorder(getBorder(),BorderFactory.createEmptyBorder(0,0,0,18)));
+            arrow=row==grid.getSelectedRow()&&column==grid.getSelectedColumn();reference=arrow&&hasReference(grid.convertColumnIndexToModel(column));if(arrow)setBorder(BorderFactory.createCompoundBorder(getBorder(),BorderFactory.createEmptyBorder(0,0,0,reference?44:18)));
             setToolTipText(model.isDeleted(index)?tr("Fila pendiente de eliminar"):dirty?tr("Cambio sin guardar"):arrow?tr("Doble clic para editar; clic en ▾ para abrir el menú."):null);return this;
         }
-        protected void paintComponent(Graphics graphics){super.paintComponent(graphics);if(arrow){graphics.setColor(getForeground());int x=getWidth()-12,y=getHeight()/2;graphics.drawLine(x-3,y-1,x,y+2);graphics.drawLine(x,y+2,x+3,y-1);}}
+        protected void paintComponent(Graphics graphics){super.paintComponent(graphics);if(arrow){graphics.setColor(getForeground());int x=getWidth()-12,y=getHeight()/2;graphics.drawLine(x-3,y-1,x,y+2);graphics.drawLine(x,y+2,x+3,y-1);if(reference)graphics.drawString("…",getWidth()-36,y+4);}}
     }
 }

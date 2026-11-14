@@ -30,6 +30,8 @@ final class ResultGridActions {
     private final Consumer<String> copied;
     private ColumnEditor columnEditor;
     private EditingActions editing;
+    private Runnable reference;private BooleanSupplier hasReference=()->false;
+    void referenceAction(Runnable action,BooleanSupplier available){reference=action;hasReference=available;}
 
     ResultGridActions(JTable table,ResultTableModel model,JScrollPane scroll,JTextField search,Runnable changed,Consumer<String> copied){
         this.table=table;this.model=model;this.search=search;this.changed=changed;this.copied=copied;
@@ -125,6 +127,7 @@ final class ResultGridActions {
     private int column(){int column=table.getSelectedColumn();return column<0?-1:table.convertColumnIndexToModel(column);}
     private JPopupMenu menu(boolean heading){
         JPopupMenu menu=new JPopupMenu();int column=column();
+        if(!heading&&reference!=null&&hasReference.getAsBoolean()){action(menu,"Ver registro relacionado…",reference,true);menu.addSeparator();}
         if(!heading&&editing!=null){
             boolean writable=editing.canEdit().getAsBoolean(),cell=editing.canSetValue().getAsBoolean();
             action(menu,"Editar celda",editing.edit(),cell);action(menu,"Insertar nueva fila",editing.insert(),writable);

@@ -46,6 +46,8 @@ final class MobileBackend {
             case "result.export"->{var result=result(p.getString("resultId"));String format=p.optString("format","CSV");if(!activity.ask("Exportar resultados",result.rows().size()+" filas. ¿Guardar el archivo?"))throw cancelled();java.nio.file.Path path=java.nio.file.Files.createTempFile(activity.getCacheDir().toPath(),"export-",".tmp");DataExporter.write(result,path,DataExporter.Format.valueOf(format),p.optString("table","resultado"));documents.export(path,"resultado."+format.toLowerCase(Locale.ROOT));yield true;}
             case "update.check"->update.check();
             case "update.download"->update.download();
+            case "update.status"->update.status();
+            case "update.resume"->update.resume();
             default->tools.call(method,p);
         };
     }

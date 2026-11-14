@@ -33,7 +33,7 @@ public final class ResultTableModel extends AbstractTableModel {
     public void accept(List<QueryEditSupport.RowChange> saved){
         List<List<Object>> originals=new ArrayList<>(result.rows());
         for(var row:saved){if(row.kind()!=UPDATE)throw new IllegalArgumentException("Row mutations require a refreshed result");List<Object> original=new ArrayList<>(originals.get(row.row()));for(var cell:row.values().entrySet()){rows.get(row.row()).set(cell.getKey(),cell.getValue());original.set(cell.getKey(),cell.getValue());}originals.set(row.row(),original);}
-        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing());pending.clear();deleted.clear();fireTableDataChanged();changed.run();
+        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins());pending.clear();deleted.clear();fireTableDataChanged();changed.run();
     }
     public int insertRow(Integer duplicate){
         if(!editable||result.editing()==null||result.editing().target()==null)return -1;
@@ -52,7 +52,11 @@ public final class ResultTableModel extends AbstractTableModel {
         fireTableDataChanged();changed.run();
     }
     public void discard(){rows.clear();for(var row:result.rows())rows.add(new ArrayList<>(row));pending.clear();deleted.clear();fireTableDataChanged();changed.run();}
-    public QueryResult snapshot(){List<List<Object>> copy=rows.stream().map(row->(List<Object>)new ArrayList<>(row)).toList();return new QueryResult(result.columns(),copy,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing());}
+    public QueryResult snapshot(){List<List<Object>> copy=rows.stream().map(row->(List<Object>)new ArrayList<>(row)).toList();return new QueryResult(result.columns(),copy,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins());}
+    public void setReference(int row,Map<Integer,Object> values){
+        if(values.isEmpty()||values.keySet().stream().anyMatch(column->column<0||column>=getColumnCount()||!isCellEditable(row,column)))throw new IllegalStateException(tr("La referencia completa no se puede editar en este resultado."));
+        values.forEach((column,value)->stage(value,row,column));fireTableRowsUpdated(row,row);changed.run();
+    }
     public int getRowCount(){return rows.size();}public int getColumnCount(){return result.columns().size();}public String getColumnName(int column){return result.columns().get(column);}
     public Object getValueAt(int row,int column){return rows.get(row).get(column);}
     public boolean isCellEditable(int row,int column){return editable&&!deleted.contains(row)&&result.editing()!=null&&result.editing().target()!=null&&result.editing().target().columns().get(column).writable();}
