@@ -22,7 +22,7 @@ class RuntimeEntry:
     relative: str
 
 def read_json(url):
-    with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'NexoDB-Studio-packager','Accept':'application/vnd.github+json'}),timeout=40) as response:
+    with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'AdisDB-packager','Accept':'application/vnd.github+json'}),timeout=40) as response:
         return json.load(response)
 
 def sha(path):
@@ -70,7 +70,7 @@ def application_files():
         for file in sorted((ROOT/'build'/folder).glob('*.jar')): yield f'app/{folder}/{file.name}', file
 
 def notices():
-    parts=['NexoDB Studio third-party notices\nRuntime: Eclipse Temurin / OpenJDK 17. See runtime/legal and runtime NOTICE/LICENSE.\n']
+    parts=['AdisDB third-party notices\nRuntime: Eclipse Temurin / OpenJDK 17. See runtime/legal and runtime NOTICE/LICENSE.\n']
     for notice in sorted((ROOT/'third-party').glob('*/NOTICE.md')):
         parts.append('\n=== '+str(notice.relative_to(ROOT))+' ===\n'+notice.read_text(encoding='utf-8'))
     return '\n'.join(parts).encode('utf-8')
@@ -118,27 +118,27 @@ exec "$root/runtime/bin/java" -Dfile.encoding=UTF-8 -Djava.net.useSystemProxies=
     entries += [('opt/nexodb-studio/bin/nexodb-studio',launcher,0o755),
                 ('usr/share/applications/com.nexodb.studio.desktop',b'''[Desktop Entry]
 Type=Application
-Name=NexoDB Studio
+Name=AdisDB
 Comment=Universal JDBC database client
 Exec=/opt/nexodb-studio/bin/nexodb-studio
-Icon=/opt/nexodb-studio/nexodb-icon.png
+Icon=/opt/nexodb-studio/adisdb-icon.png
 Terminal=false
 Categories=Development;Database;
-''',0o644), ('opt/nexodb-studio/nexodb-icon.png',ROOT/'resources/com/nexodb/assets/nexodb-icon.png',0o644),
+''',0o644), ('opt/nexodb-studio/adisdb-icon.png',ROOT/'resources/com/nexodb/assets/adisdb-icon.png',0o644),
                 ('opt/nexodb-studio/THIRD-PARTY-NOTICES.txt',notices(),0o644)]
     installed=sum(file.member.size if isinstance(file,RuntimeEntry) else file.stat().st_size if isinstance(file,Path) and file.is_file() else len(file) if isinstance(file,bytes) else 0 for _,file,_ in entries)//1024
     control=f'''Package: nexodb-studio
 Version: {version}
 Architecture: {architecture}
-Maintainer: NexoDB Studio <alexo8ec@hotmail.com>
+Maintainer: AdisDB <alexo8ec@hotmail.com>
 Section: database
 Priority: optional
 Installed-Size: {installed}
 Depends: libc6 (>= 2.17), libx11-6, libxext6, libxi6, libxrender1, libxtst6, libfreetype6, fontconfig, zlib1g, libasound2 | libasound2t64
-Description: NexoDB Studio universal database client
+Description: AdisDB universal database client
  Includes a native OpenJDK 17 runtime. No separate Java installation required.
 '''.encode()
-    output=ROOT/'dist'/f'NexoDB-Studio-{version}-{platform}.deb'
+    output=ROOT/'dist'/f'AdisDB-{version}-{platform}.deb'
     with output.open('wb') as stream:
         stream.write(b'!<arch>\n'); ar_member(stream,'debian-binary',b'2.0\n')
         ar_member(stream,'control.tar.gz',tar_bytes([('control',control,0o644)]))
@@ -165,8 +165,8 @@ def zip_add(archive,name,source,mode=0o644):
     info.external_attr=(stat.S_IFREG|mode)<<16; archive.writestr(info,payload)
 
 def macos(platform,files,version):
-    output=ROOT/'dist'/f'NexoDB-Studio-{version}-{platform}.zip'
-    app='NexoDB Studio.app/Contents/'
+    output=ROOT/'dist'/f'AdisDB-{version}-{platform}.zip'
+    app='AdisDB.app/Contents/'
     launcher=b'''#!/bin/sh
 set -eu
 contents=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
@@ -176,30 +176,30 @@ exec "$JAVA_HOME/bin/java" -Dfile.encoding=UTF-8 -Djava.net.useSystemProxies=tru
     installer='''#!/bin/sh
 set -eu
 root=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-printf 'Cierra NexoDB Studio antes de instalar. Presiona Enter para continuar. / Close NexoDB Studio, then press Enter.\\n'
+printf 'Cierra AdisDB antes de instalar. Presiona Enter para continuar. / Close AdisDB, then press Enter.\\n'
 read -r confirmation
 mkdir -p "$HOME/Applications"
-/usr/bin/ditto "$root/NexoDB Studio.app" "$HOME/Applications/NexoDB Studio.app"
-printf 'Instalado en ~/Applications/NexoDB Studio.app / Installed.\\n'
-/usr/bin/open "$HOME/Applications/NexoDB Studio.app"
+/usr/bin/ditto "$root/AdisDB.app" "$HOME/Applications/AdisDB.app"
+printf 'Instalado en ~/Applications/AdisDB.app / Installed.\\n'
+/usr/bin/open "$HOME/Applications/AdisDB.app"
 '''.encode()
-    icon=(ROOT/'resources/com/nexodb/assets/nexodb-icon.png').read_bytes()
+    icon=(ROOT/'resources/com/nexodb/assets/adisdb-icon.png').read_bytes()
     width,height=struct.unpack('>II',icon[16:24]); codes={128:b'ic07',256:b'ic08',512:b'ic09',1024:b'ic10'}
     code=codes.get(width) if width==height else None
-    metadata={'CFBundleName':'NexoDB Studio','CFBundleIdentifier':'com.nexodb.studio','CFBundleExecutable':'NexoDB Studio',
+    metadata={'CFBundleName':'AdisDB','CFBundleIdentifier':'com.nexodb.studio','CFBundleExecutable':'AdisDB',
               'CFBundlePackageType':'APPL','CFBundleShortVersionString':version,'CFBundleVersion':version,'NSHighResolutionCapable':True}
-    if code: metadata['CFBundleIconFile']='nexodb.icns'
+    if code: metadata['CFBundleIconFile']='adisdb.icns'
     with zipfile.ZipFile(output,'w',compression=zipfile.ZIP_DEFLATED) as archive:
         zip_add(archive,app+'Info.plist',plistlib.dumps(metadata))
-        zip_add(archive,app+'MacOS/NexoDB Studio',launcher,0o755)
-        zip_add(archive,'Instalar NexoDB Studio.command',installer,0o755)
-        zip_add(archive,'LEEME.txt',('NexoDB Studio '+version+' / '+platform+'\n\nAbre Instalar NexoDB Studio.command, o arrastra NexoDB Studio.app a Aplicaciones.\nIncluye Java 17 para esta arquitectura; no requiere instalar Java.\nAplicacion sin firma Developer ID ni notarizacion. Usa la autorizacion de apertura normal de macOS si la solicita.\n\nOpen the installer command, or drag the app to Applications. Native Java 17 is included.\nThis app is not Developer ID signed or notarized.\n').encode())
+        zip_add(archive,app+'MacOS/AdisDB',launcher,0o755)
+        zip_add(archive,'Instalar AdisDB.command',installer,0o755)
+        zip_add(archive,'LEEME.txt',('AdisDB '+version+' / '+platform+'\n\nAbre Instalar AdisDB.command, o arrastra AdisDB.app a Aplicaciones.\nIncluye Java 17 para esta arquitectura; no requiere instalar Java.\nAplicacion sin firma Developer ID ni notarizacion. Usa la autorizacion de apertura normal de macOS si la solicita.\n\nOpen the installer command, or drag the app to Applications. Native Java 17 is included.\nThis app is not Developer ID signed or notarized.\n').encode())
         for file in files: zip_add(archive,app+'runtime/Contents/'+file.relative,file)
         for name,file in application_files(): zip_add(archive,app+'Resources/'+name,file)
         zip_add(archive,app+'Resources/THIRD-PARTY-NOTICES.txt',notices())
         if code:
             chunk=code+struct.pack('>I',len(icon)+8)+icon
-            zip_add(archive,app+'Resources/nexodb.icns',b'icns'+struct.pack('>I',len(chunk)+8)+chunk)
+            zip_add(archive,app+'Resources/adisdb.icns',b'icns'+struct.pack('>I',len(chunk)+8)+chunk)
     return output
 
 def build(asset,version):

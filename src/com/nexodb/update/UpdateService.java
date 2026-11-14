@@ -16,7 +16,7 @@ import java.util.function.IntConsumer;
 import java.util.prefs.Preferences;
 
 public final class UpdateService {
-    public static final String CURRENT_VERSION = "0.17.0";
+    public static final String CURRENT_VERSION = "0.18.0";
     private static volatile String sessionManifestUrl = "";
 
     public record UpdateInfo(String version, String downloadUrl, String sha256, String notes) {}
@@ -113,7 +113,7 @@ public final class UpdateService {
         Path executable = Path.of(executableProperty).toAbsolutePath().normalize();
         Path installDirectory = executable.getParent();
         if (installDirectory == null || !Files.isRegularFile(executable)) {
-            throw new IllegalStateException("No se pudo localizar la instalación de NexoDB Studio.");
+            throw new IllegalStateException("No se pudo localizar la instalación de AdisDB.");
         }
 
         Path script = Files.createTempFile("nexodb-updater-", ".ps1");
@@ -260,12 +260,16 @@ public final class UpdateService {
                 )
                 $ErrorActionPreference = 'Stop'
                 Wait-Process -Id $ProcessIdToWait -ErrorAction SilentlyContinue
-                $stage = Join-Path ([System.IO.Path]::GetTempPath()) ('NexoDB-update-' + [guid]::NewGuid().ToString('N'))
+                $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+                $stage = [IO.Path]::GetFullPath((Join-Path $temporaryRoot ('AdisDB-update-' + [guid]::NewGuid().ToString('N'))))
+                if (-not $stage.StartsWith($temporaryRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe updater staging path' }
                 New-Item -ItemType Directory -Path $stage -Force | Out-Null
                 try {
                     Expand-Archive -LiteralPath $ZipPath -DestinationPath $stage -Force
                     Copy-Item -Path (Join-Path $stage '*') -Destination $InstallDirectory -Recurse -Force
-                    Start-Process -FilePath $ExecutablePath
+                    $nextExecutable = Join-Path $InstallDirectory 'AdisDB.exe'
+                    if (-not (Test-Path -LiteralPath $nextExecutable)) { $nextExecutable = $ExecutablePath }
+                    Start-Process -FilePath $nextExecutable
                 }
                 finally {
                     Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue

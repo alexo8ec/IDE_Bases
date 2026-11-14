@@ -79,7 +79,7 @@ public final class MainFrame extends JFrame {
             message->SwingUtilities.invokeLater(()->setStatus(message)),!Boolean.getBoolean("nexodb.disableDraftPersistence"));
 
     public MainFrame() {
-        super("NexoDB Studio");
+        super(com.nexodb.util.ProductBrand.TITLE);
         loadApplicationIcons();
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setMinimumSize(new Dimension(980, 680));
@@ -109,7 +109,7 @@ public final class MainFrame extends JFrame {
 
     private void loadApplicationIcons() {
         try {
-            BufferedImage source = ImageIO.read(MainFrame.class.getResource("/com/nexodb/assets/nexodb-icon.png"));
+            BufferedImage source = ImageIO.read(MainFrame.class.getResource("/com/nexodb/assets/adisdb-icon.png"));
             if (source == null) return;
             List<Image> icons = new ArrayList<>();
             for (int size : new int[]{16, 24, 32, 48, 64, 128, 256}) {
@@ -149,7 +149,7 @@ public final class MainFrame extends JFrame {
         JPanel progressHolder = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
         progressHolder.add(busyBar);
         statusBar.add(progressHolder, BorderLayout.CENTER);
-        JLabel version = new JLabel("NexoDB Studio " + UpdateService.CURRENT_VERSION);
+        JLabel version = new JLabel("AdisDB · AdisOne  " + UpdateService.CURRENT_VERSION);version.setName("product-brand");
         version.setForeground(UIManager.getColor("Label.disabledForeground"));
         statusBar.add(version, BorderLayout.EAST);
         root.add(statusBar, BorderLayout.SOUTH);
@@ -379,7 +379,7 @@ public final class MainFrame extends JFrame {
         help.setIcon(IconFactory.of(IconFactory.Kind.INFO, 16));
         JMenuItem updates = UiLanguage.text(new JMenuItem(tr("Buscar actualizaciones…")), UiLanguage.key("Buscar actualizaciones…"));
         JMenuItem updateChannel = UiLanguage.text(new JMenuItem(tr("Canal de actualizaciones (administrador)…")), UiLanguage.key("Canal de actualizaciones (administrador)…"));
-        JMenuItem about = UiLanguage.text(new JMenuItem(tr("Acerca de NexoDB Studio")), UiLanguage.key("Acerca de NexoDB Studio"));
+        JMenuItem about = UiLanguage.text(new JMenuItem(tr("Acerca de AdisDB")), UiLanguage.key("Acerca de AdisDB"));
         updates.setIcon(IconFactory.of(IconFactory.Kind.UPDATE));
         updateChannel.setIcon(IconFactory.of(IconFactory.Kind.SETTINGS));
         about.setIcon(IconFactory.of(IconFactory.Kind.INFO));
@@ -390,7 +390,7 @@ public final class MainFrame extends JFrame {
         help.add(updateChannel);
         help.addSeparator();
         help.add(about);
-        help.add(toolMenuItem("Licencia de NexoDB…",IconFactory.Kind.KEY,0,0,()->LicenseGate.show(this)));
+        help.add(toolMenuItem("Licencia de AdisDB…",IconFactory.Kind.KEY,0,0,()->LicenseGate.show(this)));
         bar.add(file);
         bar.add(edit);
         bar.add(database);
@@ -454,7 +454,8 @@ public final class MainFrame extends JFrame {
         JTextPane details = new JTextPane();
         details.setContentType("text/html");
         details.setText("<html><body style='font-family:Segoe UI;font-size:11px'>"
-                + "<b style='font-size:15px'>NexoDB Studio " + UpdateService.CURRENT_VERSION + "</b><br>"
+                + "<b style='font-size:15px'>AdisDB " + UpdateService.CURRENT_VERSION + "</b><br>"
+                + "<span style='color:#0FB8C8'>Suite AdisOne · www.adisone.com</span><br><br>"
                 + tr("Cliente universal de bases de datos mediante JDBC.<br><br>")
                 + tr("<b>Creador:</b> Alex Mite Salazar<br>")
                 + tr("<b>Correo:</b> alexo8ec@hotmail.com<br><br>")
@@ -463,7 +464,7 @@ public final class MainFrame extends JFrame {
         details.setEditable(false);
         details.setOpaque(false);
         details.setBorder(new EmptyBorder(8, 8, 8, 8));
-        JOptionPane.showMessageDialog(this, details, tr("Acerca de NexoDB Studio"), JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(this, details, tr("Acerca de AdisDB"), JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void styleToolbarButton(AbstractButton button, IconFactory.Kind icon, String tooltip) {
@@ -487,13 +488,13 @@ public final class MainFrame extends JFrame {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         JLabel explanation = new JLabel(tr("<html><b>Las actualizaciones normales no requieren configurar nada.</b><br>")
-                + tr("Esta opción es para quien publica NexoDB en un servidor propio. Debe apuntar directamente<br>")
+                + tr("Esta opción es para quien publica AdisDB en un servidor propio. Debe apuntar directamente<br>")
                 + tr("al archivo <code>update-manifest.json</code> mediante HTTPS.</html>"));
         explanation.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel fieldLabel = UiLanguage.text(new JLabel(tr("Dirección del manifiesto:")), UiLanguage.key("Dirección del manifiesto:"));
         fieldLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         url.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel verification = UiLanguage.text(new JLabel(tr("<html>NexoDB comprobará la versión y la firma SHA-256 antes de instalar.</html>")), UiLanguage.key("<html>NexoDB comprobará la versión y la firma SHA-256 antes de instalar.</html>"));
+        JLabel verification = UiLanguage.text(new JLabel(tr("<html>AdisDB comprobará la versión y la firma SHA-256 antes de instalar.</html>")), UiLanguage.key("<html>AdisDB comprobará la versión y la firma SHA-256 antes de instalar.</html>"));
         verification.setForeground(UIManager.getColor("Label.disabledForeground"));
         verification.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(explanation);
@@ -525,7 +526,7 @@ public final class MainFrame extends JFrame {
             if (manual) JOptionPane.showMessageDialog(this,
                     "Esta copia todavía no tiene un canal público de actualizaciones.\n\n"
                             + "El administrador debe publicar update-manifest.json y el ZIP en un servidor HTTPS, "
-                            + "y generar NexoDB con esa dirección. La configuración manual está en Ayuda → "
+                            + "y generar AdisDB con esa dirección. La configuración manual está en Ayuda → "
                             + "Canal de actualizaciones (administrador).",
                     tr("Canal aún no publicado"), JOptionPane.INFORMATION_MESSAGE);
             return;
@@ -542,7 +543,7 @@ public final class MainFrame extends JFrame {
                         setStatus(new Object[]{UiLanguage.key("Actualización "), update.version(), UiLanguage.key(" disponible")});
                         offerUpdate(update);
                     } else {
-                        setStatus(new Object[]{UiLanguage.key("NexoDB Studio está actualizado")});
+                        setStatus(new Object[]{UiLanguage.key("AdisDB está actualizado")});
                         if (manual) JOptionPane.showMessageDialog(MainFrame.this,
                                 tr("Ya tienes la versión más reciente (") + UpdateService.CURRENT_VERSION + ").",
                                 tr("Sin actualizaciones"), JOptionPane.INFORMATION_MESSAGE);
@@ -567,7 +568,7 @@ public final class MainFrame extends JFrame {
         notes.setColumns(46);
         notes.setBackground(UIManager.getColor("Panel.background"));
         JPanel panel = new JPanel(new BorderLayout(6, 8));
-        panel.add(new JLabel("NexoDB Studio " + update.version() + tr(" está disponible.")), BorderLayout.NORTH);
+        panel.add(new JLabel("AdisDB " + update.version() + tr(" está disponible.")), BorderLayout.NORTH);
         panel.add(new JScrollPane(notes), BorderLayout.CENTER);
         int answer = JOptionPane.showConfirmDialog(this, panel, tr("Actualización disponible"),
                 JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
@@ -581,7 +582,7 @@ public final class MainFrame extends JFrame {
         progress.setStringPainted(true);
         JPanel panel = new JPanel(new BorderLayout(8, 8));
         panel.setBorder(new EmptyBorder(18, 18, 18, 18));
-        panel.add(new JLabel(tr("Descargando y verificando NexoDB Studio ") + update.version() + "…"), BorderLayout.NORTH);
+        panel.add(new JLabel(tr("Descargando y verificando AdisDB ") + update.version() + "…"), BorderLayout.NORTH);
         panel.add(progress, BorderLayout.CENTER);
         progressDialog.setContentPane(panel);
         progressDialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
@@ -601,7 +602,7 @@ public final class MainFrame extends JFrame {
                     if(!LicenseGate.ensure(MainFrame.this))return;
                     int install = JOptionPane.showConfirmDialog(MainFrame.this,
                             UpdateService.canInstallInPlace()
-                                    ? tr("La actualización fue descargada y verificada.\n\n¿Instalarla ahora? NexoDB se cerrará y volverá a abrir.")
+                                    ? tr("La actualización fue descargada y verificada.\n\n¿Instalarla ahora? AdisDB se cerrará y volverá a abrir.")
                                     : tr("La actualización fue descargada y verificada.\n\n¿Abrir el paquete con el instalador de tu sistema?"),
                             tr("Instalar actualización"), JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
                     if (install == JOptionPane.YES_OPTION) {
@@ -884,7 +885,7 @@ public final class MainFrame extends JFrame {
         if (session == null) {
             objectRoot.removeAllChildren();
             objectModel.reload();
-            setTitle("NexoDB Studio");
+            setTitle(com.nexodb.util.ProductBrand.TITLE);
             setStatus(new Object[]{UiLanguage.key("Sin conexiones activas")});
         } else {
             activateSession(session);
@@ -949,7 +950,7 @@ public final class MainFrame extends JFrame {
             queryPanel.setSession(target);
         }
         selectProfile(target.profile().id());
-        setTitle("NexoDB Studio — " + target.profile().name());
+        setTitle("AdisDB — " + target.profile().name());
         updateConnectionActions();
     }
 

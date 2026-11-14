@@ -1,13 +1,13 @@
-NexoDB Studio — Windows / Linux / macOS
+AdisDB — Windows / Linux / macOS
 
 Requiere Java 17 o superior. Este paquete contiene la aplicación y sus
 dependencias; no incluye un runtime específico de Windows.
 
 Linux / macOS:
-  Extrae el ZIP y abre una terminal dentro de la carpeta NexoDB Studio.
+  Extrae el ZIP y abre una terminal dentro de la carpeta AdisDB.
   sh install.sh
-  Linux: abre NexoDB Studio desde el menú de aplicaciones.
-  macOS: abre ~/Applications/NexoDB Studio.app.
+  Linux: abre AdisDB desde el menú de aplicaciones.
+  macOS: abre ~/Applications/AdisDB.app.
   Para usar sin instalar: sh run.sh
 
 Windows:

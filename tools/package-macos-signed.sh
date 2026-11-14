@@ -18,10 +18,10 @@ mkdir -p "$work/input" "$work/image" "$root/dist"
 bash "$root/build.sh"
 cp "$root/build/nexodb-studio.jar" "$work/input/"
 cp -R "$root/build/lib" "$root/build/drivers" "$work/input/"
-options=(--type app-image --name 'NexoDB Studio' --app-version "$version"
+options=(--type app-image --name 'AdisDB' --app-version "$version"
   --vendor 'Alex Mite Salazar' --input "$work/input" --dest "$work/image"
   --main-jar nexodb-studio.jar --main-class com.nexodb.App
-  --mac-package-identifier com.nexodb.studio --mac-package-name 'NexoDB Studio'
+  --mac-package-identifier com.nexodb.studio --mac-package-name 'AdisDB'
   --mac-sign --mac-signing-key-user-name "$NEXODB_MAC_SIGN_USER"
   --mac-package-signing-prefix com.nexodb.studio.
   --add-modules 'java.desktop,java.sql,java.prefs,java.naming,java.net.http,java.security.jgss,jdk.security.auth,jdk.crypto.ec'
@@ -30,7 +30,7 @@ options=(--type app-image --name 'NexoDB Studio' --app-version "$version"
 if [[ -n "${NEXODB_MAC_SIGN_KEYCHAIN:-}" ]]; then options+=(--mac-signing-keychain "$NEXODB_MAC_SIGN_KEYCHAIN"); fi
 # jpackage supplies the hardened-runtime entitlements needed by Java and signs native components.
 jpackage "${options[@]}"
-app="$work/image/NexoDB Studio.app"
+app="$work/image/AdisDB.app"
 codesign --verify --deep --strict --verbose=2 "$app"
 ditto -c -k --keepParent "$app" "$work/notary-submit.zip"
 xcrun notarytool submit "$work/notary-submit.zip" --keychain-profile "$NEXODB_NOTARY_PROFILE" --wait --output-format json > "$work/notary-result.json"
@@ -39,7 +39,7 @@ xcrun stapler staple "$app"
 xcrun stapler validate "$app"
 codesign --verify --deep --strict --verbose=2 "$app"
 spctl --assess --type execute --verbose=2 "$app"
-output="$root/dist/NexoDB-Studio-$version-macos-$arch.zip"
+output="$root/dist/AdisDB-$version-macos-$arch.zip"
 ditto -c -k --sequesterRsrc --keepParent "$app" "$output"
 (cd "$root/dist" && shasum -a 256 "$(basename -- "$output")") > "$output.sha256"
 printf 'Signed, notarized and stapled macOS app: %s\n' "$output"

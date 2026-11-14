@@ -28,7 +28,7 @@ final class MobileUpdate {
     Object download()throws Exception{
         downloadCancelled=false;if(checked==null||!checked.optBoolean("available"))throw new IllegalStateException("Comprueba primero si existe una actualización.");
         assertTransactions();JSONObject release=new JSONObject(checked.toString());
-        if(!app.activity.ask("Descargar e instalar","NexoDB Studio "+release.getString("version")+"\nSe conservarán tus conexiones, consultas y licencia. Guarda los cambios pendientes. Android pedirá confirmar la instalación. ¿Continuar?"))throw MobileBackend.cancelled();
+        if(!app.activity.ask("Descargar e instalar","AdisDB "+release.getString("version")+"\nSe conservarán tus conexiones, consultas y licencia. Guarda los cambios pendientes. Android pedirá confirmar la instalación. ¿Continuar?"))throw MobileBackend.cancelled();
         Path directory=app.activity.getCacheDir().toPath().resolve("updates");Files.createDirectories(directory);Path file=directory.resolve("update.apk"),partial=directory.resolve("update.pending.apk");MessageDigest digest=MessageDigest.getInstance("SHA-256");long total=0,expected=release.optLong("size",0);int shown=-1;
         try{
             try(InputStream input=open(new URL(release.getString("downloadUrl")));OutputStream output=Files.newOutputStream(partial)){
@@ -47,7 +47,7 @@ final class MobileUpdate {
     private static void validateUrl(URL url)throws IOException{if(!url.getProtocol().equals("https")||url.getHost().isEmpty()||url.getUserInfo()!=null||url.getRef()!=null)throw new IOException("La actualización requiere HTTPS sin credenciales.");}
     private static InputStream open(URL initial)throws Exception{
         URL url=initial;
-        for(int i=0;i<6;i++){validateUrl(url);HttpURLConnection connection=(HttpURLConnection)url.openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setInstanceFollowRedirects(false);connection.setUseCaches(false);connection.setRequestProperty("Cache-Control","no-cache");connection.setRequestProperty("User-Agent","NexoDB-Android/"+BuildConfig.VERSION_NAME);
+        for(int i=0;i<6;i++){validateUrl(url);HttpURLConnection connection=(HttpURLConnection)url.openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setInstanceFollowRedirects(false);connection.setUseCaches(false);connection.setRequestProperty("Cache-Control","no-cache");connection.setRequestProperty("User-Agent","AdisDB-Android/"+BuildConfig.VERSION_NAME);
             try{int code=connection.getResponseCode();if(code>=300&&code<400){String location=connection.getHeaderField("Location");if(location==null)throw new IOException("Redirección sin destino.");url=new URL(url,location);connection.disconnect();continue;}if(code!=200)throw new IOException(code==404?"La actualización Android todavía no se ha publicado.":"Servidor de actualizaciones: HTTP "+code);
                 return new FilterInputStream(connection.getInputStream()){@Override public void close()throws IOException{try{super.close();}finally{connection.disconnect();}}};
             }catch(Exception error){connection.disconnect();throw error;}

@@ -50,7 +50,7 @@ public record ReportDesign(String title, boolean landscape, int headerHeight, St
     public static ReportDesign create(ReportData data) {
         List<Column> columns=new ArrayList<>();
         for(int i=0;i<data.columns().size();i++)columns.add(new Column(i,data.columns().get(i),120,i<8,Aggregate.NONE));
-        return new ReportDesign("Reporte gerencial",false,190,"NexoDB Studio",0x176B65,data.columns(),columns,List.of(),List.of(
+        return new ReportDesign("Reporte gerencial",false,190,"AdisDB",0x176B65,data.columns(),columns,List.of(),List.of(
                 new Block(UUID.randomUUID().toString(),Kind.TEXT,32,32,530,48,"Reporte gerencial",24,true,0x173A40,-1,Aggregate.NONE),
                 new Block(UUID.randomUUID().toString(),Kind.TEXT,32,88,530,32,"Resumen de resultados",12,false,0x607080,-1,Aggregate.NONE),
                 new Block(UUID.randomUUID().toString(),Kind.METRIC,32,130,160,44,"Registros",18,true,0x176B65,-1,Aggregate.COUNT)));

@@ -7,7 +7,7 @@ SQLite abre un archivo local; no hace falta subirlo, instalar un servidor ni ind
 1. Selecciona **Nueva conexión** y el motor **SQLite**.
 2. Pulsa **Elegir archivo…** y selecciona el archivo principal con extensión `.sqlite`, `.sqlite3`, `.db` u otra extensión válida.
 3. Pon un nombre que identifique esa base. **Solo lectura** está activado al elegir SQLite; desactívalo en el perfil si necesitas permitir cambios.
-4. Pulsa **Probar** o **Guardar y conectar**. Si falta el controlador, NexoDB descarga el adaptador verificado.
+4. Pulsa **Probar** o **Guardar y conectar**. Si falta el controlador, AdisDB descarga el adaptador verificado.
 5. Abre **Objetos → main → Tablas** para explorar los datos. Cada archivo SQLite se guarda como una conexión independiente.
 
 Puedes escribir una ruta completa, por ejemplo `C:/xampp/htdocs/perfectgym/database/database.sqlite`. No se crea una base vacía si la ruta está equivocada. El programa abre el archivo en su ubicación original; una conexión con escritura modifica ese mismo archivo. Los archivos cifrados requieren un controlador compatible y no se aceptan como SQLite ordinario. Los archivos `-wal` y `-shm` son auxiliares, no bases independientes.

@@ -5,7 +5,7 @@ import hashlib
 
 root = Path(__file__).resolve().parent.parent
 version = (root / 'VERSION').read_text(encoding='utf-8').strip()
-archive = root / 'dist' / f'NexoDB-Studio-{version}-universal.zip'
+archive = root / 'dist' / f'AdisDB-{version}-universal.zip'
 archive.parent.mkdir(parents=True, exist_ok=True)
 jar = root / 'build/nexodb-studio.jar'
 if not jar.is_file():
@@ -13,7 +13,7 @@ if not jar.is_file():
 
 with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as output:
     def add(name, content, executable=False):
-        entry = zipfile.ZipInfo('NexoDB Studio/' + name)
+        entry = zipfile.ZipInfo('AdisDB/' + name)
         entry.create_system = 3
         entry.external_attr = ((0o100755 if executable else 0o100644) << 16)
         entry.compress_type = zipfile.ZIP_DEFLATED
@@ -25,7 +25,7 @@ with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as output:
     for file in sorted((root / 'packaging/universal').iterdir()):
         content = file.read_text(encoding='utf-8').replace('@VERSION@', version)
         add(file.name, content.encode('utf-8'), file.suffix == '.sh')
-    add('nexodb-icon.png', (root / 'resources/com/nexodb/assets/nexodb-icon.png').read_bytes())
+    add('adisdb-icon.png', (root / 'resources/com/nexodb/assets/adisdb-icon.png').read_bytes())
 checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
 archive.with_suffix('.zip.sha256').write_text(f'{checksum}  {archive.name}\n', encoding='ascii')
 print(archive)

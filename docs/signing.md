@@ -16,8 +16,8 @@ $env:NEXODB_SIGN_CERT_THUMBPRINT = 'HUELLA_DEL_CERTIFICADO_INSTALADO'
 El modo `-RequireSigning` falla antes de compilar si falta el certificado. Si se proporciona una huella, valida su uso, vigencia y cadena de confianza. Firma el lanzador de la aplicación antes de comprimir el portable; el EXE instalador se construye a partir de esa misma imagen, conservando el lanzador firmado, y se firma también. Verifica Authenticode y el sello de tiempo RFC 3161/SHA-256. Los hashes se calculan después de firmar.
 
 ```powershell
-Get-AuthenticodeSignature 'dist/installer/NexoDB Studio-0.11.3.exe'
-Get-AuthenticodeSignature 'dist/0.11.3/NexoDB Studio/NexoDB Studio.exe'
+Get-AuthenticodeSignature 'dist/installer/AdisDB-0.11.3.exe'
+Get-AuthenticodeSignature 'dist/0.11.3/AdisDB/AdisDB.exe'
 ```
 
 Ambos deben indicar `Valid`. Sin una huella configurada, el empaquetado normal sigue sirviendo para pruebas locales, pero no se debe anunciar como una distribución firmada. Una firma autofirmada no resuelve la confianza de instalaciones públicas.

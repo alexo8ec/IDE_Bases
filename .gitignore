@@ -2,16 +2,18 @@
 /dist/*
 !/dist/update-manifest.json
 !/dist/android-update-manifest.json
-!/dist/NexoDB-Studio-0.14.4-android.apk
-!/dist/NexoDB-Studio-0.14.4-android.apk.sha256
-!/dist/NexoDB-Studio-0.17.0-win64.zip
-!/dist/NexoDB-Studio-0.17.0-linux-x64.deb
-!/dist/NexoDB-Studio-0.17.0-linux-arm64.deb
-!/dist/NexoDB-Studio-0.17.0-macos-x64.zip
-!/dist/NexoDB-Studio-0.17.0-macos-arm64.zip
+!/dist/AdisDB-0.14.5-android.apk
+!/dist/AdisDB-0.14.5-android.apk.sha256
+!/dist/AdisDB-0.18.0-win64.zip
+!/dist/AdisDB-0.18.0-linux-x64.deb
+!/dist/AdisDB-0.18.0-linux-arm64.deb
+!/dist/AdisDB-0.18.0-macos-x64.zip
+!/dist/AdisDB-0.18.0-macos-arm64.zip
+!/dist/AdisDB-0.18.0-universal.zip
+!/dist/AdisDB-0.18.0-universal.zip.sha256
 !/dist/installer/
 /dist/installer/*
-!/dist/installer/NexoDB Studio-0.17.0.exe
+!/dist/installer/AdisDB-0.18.0.exe
 /.tools/
 /.github/
 *.log

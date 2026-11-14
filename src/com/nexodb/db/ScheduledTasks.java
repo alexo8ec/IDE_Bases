@@ -73,7 +73,7 @@ public final class ScheduledTasks implements AutoCloseable {
     private static long writeReport(ResultSet result,Path html,Path csv,SqlTransferControl control)throws Exception{
         Path h=Files.createTempFile(html.getParent(),".report-",".html"),c=Files.createTempFile(csv.getParent(),".report-",".csv");long rows=0;
         try{
-            try(Writer web=Files.newBufferedWriter(h);Writer text=Files.newBufferedWriter(c)){web.write("<!doctype html><meta charset=\"utf-8\"><title>NexoDB SQL report</title><style>body{font:14px system-ui}table{border-collapse:collapse}th,td{padding:6px;border:1px solid #ccc}</style><table><thead><tr>");var metadata=result.getMetaData();int count=metadata.getColumnCount();
+            try(Writer web=Files.newBufferedWriter(h);Writer text=Files.newBufferedWriter(c)){web.write("<!doctype html><meta charset=\"utf-8\"><title>AdisDB SQL report</title><style>body{font:14px system-ui}table{border-collapse:collapse}th,td{padding:6px;border:1px solid #ccc}</style><table><thead><tr>");var metadata=result.getMetaData();int count=metadata.getColumnCount();
                 for(int i=1;i<=count;i++){String label=metadata.getColumnLabel(i);web.write("<th>"+html(label)+"</th>");if(i>1)text.write(',');text.write(csv(label));}web.write("</tr></thead><tbody>");text.write('\n');
                 while(result.next()){control.check();web.write("<tr>");for(int i=1;i<=count;i++){String value=result.getString(i);web.write("<td>"+html(value==null?"(NULL)":value)+"</td>");if(i>1)text.write(',');text.write(csv(value==null?"":value));}web.write("</tr>\n");text.write('\n');rows++;}web.write("</tbody></table>");
             }control.check();Files.move(h,html);Files.move(c,csv);return rows;

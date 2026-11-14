@@ -23,6 +23,8 @@ public final class LanguageWindowTest {
             I18n.initialize("es"); FlatLightLaf.setup();
             SwingUtilities.invokeAndWait(() -> {
                 MainFrame frame = new MainFrame();
+                equal(com.nexodb.util.ProductBrand.TITLE,frame.getTitle());
+                if(frame.getIconImages().isEmpty())throw new AssertionError("AdisDB application icon missing");
                 ConnectionDialog dialog = new ConnectionDialog(frame, null);
                 try {
                     frame.setSize(1280, 780); frame.addNotify(); frame.validate();
@@ -41,6 +43,7 @@ public final class LanguageWindowTest {
                     PreferencesDialog.apply("en", "light");
                     equal("File", menu.getMenu(0).getText()); equal("Preferences",preferencesMenu.getText());equal("Power tools",powerMenu.getText());
                     equal("Connect", connect.getText()); equal("New connection", dialog.getTitle()); equal("Usuario", user.getText());
+                    JMenu help=menu(menu,"Help");boolean about=false;for(int i=0;i<help.getItemCount();i++){var entry=help.getItem(i);if(entry!=null&&entry.getText().equals("About AdisDB"))about=true;}if(!about)throw new AssertionError("AdisDB branding was not translated");
                     equal("Execute", field(query, "execute", JButton.class).getText());
                     equal(sql, editor.getText());
                     if (frame.getJMenuBar() != menu || field(frame, "queryPanel", QueryPanel.class) != query || editor.getDocument() != document) {

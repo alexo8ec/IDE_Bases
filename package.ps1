@@ -16,9 +16,9 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $distRoot = Join-Path $projectRoot 'dist'
 $releaseRoot = Join-Path $distRoot $version
-$appRoot = Join-Path $releaseRoot 'NexoDB Studio'
+$appRoot = Join-Path $releaseRoot 'AdisDB'
 $packageRoot = Join-Path ([IO.Path]::GetTempPath()) ("nexodb-package-" + $version)
-$iconPath = Join-Path $projectRoot 'build\nexodb.ico'
+$iconPath = Join-Path $projectRoot 'build\adisdb.ico'
 $productionInput = Join-Path $projectRoot 'build\package-input'
 if (Test-Path -LiteralPath $productionInput) { Remove-Item -LiteralPath $productionInput -Recurse -Force }
 New-Item -ItemType Directory -Path $productionInput -Force | Out-Null
@@ -31,7 +31,7 @@ $embeddedManifestUrl = if ($UpdateManifestUrl) {
     $UpdateBaseUrl.TrimEnd('/') + '/update-manifest.json'
 } else { '' }
 & java -cp (Join-Path $projectRoot 'build\classes') com.nexodb.tools.IconBuilder `
-    (Join-Path $projectRoot 'resources\com\nexodb\assets\nexodb-icon.png') `
+    (Join-Path $projectRoot 'resources\com\nexodb\assets\adisdb-icon.png') `
     $iconPath
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo generar el icono de Windows.' }
 if (Test-Path $appRoot) {
@@ -45,9 +45,9 @@ New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
 
 & jpackage `
     --type app-image `
-    --name 'NexoDB Studio' `
+    --name 'AdisDB' `
     --app-version $version `
-    --vendor 'NexoDB' `
+    --vendor 'AdisOne' `
     --description 'Cliente universal de bases de datos' `
     --input $productionInput `
     --main-jar 'nexodb-studio.jar' `
@@ -66,14 +66,14 @@ New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
     --java-options '-XX:+UseSerialGC'
 
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear la aplicacion portable.' }
-$sourceApp = Join-Path $packageRoot 'NexoDB Studio'
+$sourceApp = Join-Path $packageRoot 'AdisDB'
 $copied = $false
 $copyError = $null
 for ($attempt = 1; $attempt -le 8 -and -not $copied; $attempt++) {
     try {
         if (Test-Path -LiteralPath $appRoot) { Remove-Item -LiteralPath $appRoot -Recurse -Force }
         Copy-Item -LiteralPath $sourceApp -Destination $appRoot -Recurse -Force
-        if (-not (Test-Path -LiteralPath (Join-Path $appRoot 'NexoDB Studio.exe'))) {
+        if (-not (Test-Path -LiteralPath (Join-Path $appRoot 'AdisDB.exe'))) {
             throw 'El ejecutable no apareció en la copia de salida.'
         }
         $copied = $true
@@ -84,24 +84,32 @@ for ($attempt = 1; $attempt -le 8 -and -not $copied; $attempt++) {
 }
 if (-not $copied) { throw "Windows mantuvo bloqueado el ejecutable generado: $copyError" }
 Remove-Item -LiteralPath $packageRoot -Recurse -Force -ErrorAction SilentlyContinue
-foreach ($legacyName in @('NexoDB-Studio-0.1.0-win64.zip', 'NexoDB-Studio-0.2.0-win64.zip', 'NexoDB-Studio-0.3.0-win64.zip', 'NexoDB-Studio-0.3.1-win64.zip')) {
+foreach ($legacyName in @('AdisDB-0.1.0-win64.zip', 'AdisDB-0.2.0-win64.zip', 'AdisDB-0.3.0-win64.zip', 'AdisDB-0.3.1-win64.zip')) {
     $legacyZipPath = Join-Path $distRoot $legacyName
     if (Test-Path $legacyZipPath) { Remove-Item -LiteralPath $legacyZipPath -Force }
 }
-if ($signer) { Invoke-NexoSignFile $signer (Join-Path $appRoot 'NexoDB Studio.exe') }
-$zipPath = Join-Path $distRoot ("NexoDB-Studio-$version-win64.zip")
+if ($signer) { Invoke-NexoSignFile $signer (Join-Path $appRoot 'AdisDB.exe') }
+$zipPath = Join-Path $distRoot ("AdisDB-$version-win64.zip")
 if (Test-Path $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
 Compress-Archive -Path (Join-Path $appRoot '*') -DestinationPath $zipPath -CompressionLevel Optimal
+# Older NexoDB updaters restart the original executable after copying this ZIP.
+# Ship compatible launcher/config aliases in the update ZIP; the installed product is AdisDB.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [IO.Compression.ZipFile]::Open($zipPath,[IO.Compression.ZipArchiveMode]::Update)
+try {
+    [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $appRoot 'AdisDB.exe'),'NexoDB Studio.exe') | Out-Null
+    [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $appRoot 'app/AdisDB.cfg'),'app/NexoDB Studio.cfg') | Out-Null
+} finally { $archive.Dispose() }
 $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $downloadUrl = if ($UpdateBaseUrl) { $UpdateBaseUrl.TrimEnd('/') + '/' + $zipPath.Split([IO.Path]::DirectorySeparatorChar)[-1] } else { '' }
 $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "NexoDB Studio ${version}: depuracion por instruccion con inspeccion de variables al pasar el cursor, tablas JSON, SELECT en tiempo real e historial. Editor compatible con DELIMITER/USE/DROP/CREATE de SQLyog. Errores con linea marcada y explicacion. Exportar y copiar resultados en Excel, TXT, CSV y SQL."
+    notes = "AdisDB ${version}, producto de la suite AdisOne. Nueva identidad e icono; conserva conexiones, preferencias, borradores y licencias. Compatible con la actualizacion desde NexoDB Studio."
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
-Write-Host "Aplicacion portable lista: $appRoot\NexoDB Studio.exe"
+Write-Host "Aplicacion portable lista: $appRoot\AdisDB.exe"
 Write-Host "Paquete para distribuir: $zipPath"
 Write-Host "Manifiesto de actualizacion: $distRoot\update-manifest.json"
 

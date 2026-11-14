@@ -26,7 +26,7 @@ public final class AppearanceTest {
         if (!I18n.resolved("system", Locale.forLanguageTag("es-EC")).equals("es")) throw new AssertionError();
         I18n.initialize("en");
         if (!I18n.tr("Guardar y conectar").equals("Save and connect")) throw new AssertionError("English resource missing");
-        String initial = "-- NexoDB Studio\n-- Selecciona una consulta o coloca el cursor dentro de ella y presiona Ctrl+Enter.\n\n";
+        String initial = "-- AdisDB\n-- Selecciona una consulta o coloca el cursor dentro de ella y presiona Ctrl+Enter.\n\n";
         if (!I18n.tr(initial).contains("Select a query")) throw new AssertionError("Multiline translation failed");
         SwingUtilities.invokeAndWait(() -> {
             try {

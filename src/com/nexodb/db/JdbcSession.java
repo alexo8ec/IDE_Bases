@@ -105,7 +105,7 @@ public final class JdbcSession implements AutoCloseable {
         String shownUser = profile.username().isEmpty() ? "(vacío)" : "“" + profile.username() + "”";
         return new IllegalStateException(
                 "El servidor rechazó la conexión para el usuario " + shownUser + ". "
-                        + "NexoDB envió el usuario indicado y la contraseña exactamente como aparecen "
+                        + "AdisDB envió el usuario indicado y la contraseña exactamente como aparecen "
                         + "en el formulario; no utilizó la cuenta de Windows. Verifica que el servidor permita esa cuenta.");
     }
 

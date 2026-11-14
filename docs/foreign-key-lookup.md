@@ -1,6 +1,6 @@
 # Consultar y seleccionar referencias
 
-Desde la versión 0.14.4, las columnas de resultados con una clave foránea real muestran un icono de llave en el encabezado. Al seleccionar una celda aparece **…**, además del menú habitual. También puedes usar **Ver referencia**, el menú contextual o **Ctrl+Espacio** desde la celda, incluso mientras editas su texto.
+Desde la versión 0.14.5, las columnas de resultados con una clave foránea real muestran un icono de llave en el encabezado. Al seleccionar una celda aparece **…**, además del menú habitual. También puedes usar **Ver referencia**, el menú contextual o **Ctrl+Espacio** desde la celda, incluso mientras editas su texto.
 
 La ventana muestra la tabla padre, el nombre de la restricción y las columnas relacionadas. Por ejemplo, si el servidor define `ct_ventas.id_cliente → ct_clientes.identificacion`, abrir una celda de `id_cliente` consulta ese registro en `ct_clientes`. No se deducen relaciones por el nombre `id_*`; se leen las restricciones del servidor y los orígenes JDBC del resultado.
 
@@ -27,7 +27,7 @@ Usa el botón de descarga de la barra superior o **Preferencias → Buscar actua
 
 La aplicación consulta el manifiesto HTTPS sin reutilizar una respuesta en caché, descarga a un archivo temporal y verifica tamaño, SHA-256, identificador de aplicación, versión y certificado de firma. Solo después ofrece el archivo al instalador de Android. Se reutiliza la misma clave de firma de las versiones anteriores; no hace falta desinstalar.
 
-Si Android solicita **Permitir desde esta fuente**, autoriza a NexoDB y vuelve. Si cancelas la instalación, **Reintentar instalación** utiliza la APK ya descargada. Android mantiene su confirmación de instalación; NexoDB conserva el identificador de la aplicación, el almacenamiento privado y Android Keystore para que conexiones, contraseñas cifradas, borradores y licencia sigan disponibles.
+Si Android solicita **Permitir desde esta fuente**, autoriza a AdisDB y vuelve. Si cancelas la instalación, **Reintentar instalación** utiliza la APK ya descargada. Android mantiene su confirmación de instalación; AdisDB conserva el identificador de la aplicación, el almacenamiento privado y Android Keystore para que conexiones, contraseñas cifradas, borradores y licencia sigan disponibles.
 
 La interfaz de pruebas del WebView y las pruebas de actualización pertenecen al APK de instrumentación, no a la APK distribuida. Las pruebas de actualización se realizan únicamente en el emulador del proyecto.
 

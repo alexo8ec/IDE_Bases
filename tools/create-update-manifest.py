@@ -15,7 +15,7 @@ parser.add_argument('--linux-arm64', type=Path)
 parser.add_argument('--macos-x64', type=Path)
 parser.add_argument('--macos-arm64', type=Path)
 parser.add_argument('--output', type=Path, default=root/'dist/update-manifest.json')
-parser.add_argument('--notes', default='NexoDB Studio: idiomas, temas y mejoras del actualizador HTTPS.')
+parser.add_argument('--notes', default='AdisDB: idiomas, temas y mejoras del actualizador HTTPS.')
 args = parser.parse_args()
 url = urlparse(args.base_url)
 if url.scheme != 'https' or not url.hostname or url.username or url.password:

@@ -111,7 +111,7 @@ public final class DataExporter {
     }
 
     private static void writeHtml(BufferedWriter writer, QueryResult result) throws IOException {
-        writer.write("<!doctype html><html><head><meta charset=\"utf-8\"><title>Exportación NexoDB</title>"
+        writer.write("<!doctype html><html><head><meta charset=\"utf-8\"><title>Exportación AdisDB</title>"
                 + "<style>body{font-family:Segoe UI,Arial,sans-serif;margin:24px}table{border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:6px 10px;text-align:left}th{background:#eaf2ff}</style>"
                 + "</head><body><table><thead><tr>");
         for (String column : result.columns()) { writer.write("<th>"); writer.write(xml(column)); writer.write("</th>"); }

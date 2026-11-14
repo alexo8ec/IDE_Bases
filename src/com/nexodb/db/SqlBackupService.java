@@ -57,7 +57,7 @@ public final class SqlBackupService {
         try {
             if(options.consistent()&&data){execute(connection,"SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ",control);connection.setAutoCommit(false);snapshot=true;execute(connection,"START TRANSACTION WITH CONSISTENT SNAPSHOT",control);}
             try(Writer out=Files.newBufferedWriter(temporary,StandardCharsets.UTF_8)){
-                out.write("-- NexoDB Studio SQL backup · "+java.time.Instant.now()+"\n-- NEXODB-DATABASE: "+Base64.getEncoder().encodeToString(database.getBytes(StandardCharsets.UTF_8))+"\n");
+                out.write("-- AdisDB SQL backup · "+java.time.Instant.now()+"\n-- NEXODB-DATABASE: "+Base64.getEncoder().encodeToString(database.getBytes(StandardCharsets.UTF_8))+"\n");
                 out.write("-- Server: "+connection.getMetaData().getDatabaseProductVersion().replace('\n',' ').replace('\r',' ')+"\n");
                 out.write("SET @NEXODB_OLD_SQL_MODE=@@SESSION.sql_mode;\nSET @NEXODB_OLD_TIME_ZONE=@@SESSION.time_zone;\nSET time_zone='+00:00';\nSET NAMES utf8mb4;\nSET SQL_MODE="+literal(sourceMode)+";\n");
                 // TIMESTAMP text must be read and restored in the same zone; DATETIME stays unchanged.

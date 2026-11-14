@@ -11,10 +11,10 @@ final class MobileLicense {
     private final Path file;private final MobileStore store;private final PublicKey key;
     MobileLicense(Context context,MobileStore store)throws Exception{
         this.store=store;file=context.getFilesDir().toPath().resolve("license.nexolicense");
-        try(var input=MobileLicense.class.getResourceAsStream("/com/nexodb/licensing/public-key.der")){if(input==null)throw new GeneralSecurityException("No se encontró la clave pública de NexoDB.");key=LicenseCodec.publicKey(StreamCompat.readNBytes(input,8192));}
+        try(var input=MobileLicense.class.getResourceAsStream("/com/nexodb/licensing/public-key.der")){if(input==null)throw new GeneralSecurityException("No se encontró la clave pública de AdisDB.");key=LicenseCodec.publicKey(StreamCompat.readNBytes(input,8192));}
     }
     LicenseCodec.License current()throws Exception{
-        if(!Files.isRegularFile(file))throw new GeneralSecurityException("Activa una licencia de NexoDB para continuar.");
+        if(!Files.isRegularFile(file))throw new GeneralSecurityException("Activa una licencia de AdisDB para continuar.");
         var license=verify(new String(Files.readAllBytes(file),StandardCharsets.UTF_8));long now=System.currentTimeMillis(),last=Long.parseLong(store.get("license-clock","0"));
         if(!license.unlimited()&&now+300000<last)throw new GeneralSecurityException("La fecha del teléfono retrocedió. Corrige la fecha para validar la licencia.");
         if(now>last)store.put("license-clock",Long.toString(now));return license;

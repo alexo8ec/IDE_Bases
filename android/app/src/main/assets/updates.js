@@ -15,8 +15,8 @@ async function openUpdates(){
         async function install(method){
             if(S.tabs.some(q=>Object.keys(q.changes||{}).length)){toast(t('Guarda o descarta los cambios antes de actualizar.'));return;}
             clearTimeout(saveTimer);await rpc('draft.save',{draft:{tabs:S.tabs.map(q=>({id:q.id,title:q.title,sql:q.sql})),selected:S.selected,graphs:S.graphs}},true);
-            const status=await rpc(method);if($('#update-status'))$('#update-status').textContent=t(status==='permission'?'Autoriza instalar desde NexoDB y vuelve a la aplicación.':'Confirma la actualización en el instalador de Android.');
-            toast(t(status==='permission'?'Autoriza instalar desde NexoDB y vuelve a la aplicación.':'Confirma la actualización en el instalador de Android.'));
+            const status=await rpc(method);if($('#update-status'))$('#update-status').textContent=t(status==='permission'?'Autoriza instalar desde AdisDB y vuelve a la aplicación.':'Confirma la actualización en el instalador de Android.');
+            toast(t(status==='permission'?'Autoriza instalar desde AdisDB y vuelve a la aplicación.':'Confirma la actualización en el instalador de Android.'));
         }
     }catch(error){if(instance===updateSequence&&$('#update-checking'))sheet('Actualizaciones','<p class="error">'+h(error.message||String(error))+'</p>',[{id:'retry-update',label:'Reintentar',icon:'refresh',run:openUpdates}]);}
 }

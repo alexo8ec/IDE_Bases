@@ -1,8 +1,8 @@
 {
-    "version":  "0.14.4",
-    "versionCode":  1404,
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.4-android.apk",
-    "sha256":  "bcd5b642346477ef0d8614b5de9b2c3c5261f43c9735261ebaeef3253bb8c046",
-    "size":  5674783,
-    "notes":  "Consulta de referencias de claves foráneas, búsqueda y selección con cambios pendientes, pantalla de actualizaciones y reintento de instalación sin descargar otra vez."
+    "version":  "0.14.5",
+    "versionCode":  1405,
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.14.5-android.apk",
+    "sha256":  "4b92d3c0eb9ff8964a44ca258857f810a8d9bcdee40c49e24cbc5246f01ac15c",
+    "size":  5697641,
+    "notes":  "AdisDB, producto de la suite AdisOne: nueva marca e icono. Conserva conexiones, consultas, licencia, firma e identificador de la aplicacion."
 }

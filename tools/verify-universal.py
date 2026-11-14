@@ -8,12 +8,12 @@ import zipfile
 
 root = Path(__file__).resolve().parent.parent
 version = (root/'VERSION').read_text().strip()
-archive = root/'dist'/f'NexoDB-Studio-{version}-universal.zip'
+archive = root/'dist'/f'AdisDB-{version}-universal.zip'
 checksum = archive.with_suffix('.zip.sha256').read_text().split()[0]
 assert hashlib.sha256(archive.read_bytes()).hexdigest() == checksum
-prefix = 'NexoDB Studio/'
+prefix = 'AdisDB/'
 with zipfile.ZipFile(archive) as package:
-    for name in ('run.sh','run.cmd','install.sh','Info.plist','README.txt','nexodb-icon.png','app/nexodb-studio.jar'):
+    for name in ('run.sh','run.cmd','install.sh','Info.plist','README.txt','adisdb-icon.png','app/nexodb-studio.jar'):
         assert prefix+name in package.namelist(), name
     for name in ('run.sh','install.sh'):
         entry = package.getinfo(prefix+name)

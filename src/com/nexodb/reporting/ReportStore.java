@@ -28,7 +28,7 @@ public final class ReportStore {
         }
         Path target=path.toAbsolutePath();Files.createDirectories(target.getParent());Path temporary=Files.createTempFile(target.getParent(),".nxreport-",".tmp");
         try {
-            try(Writer writer=Files.newBufferedWriter(temporary)){p.store(writer,"NexoDB report template - no result data");}
+            try(Writer writer=Files.newBufferedWriter(temporary)){p.store(writer,"AdisDB report template - no result data");}
             try{Files.move(temporary,target,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}catch(AtomicMoveNotSupportedException error){Files.move(temporary,target,StandardCopyOption.REPLACE_EXISTING);}
         } finally {Files.deleteIfExists(temporary);}
     }

@@ -170,7 +170,7 @@ public final class ReportDesignerPanel extends JPanel {
         if(target==null){JFileChooser chooser=templateChooser();chooser.setSelectedFile(new java.io.File("reporte.nxreport"));if(chooser.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return false;target=extension(chooser.getSelectedFile().toPath(),"nxreport");if(Files.exists(target)&&JOptionPane.showConfirmDialog(this,"¿Reemplazar la plantilla existente?","Guardar plantilla",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return false;}
         try{ReportStore.save(target,design);template=target;dirty=false;sync();status.accept("Plantilla de reporte guardada: "+target.getFileName());return true;}catch(Exception error){error(error);return false;}
     }
-    private static JFileChooser templateChooser(){JFileChooser chooser=new JFileChooser();chooser.setFileFilter(new FileNameExtensionFilter("Plantilla NexoDB (*.nxreport)","nxreport"));chooser.setAcceptAllFileFilterUsed(false);return chooser;}
+    private static JFileChooser templateChooser(){JFileChooser chooser=new JFileChooser();chooser.setFileFilter(new FileNameExtensionFilter("Plantilla AdisDB (*.nxreport)","nxreport"));chooser.setAcceptAllFileFilterUsed(false);return chooser;}
     private static Path extension(Path path,String extension){return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith("."+extension)?path:path.resolveSibling(path.getFileName()+"."+extension);}
     public boolean canClose() {
         if(columns.isEditing()&&!columns.getCellEditor().stopCellEditing())return false;

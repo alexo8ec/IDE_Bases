@@ -2,7 +2,7 @@ param([string]$ManifestUrl = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $version = (Get-Content -LiteralPath (Join-Path $root 'VERSION') -Raw).Trim()
-$image = Join-Path $root "dist\$version\NexoDB Studio"
+$image = Join-Path $root "dist\$version\AdisDB"
 $verification = [IO.Path]::GetFullPath((Join-Path $root 'build\runtime-verification'))
 if (-not $verification.StartsWith([IO.Path]::GetFullPath((Join-Path $root 'build')) + '\')) { throw 'Unsafe verification path' }
 if (Test-Path -LiteralPath $verification) { Remove-Item -LiteralPath $verification -Recurse -Force }
@@ -21,6 +21,6 @@ $testArgs = @('-cp', $verification, 'RuntimeTlsCheck')
 if ($ManifestUrl) { $testArgs += $ManifestUrl }
 & (Join-Path $runtime 'bin\java.exe') @testArgs
 if ($LASTEXITCODE -ne 0) { throw 'Packaged runtime TLS verification failed' }
-$exe = Join-Path $root "dist\installer\NexoDB Studio-$version.exe"
+$exe = Join-Path $root "dist\installer\AdisDB-$version.exe"
 if ((Get-Item -LiteralPath $exe).VersionInfo.FileVersion -ne $version) { throw 'Incorrect installer version' }
 Write-Host "Windows $version installer and runtime verified."

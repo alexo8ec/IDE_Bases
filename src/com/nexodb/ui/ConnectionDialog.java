@@ -111,7 +111,7 @@ public final class ConnectionDialog extends JDialog {
 
         JPanel heading = new JPanel(new BorderLayout(12, 0));
         headingIcon.setIcon(IconFactory.database((DatabaseType) type.getSelectedItem(), 36));
-        JLabel headingText = UiLanguage.text(new JLabel(tr("<html><b style='font-size:14px'>Configura tu conexión</b><br>Completa los datos básicos; NexoDB se encarga del controlador.</html>")), UiLanguage.key("<html><b style='font-size:14px'>Configura tu conexión</b><br>Completa los datos básicos; NexoDB se encarga del controlador.</html>"));
+        JLabel headingText = UiLanguage.text(new JLabel(tr("<html><b style='font-size:14px'>Configura tu conexión</b><br>Completa los datos básicos; AdisDB se encarga del controlador.</html>")), UiLanguage.key("<html><b style='font-size:14px'>Configura tu conexión</b><br>Completa los datos básicos; AdisDB se encarga del controlador.</html>"));
         headingText.setForeground(UIManager.getColor("Label.foreground"));
         heading.add(headingIcon, BorderLayout.WEST);
         heading.add(headingText, BorderLayout.CENTER);
@@ -339,7 +339,7 @@ public final class ConnectionDialog extends JDialog {
                     JdbcSession.DriverCheck check = get();
                     status.setForeground(UIManager.getColor("Label.foreground"));
                     UiLanguage.text(status, UiLanguage.key("Controlador de "), engine.displayName(), UiLanguage.key(" listo."));
-                    String location = check.file() == null ? tr("Incluido dentro de NexoDB Studio") : check.file().getAbsolutePath();
+                    String location = check.file() == null ? tr("Incluido dentro de AdisDB") : check.file().getAbsolutePath();
                     JOptionPane.showMessageDialog(ConnectionDialog.this,
                             (downloaded ? tr("El controlador fue descargado, verificado e instalado correctamente.")
                                     : tr("El controlador ya estaba instalado y funciona correctamente."))

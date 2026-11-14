@@ -260,7 +260,7 @@ public final class SchemaCompareDialog extends JDialog {
         if (selectionConfigured && left.objects().isEmpty() && right.objects().isEmpty())
             throw new IllegalStateException(tr("Las tablas seleccionadas no están disponibles en estas bases. Revisa la selección."));
         List<Difference> differences = new ArrayList<>();
-        StringBuilder script = new StringBuilder("-- NexoDB Studio · Sincronización de esquema\n")
+        StringBuilder script = new StringBuilder("-- AdisDB · Sincronización de esquema\n")
                 .append("-- Origen: ").append(sourceName).append("\n")
                 .append("-- Destino: ").append(targetName).append("\n")
                 .append("-- Revisa cuidadosamente antes de ejecutar.\n\n");

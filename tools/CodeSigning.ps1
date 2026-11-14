@@ -24,7 +24,7 @@ function Get-NexoSigner {
 function Invoke-NexoSignFile {
     param([Parameter(Mandatory)]$Signer, [Parameter(Mandatory)][string]$Path)
     $absolute = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path
-    & $Signer.Tool sign /fd SHA256 /sha1 $Signer.Certificate.Thumbprint /tr http://timestamp.digicert.com /td SHA256 /d 'NexoDB Studio' $absolute
+    & $Signer.Tool sign /fd SHA256 /sha1 $Signer.Certificate.Thumbprint /tr http://timestamp.digicert.com /td SHA256 /d 'AdisDB' $absolute
     if ($LASTEXITCODE -ne 0) { throw "No se pudo firmar: $absolute" }
     & $Signer.Tool verify /pa /all /tw $absolute
     if ($LASTEXITCODE -ne 0) { throw "No se pudo verificar la firma: $absolute" }

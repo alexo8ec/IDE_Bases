@@ -147,8 +147,8 @@ public final class QueryPanel extends JPanel {
         updateActions();
     }
     private static String withoutStartupHeader(String text){
-        for(String help:List.of("-- Selecciona una consulta o coloca el cursor dentro de ella y presiona Ctrl+Enter.","-- Select a query or place the cursor inside it and press Ctrl+Enter.")){
-            String prefix="-- NexoDB Studio\n"+help+"\n\n";
+        for(String brand:List.of("AdisDB","NexoDB Studio"))for(String help:List.of("-- Selecciona una consulta o coloca el cursor dentro de ella y presiona Ctrl+Enter.","-- Select a query or place the cursor inside it and press Ctrl+Enter.")){
+            String prefix="-- "+brand+"\n"+help+"\n\n";
             if(text.startsWith(prefix))return text.substring(prefix.length());
             prefix=prefix.replace("\n","\r\n");if(text.startsWith(prefix))return text.substring(prefix.length());
         }
@@ -339,7 +339,7 @@ public final class QueryPanel extends JPanel {
         Path destination=target;String text=pane.getText();boolean check=d.path!=null&&d.path.equals(destination)&&!d.diskHash.isEmpty();String expected=d.diskHash;
         if(!confirm.test("Guardar archivo SQL",tr("Se guardará el texto de esta pestaña en el archivo indicado. ¿Continuar?")+"\n"+destination))return;
         pane.setEditable(false);
-        fileOperation(()->{if(check&&(!Files.exists(destination)||!SqlFiles.diskHash(destination).equals(expected)))throw new java.io.IOException(tr("El archivo cambió fuera de NexoDB. Usa Guardar como para conservar tus cambios sin sobrescribirlo."));return SqlFiles.write(destination,text);},hash->{markSaved(pane,destination,text,hash);statusConsumer.accept(tr("Consulta guardada: ")+destination);if(!isDirty(pane))after.run();},()->pane.setEditable(true));
+        fileOperation(()->{if(check&&(!Files.exists(destination)||!SqlFiles.diskHash(destination).equals(expected)))throw new java.io.IOException(tr("El archivo cambió fuera de AdisDB. Usa Guardar como para conservar tus cambios sin sobrescribirlo."));return SqlFiles.write(destination,text);},hash->{markSaved(pane,destination,text,hash);statusConsumer.accept(tr("Consulta guardada: ")+destination);if(!isDirty(pane))after.run();},()->pane.setEditable(true));
     }
     void markSaved(SqlEditorPane pane,Path path,String text,String diskHash){DocumentState d=documents.get(pane);d.path=path.toAbsolutePath();d.savedHash=SqlFiles.hash(text);d.diskHash=diskHash;refreshTitle(pane);scheduleDraft();}
     private <T> void fileOperation(java.util.concurrent.Callable<T> operation,Consumer<T> success){fileOperation(operation,success,()->{});}

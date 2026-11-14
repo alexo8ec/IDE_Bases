@@ -57,7 +57,22 @@ public final class UpdateServiceTest {
             rejects(() -> service.download(new UpdateService.UpdateInfo("1.2.3", source.toUri().toString(), "0".repeat(64), ""), null));
             equal(before, tempUpdates());
         } finally { Files.deleteIfExists(source); }
-        System.out.println("UpdateServiceTest: OK");
+        if(System.getProperty("os.name","").startsWith("Windows"))verifyRebrandUpdater();
+        System.out.println("UpdateServiceTest: OK (legacy/new manifests, hashes and NexoDB-to-AdisDB updater compatibility)");
+    }
+    private static void verifyRebrandUpdater()throws Exception{
+        Path root=Files.createTempDirectory("adisdb-updater-migration-").toAbsolutePath();Path install=Files.createDirectory(root.resolve("installed"));Path temporary=Files.createDirectory(root.resolve("temp"));Path old=install.resolve("NexoDB Studio.exe");Files.writeString(old,"legacy-launcher");
+        var method=UpdateService.class.getDeclaredMethod("updaterScript");method.setAccessible(true);String script=(String)method.invoke(null);String stub="function Start-Process { param([string]$FilePath) [IO.File]::WriteAllText($env:ADISDB_TEST_LAUNCH_LOG,$FilePath) }\n";
+        // Run real extraction/copy/cleanup, but record launch paths instead of starting any application.
+        script=script.replace("$ErrorActionPreference = 'Stop'",stub+"$ErrorActionPreference = 'Stop'");
+        for(boolean branded:List.of(true,false)){
+            Files.deleteIfExists(install.resolve("AdisDB.exe"));Path archive=root.resolve("update.zip"),log=root.resolve("launch.txt"),file=root.resolve("apply.ps1");
+            try(var zip=new java.util.zip.ZipOutputStream(Files.newOutputStream(archive))){zip.putNextEntry(new java.util.zip.ZipEntry(branded?"AdisDB.exe":"NexoDB Studio.exe"));zip.write("new-launcher".getBytes(java.nio.charset.StandardCharsets.UTF_8));zip.closeEntry();zip.putNextEntry(new java.util.zip.ZipEntry("app/nexodb-studio.jar"));zip.write("new-app".getBytes(java.nio.charset.StandardCharsets.UTF_8));zip.closeEntry();}
+            Files.writeString(file,script);ProcessBuilder builder=new ProcessBuilder("powershell.exe","-NoProfile","-ExecutionPolicy","Bypass","-File",file.toString(),"2147483647",archive.toString(),install.toString(),old.toString()).redirectErrorStream(true);builder.environment().put("TEMP",temporary.toString());builder.environment().put("TMP",temporary.toString());builder.environment().put("ADISDB_TEST_LAUNCH_LOG",log.toString());Process process=builder.start();if(!process.waitFor(40,java.util.concurrent.TimeUnit.SECONDS)){process.destroyForcibly();throw new AssertionError("Updater migration timed out");}String output=new String(process.getInputStream().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);if(process.exitValue()!=0)throw new AssertionError(output);
+            equal((branded?install.resolve("AdisDB.exe"):old).toString(),Files.readString(log));equal("new-app",Files.readString(install.resolve("app/nexodb-studio.jar")));equal(false,Files.exists(archive));equal(false,Files.exists(file));try(var stages=Files.list(temporary)){if(stages.anyMatch(p->p.getFileName().toString().startsWith("AdisDB-update-")))throw new AssertionError("Updater stage left behind");}
+        }
+        // Only remove paths created under this verified, isolated temporary fixture.
+        try(var paths=Files.walk(root)){for(Path path:paths.sorted(Comparator.reverseOrder()).toList()){if(!path.toAbsolutePath().startsWith(root))throw new AssertionError("Unsafe test cleanup");Files.delete(path);}}
     }
 
     private static Set<Path> tempUpdates() throws Exception {

@@ -1,28 +1,28 @@
 {
-  "version": "0.17.0",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.17.0-win64.zip",
-  "sha256": "f6a008c3c207af15959f94e6916d652958747cb4305a88eb020e2d9c4d04fa83",
-  "notes": "NexoDB Studio 0.17.0: depuracion por instruccion, inspeccion al pasar el cursor, tablas JSON, SELECT en tiempo real e historial. Scripts SQLyog y delimitadores finales procesados en el cliente. Errores con linea y explicacion. Exportacion Excel, TXT, CSV y SQL, y copia de datos.",
+  "version": "0.18.0",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-win64.zip",
+  "sha256": "3fc2957bf4a11187855a3427ca0d13c5efa81cfe535f267f9145ac1e71f31fdf",
+  "notes": "AdisDB 0.18.0, producto de la suite AdisOne. Nueva identidad e icono. Conserva conexiones, preferencias, borradores y licencias. Compatible con actualizaciones desde NexoDB Studio.",
   "platforms": {
     "windows-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.17.0-win64.zip",
-      "sha256": "f6a008c3c207af15959f94e6916d652958747cb4305a88eb020e2d9c4d04fa83"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-win64.zip",
+      "sha256": "3fc2957bf4a11187855a3427ca0d13c5efa81cfe535f267f9145ac1e71f31fdf"
     },
     "linux-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.17.0-linux-x64.deb",
-      "sha256": "258c6f2d38a742984d7e2295709265cc7f8678e7c606c0b7f05d8eb39e0e3132"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-linux-x64.deb",
+      "sha256": "0e15832036df742cea72dd3b8fe48247204b328c2689b7b989029da76a2dfe68"
     },
     "linux-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.17.0-linux-arm64.deb",
-      "sha256": "e02141ac5a65c50e62f8d06af3c26fc555cd372da7506fa5e4a1d0c46f1d75c1"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-linux-arm64.deb",
+      "sha256": "df6b399cc3820b84e34999a2a77545b5e73f1b3758c0db3e15711ead9b86852c"
     },
     "macos-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.17.0-macos-x64.zip",
-      "sha256": "f1c534ea725dc14c6daf433403ca440ed07268a2d355dfa51481d129c26e1113"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-macos-x64.zip",
+      "sha256": "80f6738ad78363065e05da7df3ece84f8b0b730d7f44db94d093680d89721f61"
     },
     "macos-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.17.0-macos-arm64.zip",
-      "sha256": "75d73629da47de1a01331b950a34209adc99848aad30b83d5401b6eb28083def"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.0-macos-arm64.zip",
+      "sha256": "371b0f3cbb60a0cf7ca9ef045c3272479cd854662eb5edc3a46d0213285b26c4"
     }
   }
 }

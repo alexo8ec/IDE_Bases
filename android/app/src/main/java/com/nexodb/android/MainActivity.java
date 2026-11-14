@@ -29,7 +29,7 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void call(int id,String method,String payload){
             if(destroyed)return;
             if(method.equals("cancel")){if(backend!=null)backend.cancel();reply(id,true,new JSONObject());return;}
-            worker.execute(()->{try{if(startupError!=null)throw new IllegalStateException("No se pudo iniciar NexoDB: "+startupError.getMessage());reply(id,true,MobileJson.value(backend.call(method,new JSONObject(payload))));}catch(Throwable e){reply(id,false,e.getMessage()==null?e.getClass().getSimpleName():e.getMessage());}});
+            worker.execute(()->{try{if(startupError!=null)throw new IllegalStateException("No se pudo iniciar AdisDB: "+startupError.getMessage());reply(id,true,MobileJson.value(backend.call(method,new JSONObject(payload))));}catch(Throwable e){reply(id,false,e.getMessage()==null?e.getClass().getSimpleName():e.getMessage());}});
         }
     }
     private void reply(int id,boolean ok,Object value){try{String json=new JSONObject().put("id",id).put("ok",ok).put(ok?"value":"error",value==null?JSONObject.NULL:value).toString().replace("\u2028","\\u2028").replace("\u2029","\\u2029");runOnUiThread(()->{if(!destroyed)web.evaluateJavascript("window.NexoReply("+json+")",null);});}catch(JSONException ignored){}}
@@ -44,7 +44,7 @@ public final class MainActivity extends Activity {
         Uri uri=result.get();if(uri==null)throw new CancellationException("Operación cancelada.");return uri;
     }
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==UpdateInstaller.PERMISSION_REQUEST){new UpdateInstaller(this).permissionResult();return;}if(request==UpdateInstaller.INSTALL_REQUEST){new UpdateInstaller(this).installationResult();return;}CompletableFuture<Uri> future=documents.remove(request);if(future!=null)future.complete(result==RESULT_OK&&data!=null?data.getData():null);}
-    void copy(String text){runOnUiThread(()->((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("NexoDB",text)));}
+    void copy(String text){runOnUiThread(()->((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("AdisDB",text)));}
     @Override public void onBackPressed(){web.evaluateJavascript("window.NexoBack && window.NexoBack()",null);}
     @Override protected void onResume(){super.onResume();if(getPackageManager().canRequestPackageInstalls())new UpdateInstaller(this).permissionResult();}
     @Override protected void onPause(){if(web!=null)web.evaluateJavascript("window.NexoSave && window.NexoSave()",null);super.onPause();}

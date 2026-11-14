@@ -59,14 +59,16 @@ def deb(path, platform):
         check(b'\r' not in script and b'"$root/runtime/bin/java"' in script,'Invalid Linux launcher')
         shell_syntax(script,platform+'.sh')
         check(archive.extractfile(base+'app/nexodb-studio.jar').read()==EXPECTED_JAR,'Incorrect app JAR')
-        check(archive.extractfile('usr/share/applications/com.nexodb.studio.desktop').read().startswith(b'[Desktop Entry]'),'Missing desktop entry')
+        desktop=archive.extractfile('usr/share/applications/com.nexodb.studio.desktop').read()
+        check(desktop.startswith(b'[Desktop Entry]') and b'Name=AdisDB\n' in desktop,'Missing AdisDB desktop entry')
         check(any('/runtime/legal/' in name for name in archive.getnames()),'Missing runtime licenses')
 
 def mac(path, platform):
     with zipfile.ZipFile(path) as archive:
         check(archive.testzip() is None,'ZIP CRC failure')
-        base='NexoDB Studio.app/Contents/'
+        base='AdisDB.app/Contents/'
         metadata=plistlib.loads(archive.read(base+'Info.plist'))
+        check(metadata['CFBundleName']=='AdisDB','Incorrect product name')
         check(metadata['CFBundleShortVersionString']==VERSION,'Incorrect macOS app version')
         check(metadata['CFBundleIdentifier']=='com.nexodb.studio','Incorrect bundle ID')
         for name in archive.namelist():
@@ -76,24 +78,26 @@ def mac(path, platform):
                 target=archive.read(name).decode()
                 resolved=posixpath.normpath(posixpath.join(posixpath.dirname(name),target))
                 safe(resolved); check(resolved.startswith(base+'runtime/'),'Runtime link leaves bundle')
-        for name in (base+'MacOS/'+metadata['CFBundleExecutable'],'Instalar NexoDB Studio.command',base+'runtime/Contents/Home/bin/java'):
+        for name in (base+'MacOS/'+metadata['CFBundleExecutable'],'Instalar AdisDB.command',base+'runtime/Contents/Home/bin/java'):
             check((archive.getinfo(name).external_attr>>16)&0o111,'Not executable: '+name)
         launcher=archive.read(base+'MacOS/'+metadata['CFBundleExecutable'])
         check(b'\r' not in launcher and b'"$JAVA_HOME/bin/java"' in launcher,'Invalid macOS launcher')
         shell_syntax(launcher,platform+'.sh')
-        shell_syntax(archive.read('Instalar NexoDB Studio.command'),platform+'-install.sh')
+        shell_syntax(archive.read('Instalar AdisDB.command'),platform+'-install.sh')
         binary(archive.read(base+'runtime/Contents/Home/bin/java')[:20],platform)
         check(archive.read(base+'Resources/app/nexodb-studio.jar')==EXPECTED_JAR,'Incorrect app JAR')
         check(any('/Home/legal/' in name for name in archive.namelist()),'Missing runtime licenses')
 
 def main():
-    with zipfile.ZipFile(ROOT/'dist'/f'NexoDB-Studio-{VERSION}-win64.zip') as archive:
+    with zipfile.ZipFile(ROOT/'dist'/f'AdisDB-{VERSION}-win64.zip') as archive:
         check(archive.testzip() is None,'Windows ZIP CRC failure')
         check(archive.read('app/nexodb-studio.jar')==EXPECTED_JAR,'Windows app JAR differs')
+        check(archive.read('AdisDB.exe')==archive.read('NexoDB Studio.exe'),'Legacy updater launcher differs')
+        check(archive.read('app/AdisDB.cfg')==archive.read('app/NexoDB Studio.cfg'),'Legacy updater configuration differs')
         check('jdk.crypto.ec' in archive.read('runtime/release').decode(),'Windows TLS module missing')
     print('Windows update ZIP: OK (CRC, application and TLS module)',flush=True)
     for platform in ('linux-x64','linux-arm64','macos-x64','macos-arm64'):
-        path=ROOT/'dist'/f'NexoDB-Studio-{VERSION}-{platform}.{ "deb" if platform.startswith("linux") else "zip"}'
+        path=ROOT/'dist'/f'AdisDB-{VERSION}-{platform}.{ "deb" if platform.startswith("linux") else "zip"}'
         expected=path.with_suffix(path.suffix+'.sha256').read_text().split()[0]
         check(hashlib.sha256(path.read_bytes()).hexdigest()==expected,'Package SHA-256 mismatch')
         (deb if platform.startswith('linux') else mac)(path,platform)

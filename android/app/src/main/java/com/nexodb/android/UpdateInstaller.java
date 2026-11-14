@@ -22,7 +22,7 @@ final class UpdateInstaller {
         PackageManager manager=context.getPackageManager();
         int flags=Build.VERSION.SDK_INT>=28?PackageManager.GET_SIGNING_CERTIFICATES:PackageManager.GET_SIGNATURES;
         PackageInfo incoming=manager.getPackageArchiveInfo(apk.getAbsolutePath(),flags),current=manager.getPackageInfo(context.getPackageName(),flags);
-        if(incoming==null||!context.getPackageName().equals(incoming.packageName))throw new SecurityException("La descarga no es una actualización de NexoDB Studio.");
+        if(incoming==null||!context.getPackageName().equals(incoming.packageName))throw new SecurityException("La descarga no es una actualización de AdisDB.");
         long candidate=version(incoming),installed=version(current);
         if(candidate!=expectedVersion||newer&&candidate<=installed)throw new SecurityException("La versión de la APK no coincide con la actualización anunciada.");
         if(!certificates(incoming).equals(certificates(current))||certificates(incoming).isEmpty())throw new SecurityException("La firma de la APK no coincide con la aplicación instalada.");
