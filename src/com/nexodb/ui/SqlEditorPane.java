@@ -13,6 +13,12 @@ import java.util.Set;
 
 /** Lightweight SQL editor with keyword casing and syntax colors. */
 public final class SqlEditorPane extends JTextPane {
+    private final java.util.Map<Integer,String> errors=new java.util.TreeMap<>();private final java.util.List<Object> errorHighlights=new java.util.ArrayList<>();
+    public java.util.Map<Integer,String> errorLines(){return java.util.Map.copyOf(errors);}
+    public void clearErrors(){for(Object tag:errorHighlights)getHighlighter().removeHighlight(tag);errorHighlights.clear();errors.clear();firePropertyChange("sqlErrors",false,true);repaint();}
+    public void markError(int line,int column,String message){var root=getDocument().getDefaultRootElement();line=Math.max(1,Math.min(line,root.getElementCount()));var element=root.getElement(line-1);try{errorHighlights.add(getHighlighter().addHighlight(element.getStartOffset(),Math.min(getDocument().getLength(),element.getEndOffset()),new DefaultHighlighter.DefaultHighlightPainter(ThemeManager.color(0xFFE0E0,0x66343D))));}catch(BadLocationException ignored){}errors.put(line,message);firePropertyChange("sqlErrors",false,true);repaint();}
+    public void goToError(int line,int column){var root=getDocument().getDefaultRootElement();var element=root.getElement(Math.max(0,Math.min(root.getElementCount()-1,line-1)));setCaretPosition(Math.max(element.getStartOffset(),Math.min(getDocument().getLength(),Math.min(element.getEndOffset()-1,element.getStartOffset()+Math.max(0,column-1)))));requestFocusInWindow();try{var rect=modelToView2D(getCaretPosition());if(rect!=null)scrollRectToVisible(rect.getBounds());}catch(BadLocationException ignored){}}
+    @Override public String getToolTipText(MouseEvent event){int at=viewToModel2D(event.getPoint());String error=errors.get(getDocument().getDefaultRootElement().getElementIndex(at)+1);return error==null?super.getToolTipText(event):error;}
     private Set<String> keywords = SqlVocabulary.base();
 
     public void setKeywords(Set<String> words) { keywords=Set.copyOf(words);highlightTimer.restart(); }
@@ -34,6 +40,7 @@ public final class SqlEditorPane extends JTextPane {
 
     public SqlEditorPane() {
         StyledDocument document = getStyledDocument();
+        ToolTipManager.sharedInstance().registerComponent(this);document.addDocumentListener(new DocumentListener(){public void insertUpdate(DocumentEvent e){clearErrors();}public void removeUpdate(DocumentEvent e){clearErrors();}public void changedUpdate(DocumentEvent e){}});
         defaultStyle = addStyle("default", null);
         StyleConstants.setFontFamily(defaultStyle,Font.MONOSPACED);
         StyleConstants.setFontSize(defaultStyle,14);

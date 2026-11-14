@@ -512,17 +512,18 @@ public final class QueryPanel extends JPanel {
             JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Sin conexión"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        String sql = SqlText.selectedOrAll(editor);
+        SqlEditorPane executedEditor=editor;String executedDocument=editor.getText();String raw=editor.getSelectedText();int selectionOffset=raw==null||raw.isEmpty()?0:editor.getSelectionStart();if(raw==null||raw.isEmpty())raw=executedDocument;
+        String sql = SqlText.selectedOrAll(editor);int scriptOffset=selectionOffset+Math.max(0,raw.indexOf(sql));executedEditor.clearErrors();
         if (sql.isBlank()) return;
         List<String> statements;
         try {
             statements = SqlText.executionStatements(sql);
         } catch (java.io.IOException error) {
-            appendMessage(tr("Error"), error.getMessage());
-            outputTabs.setSelectedComponent(messagesScroll);
+            var diagnostic=com.nexodb.db.SqlDiagnostic.analyze(error,sql,executedDocument,scriptOffset);appendMessage(tr("Error"),diagnostic.display());executedEditor.markError(diagnostic.line(),diagnostic.column(),diagnostic.explanation());addDiagnosticTab("Error",diagnostic,()->locateError(executedEditor,executedDocument,diagnostic));locateError(executedEditor,executedDocument,diagnostic);
             return;
         }
         if (statements.isEmpty()) return;
+        List<Integer> statementOffsets=new ArrayList<>();int offsetCursor=0;for(String statement:statements){int at=sql.indexOf(statement,offsetCursor);statementOffsets.add(scriptOffset+(at<0?offsetCursor:at));offsetCursor=(at<0?offsetCursor:at)+statement.length();}
         boolean readsOnly=statements.stream().allMatch(SqlExecutionPolicy::readOnly);
         if(!readsOnly&&(readOnly.isSelected()||session.profile().readOnly())){JOptionPane.showMessageDialog(this,tr("La consulta está en modo Solo lectura. Habilita cambios de forma explícita antes de ejecutar instrucciones de escritura."),tr("Solo lectura"),JOptionPane.INFORMATION_MESSAGE);return;}
         if(!readsOnly&&!confirm.test("Ejecutar cambios SQL",session.profile().name()+" · "+activeDatabase()+"\n"+tr("Se ejecutarán %s sentencias. Pueden modificar datos o estructura. ¿Continuar?",statements.size())+"\n\n"+sql.substring(0,Math.min(sql.length(),3000))))return;
@@ -566,11 +567,12 @@ public final class QueryPanel extends JPanel {
                     int resultTabs = 0;
                     int errors = 0;
                     long totalRows = 0;
+                    Runnable firstError=null;
                     for (StatementOutcome outcome : outcomes) {
                         if (outcome.error() != null) {
                             errors++;
-                            appendMessage(tr("Error en sentencia ") + outcome.index(), preview(outcome.sql()) + "\n" + outcome.error().getMessage());
-                            addMessageTab("Error " + outcome.index(), outcome.error().getMessage());
+                            var diagnostic=com.nexodb.db.SqlDiagnostic.analyze(outcome.error(),outcome.sql(),executedDocument,statementOffsets.get(outcome.index()-1));
+                            appendMessage(tr("Error en sentencia ") + outcome.index(), diagnostic.display());Runnable locate=()->locateError(executedEditor,executedDocument,diagnostic);if(executedEditor.getText().equals(executedDocument))executedEditor.markError(diagnostic.line(),diagnostic.column(),diagnostic.explanation());addDiagnosticTab("Error " + outcome.index(),diagnostic,locate);if(firstError==null)firstError=locate;
                         } else if (outcome.result().hasRows()) {
                             QueryResult result = outcome.result();
                             totalRows += result.rows().size();
@@ -588,6 +590,7 @@ public final class QueryPanel extends JPanel {
                     }
                     if (outputTabs.getTabCount() > 1) outputTabs.setSelectedIndex(0);
                     else outputTabs.setSelectedComponent(messagesScroll);
+                    if(firstError!=null)firstError.run();
                     statusConsumer.accept(outcomes.stream().map(StatementOutcome::index).distinct().count() + tr(" sentencias · ") + totalRows + tr(" filas · ") + errors + tr(" errores"));
                 } catch (Exception ex) {
                     Throwable cause = rootCause(ex);
@@ -600,6 +603,8 @@ public final class QueryPanel extends JPanel {
         setRunning(true);
         worker.execute();
     }
+    private void locateError(SqlEditorPane target,String snapshot,com.nexodb.db.SqlDiagnostic diagnostic){if(!queryEditors.contains(target))return;if(!target.getText().equals(snapshot)){statusConsumer.accept(tr("El texto cambió desde la ejecución; la posición del error corresponde a la versión ejecutada."));return;}int index=queryEditors.indexOf(target);queryTabs.setSelectedIndex(index);target.goToError(diagnostic.line(),diagnostic.column());}
+    private void addDiagnosticTab(String title,com.nexodb.db.SqlDiagnostic diagnostic,Runnable locate){int messagesIndex=outputTabs.indexOfComponent(messagesScroll);outputTabs.insertTab(uniqueTabName(title),IconFactory.of(IconFactory.Kind.INFO,16),new SqlErrorPanel(diagnostic,locate),null,Math.max(0,messagesIndex));}
 
     private void recordHistory(JdbcSession origin,String database,String sql,long millis,long rows,String error){try{history.add(new QueryHistoryStore.Entry(java.time.Instant.now(),origin.profile().name(),database,sql,millis,rows,error==null?"":error));}catch(Exception failure){SwingUtilities.invokeLater(()->statusConsumer.accept(tr("No se pudo guardar el historial SQL.")));}}
 

@@ -12,7 +12,7 @@ import java.util.List;
 /** Exports a tabular result without requiring external libraries. */
 public final class DataExporter {
     public enum Format {
-        CSV("CSV", "csv"), XLSX("Excel", "xlsx"), TSV("TSV", "tsv"), JSON("JSON", "json"),
+        CSV("CSV", "csv"), XLSX("Excel", "xlsx"), TXT("Texto (tabulado)", "txt"), TSV("TSV", "tsv"), JSON("JSON", "json"),
         XML("XML", "xml"), HTML("HTML", "html"), SQL("SQL INSERT", "sql");
 
         private final String label;
@@ -32,7 +32,7 @@ public final class DataExporter {
         try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             switch (format) {
                 case CSV -> writeDelimited(writer, result, ',');
-                case TSV -> writeDelimited(writer, result, '\t');
+                case TSV, TXT -> writeDelimited(writer, result, '\t');
                 case JSON -> writeJson(writer, result);
                 case XML -> writeXml(writer, result);
                 case HTML -> writeHtml(writer, result);

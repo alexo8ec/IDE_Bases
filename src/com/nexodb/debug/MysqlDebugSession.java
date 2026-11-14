@@ -11,12 +11,14 @@ import java.util.function.Consumer;
 public final class MysqlDebugSession implements AutoCloseable {
     public enum State {STARTING,RUNNING,PAUSED,COMPLETED,CANCELLED,FAILED}
     public record Value(String name,String type,String scope,String value,boolean isNull,boolean truncated){}
-    public record Event(State state,int line,int point,List<Value> variables,List<QueryResult> results,String message){public Event{variables=List.copyOf(variables);results=List.copyOf(results);}}
+    public record Event(State state,int line,int point,List<Value> variables,List<QueryResult> results,String message,SqlDiagnostic diagnostic){public Event{variables=List.copyOf(variables);results=List.copyOf(results);}public Event(State state,int line,int point,List<Value> variables,List<QueryResult> results,String message){this(state,line,point,variables,results,message,null);}}
+    private SqlDiagnostic failureDiagnostic;
     private final ConnectionProfile profile;private final SchemaItem item;private final StoredObjectService.Definition definition;private final MysqlProcedure program;private final Consumer<Event> listener;
     private final char[] password;private final List<Object> arguments;private final Map<String,Object> userValues;
     private final ScheduledExecutorService controlTasks=Executors.newSingleThreadScheduledExecutor(r->{Thread t=new Thread(r,"nexodb-debug-control");t.setDaemon(true);return t;});
     private final String prefix="__nxdbg_"+UUID.randomUUID().toString().replace("-","").substring(0,20);
-    private final String mailbox,variables,clone,pause;
+    private final String mailbox,variables,clone,pause;private final String marker=prefix+"_marker";
+    private volatile List<QueryResult> collectedResults=List.of();
     private final List<String> cleanup=new ArrayList<>();
     private volatile Set<Integer> breakpoints;private volatile boolean stopped,finished;private volatile State state=State.STARTING;private volatile Statement active;
     private volatile JdbcSession control,worker;private volatile long connectionId;private volatile Event last;private volatile Throwable controlFailure;
@@ -52,8 +54,9 @@ public final class MysqlDebugSession implements AutoCloseable {
             for(var value:userValues.entrySet()){if(program.sessionVariables().stream().noneMatch(v->v.name().equals(value.getKey())))throw new IllegalArgumentException("Variable de sesión no reconocida.");bind(worker.connection(),"@"+StoredObjectService.quote(value.getKey().substring(1)),value.getValue());}
             if(stopped)throw new CancellationException();publish(State.RUNNING,0,0,List.of(),List.of(),"Ejecutando copia temporal…");controlTasks.scheduleWithFixedDelay(this::poll,0,100,TimeUnit.MILLISECONDS);
             try(Statement statement=worker.connection().createStatement()){
-                active=statement;statement.setFetchSize(500);boolean has=statement.execute("CALL "+clone+"("+String.join(",",args)+")");
-                do{if(has)try(ResultSet rows=statement.getResultSet()){results.add(QueryResult.from(rows,10000));}else if(statement.getUpdateCount()==-1)break;has=statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT);}while(true);
+                // A single-row streaming fetch lets the controller display SELECT results while CALL is paused.
+                active=statement;statement.setFetchSize(worker.connection().getMetaData().getDriverName().toLowerCase(Locale.ROOT).contains("mysql")?Integer.MIN_VALUE:1);boolean has=statement.execute("CALL "+clone+"("+String.join(",",args)+")");
+                do{if(has)try(ResultSet rows=statement.getResultSet()){if(rows.getMetaData().getColumnCount()==1&&marker.equals(rows.getMetaData().getColumnLabel(1))){while(rows.next()){} }else{QueryResult result=QueryResult.from(rows,10000);if(results.size()<100)results.add(result);else throw new SQLException("La depuración alcanzó el límite de 100 conjuntos de resultados.");resultsChanged(results);}}else if(statement.getUpdateCount()==-1)break;has=statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT);}while(true);
             }finally{active=null;}
             if(!args.isEmpty())results.add(worker.execute("SELECT "+String.join(",",args),1));
         }catch(Throwable error){failure=error;}
@@ -66,7 +69,7 @@ public final class MysqlDebugSession implements AutoCloseable {
             // Reverse dependency order: clone, helper, snapshot, mailbox.
             if(control!=null)for(int i=cleanup.size()-1;i>=0;i--)try(Statement s=control.connection().createStatement()){s.setQueryTimeout(5);s.execute(cleanup.get(i));}catch(Exception error){failedCleanup.add(cleanup.get(i));}
             if(control!=null)try{control.close();}catch(Exception ignored){}
-            if(failure==null)failure=controlFailure;finished=true;String message=stopped?"Depuración detenida.":failure==null?"Procedimiento terminado.":"Error: "+failure.getMessage();if(!failedCleanup.isEmpty())message+=" Objetos auxiliares pendientes de limpieza: "+String.join("; ",failedCleanup);
+            if(failure==null)failure=controlFailure;if(failure!=null&&!stopped){var detail=SqlDiagnostic.analyze(failure,program.source(),program.source(),0);failureDiagnostic=new SqlDiagnostic(Math.max(1,line),1,false,detail.explanation(),"Última instrucción alcanzada en el SP original. "+detail.suggestion(),detail.original(),detail.code(),detail.sqlState());}finished=true;String message=stopped?"Depuración detenida.":failure==null?"Procedimiento terminado.":failureDiagnostic.display();if(!failedCleanup.isEmpty())message+=" Objetos auxiliares pendientes de limpieza: "+String.join("; ",failedCleanup);
             publish(stopped?State.CANCELLED:failure==null?State.COMPLETED:State.FAILED,line,point,context,results,message);
         }
     }
@@ -75,16 +78,19 @@ public final class MysqlDebugSession implements AutoCloseable {
     private String pauseSql(){int finalPoint=program.points().get(program.points().size()-1).id();return "CREATE PROCEDURE "+pause+"(IN nx_point INT,IN nx_line INT,IN nx_context LONGTEXT) SQL SECURITY INVOKER\nBEGIN\n"
             +" DECLARE nx_mode VARCHAR(16); DECLARE nx_bps LONGTEXT; DECLARE nx_status VARCHAR(16); DECLARE nx_lease BIGINT; DECLARE nx_keys LONGTEXT; DECLARE nx_key VARCHAR(256); DECLARE nx_path LONGTEXT; DECLARE nx_i INT DEFAULT 0; DECLARE nx_stop BOOL DEFAULT FALSE;\n"
             +" SELECT mode,bps INTO nx_mode,nx_bps FROM "+mailbox+" WHERE id=1; SET nx_stop=(nx_mode='STEP' OR FIND_IN_SET(nx_line,nx_bps)>0);\n"
-            +" IF nx_stop OR nx_point="+finalPoint+" THEN\n DELETE FROM "+variables+"; SET nx_keys=JSON_KEYS(nx_context);\n"
+            +" BEGIN\n DELETE FROM "+variables+"; SET nx_keys=JSON_KEYS(nx_context);\n"
             +" WHILE nx_i<JSON_LENGTH(nx_keys) DO SET nx_key=JSON_UNQUOTE(JSON_EXTRACT(nx_keys,CONCAT('$[',nx_i,']'))); SET nx_path=CONCAT('$.',JSON_QUOTE(nx_key));\n"
             +" INSERT INTO "+variables+"(name,val,is_null,truncated) VALUES(nx_key,JSON_UNQUOTE(JSON_EXTRACT(nx_context,CONCAT(nx_path,'.v'))),JSON_EXTRACT(nx_context,CONCAT(nx_path,'.n'))=true,JSON_EXTRACT(nx_context,CONCAT(nx_path,'.t'))=true); SET nx_i=nx_i+1; END WHILE;\n"
-            +" UPDATE "+mailbox+" SET seq=seq+1,point_id=nx_point,line_no=nx_line,status=IF(nx_stop,'PAUSED','RUNNING') WHERE id=1;\n"
-            +" WHILE nx_stop DO SELECT status,lease INTO nx_status,nx_lease FROM "+mailbox+" WHERE id=1; IF nx_status<>'PAUSED' THEN SET nx_stop=FALSE; ELSEIF UNIX_TIMESTAMP()-nx_lease>20 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='El controlador de depuración dejó de responder'; ELSE DO SLEEP(0.05); END IF; END WHILE;\n END IF;\nEND";}
+            // This private result boundary flushes completed SELECT output before waiting. It is filtered on the worker.
+            +" IF nx_stop THEN SELECT nx_point AS "+StoredObjectService.quote(marker)+"; END IF;\n"
+            +" UPDATE "+mailbox+" SET seq=seq+IF(nx_stop,1,0),point_id=nx_point,line_no=nx_line,status=IF(nx_stop,'PAUSED','RUNNING') WHERE id=1;\n"
+            +" WHILE nx_stop DO SELECT status,lease INTO nx_status,nx_lease FROM "+mailbox+" WHERE id=1; IF nx_status<>'PAUSED' THEN SET nx_stop=FALSE; ELSEIF UNIX_TIMESTAMP()-nx_lease>20 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='El controlador de depuración dejó de responder'; ELSE DO SLEEP(0.05); END IF; END WHILE;\n END;\nEND";}
     private void poll(){if(finished||control==null||stopped||controlFailure!=null)return;try{
         String bps=breakpointString();try(PreparedStatement s=control.connection().prepareStatement("UPDATE "+mailbox+" SET lease=UNIX_TIMESTAMP(),bps=? WHERE id=1")){s.setString(1,bps);s.executeUpdate();}sentBreakpoints=bps;
         try(Statement s=control.connection().createStatement();ResultSet r=s.executeQuery("SELECT seq,point_id,line_no,status FROM "+mailbox+" WHERE id=1")){if(r.next()){long sequence=r.getLong(1);int point=r.getInt(2),line=r.getInt(3);if(sequence!=seenSequence&&r.getString(4).equals("PAUSED")){seenSequence=sequence;publish(State.PAUSED,line,point,snapshot(point),List.of(),"Pausado antes de ejecutar línea "+line);}}}
     }catch(Exception error){if(!finished){controlFailure=error;Statement statement=active;if(statement!=null)try{statement.cancel();}catch(SQLException ignored){}}}}
     private List<Value> snapshot(int point)throws SQLException{Map<String,MysqlProcedure.Variable> visible=new LinkedHashMap<>();program.points().stream().filter(p->p.id()==point).findFirst().ifPresent(p->p.variables().forEach(v->visible.put(v.name(),v)));List<Value> values=new ArrayList<>();try(Statement s=control.connection().createStatement();ResultSet r=s.executeQuery("SELECT name,val,is_null,truncated FROM "+variables+" ORDER BY name")){while(r.next()){String name=r.getString(1);var metadata=visible.get(name);values.add(new Value(name,metadata==null?"":metadata.type(),metadata==null?"":metadata.scope(),r.getString(2),r.getBoolean(3),r.getBoolean(4)));}}return values;}
-    private void publish(State state,int line,int point,List<Value> values,List<QueryResult> results,String message){this.state=state;Event event=new Event(state,line,point,values,results,message);last=event;try{listener.accept(event);}catch(RuntimeException ignored){}}
+    private synchronized void resultsChanged(List<QueryResult> results){collectedResults=List.copyOf(results);if(last!=null)publish(state,last.line(),last.point(),last.variables(),collectedResults,last.message());}
+    private synchronized void publish(State state,int line,int point,List<Value> values,List<QueryResult> results,String message){this.state=state;Event event=new Event(state,line,point,values,results.isEmpty()?collectedResults:results,message,state==State.FAILED?failureDiagnostic:null);last=event;try{listener.accept(event);}catch(RuntimeException ignored){}}
     @Override public void close(){if(!finished)stop();else controlTasks.shutdownNow();Arrays.fill(password,'\0');}
 }

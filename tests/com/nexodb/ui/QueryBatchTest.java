@@ -23,6 +23,8 @@ public final class QueryBatchTest {
             run(panel,busy,"SELECT ';' AS marker; -- ignored ;\n SELECT 4; -- trailing comment",0,-1);equal(List.of(";",4),values(panel));
             run(panel,busy,"SELECT 5; SELECT * FROM missing_table; SELECT 6",0,-1);equal(List.of(5,6),values(panel));
             if (!field(panel,"messages",JTextArea.class).getText().contains("missing_table")) throw new AssertionError("Statement error missing");
+            run(panel,busy,"SELECT 5;\n\nSELECT * FROM missing_table;\nSELECT 6",0,-1);SwingUtilities.invokeAndWait(()->{var editor=field(panel,"editor",SqlEditorPane.class);equal(Set.of(3),editor.errorLines().keySet());equal(3,editor.getDocument().getDefaultRootElement().getElementIndex(editor.getCaretPosition())+1);});
+            String selected="SELECT 7;\n\n  SELECT * FROM missing_table;\nSELECT 8";run(panel,busy,selected,selected.indexOf("  SELECT"),selected.indexOf(";\nSELECT 8"));SwingUtilities.invokeAndWait(()->{var editor=field(panel,"editor",SqlEditorPane.class);equal(Set.of(3),editor.errorLines().keySet());editor.restoreText("SELECT 1");equal(true,editor.errorLines().isEmpty());});
             session.execute("CREATE TABLE writes(id INT PRIMARY KEY)",10);
             var confirmations=new AtomicInteger();
             SwingUtilities.invokeAndWait(()->{field(panel,"readOnly",JCheckBox.class).setSelected(false);set(panel,"confirm",(java.util.function.BiPredicate<String,String>)(title,text)->{confirmations.incrementAndGet();return true;});});

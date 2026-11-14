@@ -31,6 +31,8 @@ final class ResultGridActions {
     private ColumnEditor columnEditor;
     private EditingActions editing;
     private Runnable reference;private BooleanSupplier hasReference=()->false;
+    private Consumer<com.nexodb.util.DataExporter.Format> exporter;
+    void exportAction(Consumer<com.nexodb.util.DataExporter.Format> action){exporter=action;}
     void referenceAction(Runnable action,BooleanSupplier available){reference=action;hasReference=available;}
 
     ResultGridActions(JTable table,ResultTableModel model,JScrollPane scroll,JTextField search,Runnable changed,Consumer<String> copied){
@@ -127,6 +129,13 @@ final class ResultGridActions {
     private int column(){int column=table.getSelectedColumn();return column<0?-1:table.convertColumnIndexToModel(column);}
     private JPopupMenu menu(boolean heading){
         JPopupMenu menu=new JPopupMenu();int column=column();
+        if(!heading){
+            action(menu,"Copiar celda al portapapeles",()->{int row=table.getSelectedRow();if(row>=0&&column>=0)copy(List.of(table.convertRowIndexToModel(row)),List.of(column));},table.getSelectedRow()>=0&&column>=0);
+            action(menu,"Copiar todas las filas al portapapeles",()->copy(visibleRows(),allColumns()),table.getRowCount()>0);
+            action(menu,"Copiar filas seleccionadas al portapapeles",()->copy(selectedRows(),allColumns()),!selectedRows().isEmpty());
+            if(exporter!=null){JMenu formats=UiLanguage.text(new JMenu(),UiLanguage.key("Exportar datos cargados"));for(var format:com.nexodb.util.DataExporter.Format.values())submenu(menu,formats,format.toString()+"…",()->exporter.accept(format));menu.add(formats);}
+            menu.addSeparator();
+        }
         if(!heading&&reference!=null&&hasReference.getAsBoolean()){action(menu,"Ver registro relacionado…",reference,true);menu.addSeparator();}
         if(!heading&&editing!=null){
             boolean writable=editing.canEdit().getAsBoolean(),cell=editing.canSetValue().getAsBoolean();

@@ -23,6 +23,7 @@ public final class DataExporterTest {
                 if (text.isBlank()) throw new AssertionError(format + " export is empty");
                 if (format == DataExporter.Format.JSON && !text.contains("\"nombre\": \"O'Reilly\"")) throw new AssertionError("Invalid JSON export");
                 if (format == DataExporter.Format.SQL && !text.contains("O''Reilly")) throw new AssertionError("SQL value was not escaped");
+                if (format == DataExporter.Format.TXT && !text.contains("id\tnombre\tnota"))throw new AssertionError("TXT must be readable tab-separated text with headers");
                 Files.delete(file);
             }
         } finally {

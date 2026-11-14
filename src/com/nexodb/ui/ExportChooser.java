@@ -17,6 +17,9 @@ public final class ExportChooser {
     private ExportChooser() {}
 
     public static Request choose(Component owner, String baseName) {
+        return choose(owner,baseName,DataExporter.Format.CSV);
+    }
+    public static Request choose(Component owner,String baseName,DataExporter.Format initial) {
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle(tr("Exportar datos"));
         chooser.setAcceptAllFileFilterUsed(false);
@@ -26,8 +29,8 @@ public final class ExportChooser {
             formats.put(filter, format);
             chooser.addChoosableFileFilter(filter);
         }
-        chooser.setFileFilter(formats.keySet().iterator().next());
-        chooser.setSelectedFile(new File(clean(baseName) + ".csv"));
+        chooser.setFileFilter(formats.entrySet().stream().filter(e->e.getValue()==initial).findFirst().orElseThrow().getKey());
+        chooser.setSelectedFile(new File(clean(baseName) + "."+initial.extension()));
         chooser.addPropertyChangeListener(JFileChooser.FILE_FILTER_CHANGED_PROPERTY, event -> {
             DataExporter.Format selected = formats.get(chooser.getFileFilter());
             if (selected == null) return;

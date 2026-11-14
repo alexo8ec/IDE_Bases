@@ -12,6 +12,7 @@ public final class SqlScriptReader implements AutoCloseable {
     private boolean lineStart=true,noBackslash;
     private final java.util.Map<String,Boolean> savedModes=new java.util.HashMap<>();
     public SqlScriptReader(Reader reader){input=new PushbackReader(new BufferedReader(reader),256);}
+    public SqlScriptReader(Reader reader,String sqlMode){this(reader);noBackslash=sqlMode!=null&&sqlMode.toUpperCase(java.util.Locale.ROOT).contains("NO_BACKSLASH_ESCAPES");}
     private boolean follows(String text)throws IOException {
         char[] chars=new char[text.length()];int count=0;
         while(count<chars.length){int read=input.read(chars,count,chars.length-count);if(read<0)break;count+=read;}

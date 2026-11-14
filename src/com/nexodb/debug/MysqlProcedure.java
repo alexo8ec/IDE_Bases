@@ -13,10 +13,12 @@ public final class MysqlProcedure {
         boolean is(String s){return !quoted&&!literal&&value.equalsIgnoreCase(s);}
         boolean name(){return !literal&&(quoted||value.matches("[\\p{L}_$][\\p{L}\\p{N}_$]*"));}
     }
-    private final String source;private final List<Parameter> parameters;private final List<Point> points;private final List<Variable> sessionVariables;
-    private MysqlProcedure(String source,List<Parameter> parameters,List<Point> points,List<Variable> sessionVariables){this.source=source;this.parameters=List.copyOf(parameters);this.points=List.copyOf(points);this.sessionVariables=List.copyOf(sessionVariables);}
+    private final String source;private final List<Parameter> parameters;private final List<Point> points;private final List<Variable> sessionVariables;private final List<Token> sourceTokens;
+    private MysqlProcedure(String source,List<Parameter> parameters,List<Point> points,List<Variable> sessionVariables,List<Token> tokens){this.source=source;this.parameters=List.copyOf(parameters);this.points=List.copyOf(points);this.sessionVariables=List.copyOf(sessionVariables);this.sourceTokens=tokens;}
     public String source(){return source;}public List<Parameter> parameters(){return parameters;}public List<Point> points(){return points;}public List<Variable> sessionVariables(){return sessionVariables;}
     public Set<Integer> executableLines(){Set<Integer> result=new TreeSet<>();points.forEach(p->result.add(p.line()));return Collections.unmodifiableSet(result);}
+    /** A continuation line belongs to the statement's first executable line, never to a partial SELECT. */
+    public int breakpointLine(int line){if(executableLines().contains(line))return line;var tokens=sourceTokens;var token=tokens.stream().filter(t->t.line()==line).findFirst().orElse(null);if(token==null||Set.of("DECLARE","BEGIN","ELSE","ELSEIF","END","UNTIL").stream().anyMatch(token::is))return -1;var point=points.stream().filter(p->p.offset()<=token.start()).reduce((a,b)->b).orElse(null);if(point==null)return -1;for(var t:tokens)if(t.start()>=point.offset()&&t.end()<=token.start()&&t.is(";"))return -1;return point.line();}
     public static MysqlProcedure compile(StoredObjectService.Definition definition){return new Parser(definition.sql(),definition.sqlMode()).parse();}
     public String instrument(String cloneName,String pauseName){
         StringBuilder sql=new StringBuilder(source);List<Point> reversed=new ArrayList<>(points);reversed.sort(Comparator.comparingInt(Point::offset).reversed());
@@ -62,7 +64,7 @@ public final class MysqlProcedure {
             List<Variable> args=new ArrayList<>();for(var p:parameters)args.add(new Variable(p.name(),StoredObjectService.quote(p.name()),p.type(),p.mode()+" parámetro"));scopes.add(args);scopeLines.add(0);
             while(pos<tokens.size()&&!at("BEGIN")){if(pos+2<tokens.size()&&tokens.get(pos).name()&&tokens.get(pos+1).is(":")&&tokens.get(pos+2).is("BEGIN")){pos+=2;break;}pos++;}
             if(pos==tokens.size())throw new IllegalArgumentException("El depurador requiere un cuerpo BEGIN … END.");block();if(at(";"))pos++;if(pos!=tokens.size())throw fail("Texto adicional después del procedimiento",tokens.get(pos));
-            if(points.size()>2000)throw new IllegalArgumentException("El procedimiento supera 2.000 puntos de ejecución.");return new MysqlProcedure(source,parameters,points,userVariables);
+            if(points.size()>2000)throw new IllegalArgumentException("El procedimiento supera 2.000 puntos de ejecución.");return new MysqlProcedure(source,parameters,points,userVariables,tokens);
         }
         void parameter(int begin,int end){if(begin==end)return;int n=begin;String mode="IN";if(tokens.get(n).is("IN")||tokens.get(n).is("OUT")||tokens.get(n).is("INOUT"))mode=tokens.get(n++).value().toUpperCase(Locale.ROOT);if(n+1>=end||!tokens.get(n).name())throw fail("Parámetro no reconocido",tokens.get(begin));String name=tokens.get(n++).value();parameters.add(new Parameter(name,mode,source.substring(tokens.get(n).start(),tokens.get(end-1).end())));}
         void block(){if(scopes.size()>32)throw new IllegalArgumentException("Más de 32 ámbitos anidados.");int beginLine=tokens.get(pos).line();expect("BEGIN");scopes.add(new ArrayList<>());scopeLines.add(beginLine);while(at("DECLARE"))declaration();list(Set.of("END"));point();expect("END");if(pos<tokens.size()&&tokens.get(pos).name())pos++;scopes.remove(scopes.size()-1);scopeLines.remove(scopeLines.size()-1);}
