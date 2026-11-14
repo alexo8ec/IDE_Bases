@@ -11,6 +11,8 @@ $issuerSupport = @((Join-Path $projectRoot 'license-issuer/src/com/nexodb/issuer
 & javac -encoding UTF-8 -cp $mainClasspath -d $testRoot $tests $issuerSupport
 if ($LASTEXITCODE -ne 0) { throw 'La compilacion de pruebas fallo.' }
 $testClasspath = "$testRoot;$mainClasspath"
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.PlanDiagnosticsTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diagnostico de planes fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.SqlTextTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.CoreTest
@@ -94,6 +96,8 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de controles de paginacion fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.QueryPlanTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del plan de ejecucion fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ExecutionPlanPanelTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de metricas y diagnostico del planner fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.QueryBatchTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de consultas por lotes fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.ForeignKeyLookupWindowTest

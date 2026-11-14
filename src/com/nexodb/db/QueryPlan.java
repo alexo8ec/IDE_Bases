@@ -75,17 +75,20 @@ public final class QueryPlan {
         if(raw.length()>4_000_000)throw new IllegalArgumentException("El plan supera 4 MB.");
         List<String> suggestions=new ArrayList<>();Node root;String extension="txt";
         if(type==DatabaseType.SQLSERVER) {
-            extension="sqlplan";List<Node> roots=new ArrayList<>();
+            extension="sqlplan";List<Node> roots=new ArrayList<>();Map<String,String> summary=new LinkedHashMap<>();
             // A batch may emit several independent ShowPlanXML documents.
             var matcher=java.util.regex.Pattern.compile("(?s)(?:<\\?xml.*?\\?>\\s*)?<(?:(?:\\w+):)?ShowPlanXML\\b.*?</(?:(?:\\w+):)?ShowPlanXML>").matcher(raw);
-            boolean found=false;while(matcher.find()){found=true;Document doc=xml(matcher.group());var operators=doc.getElementsByTagNameNS("*","RelOp");for(int i=0;i<operators.getLength();i++){Element operator=(Element)operators.item(i);org.w3c.dom.Node parent=operator.getParentNode();boolean nested=false;while(parent!=null){if(parent instanceof Element e&&"RelOp".equals(e.getLocalName())){nested=true;break;}parent=parent.getParentNode();}if(!nested)roots.add(xmlOperator(operator,0));}missingIndexes(doc,suggestions);}
+            boolean found=false;int query=0;while(matcher.find()){found=true;Document doc=xml(matcher.group());var operators=doc.getElementsByTagNameNS("*","RelOp");for(int i=0;i<operators.getLength();i++){Element operator=(Element)operators.item(i);org.w3c.dom.Node parent=operator.getParentNode();boolean nested=false;while(parent!=null){if(parent instanceof Element e&&"RelOp".equals(e.getLocalName())){nested=true;break;}parent=parent.getParentNode();}if(!nested)roots.add(xmlOperator(operator,0));}missingIndexes(doc,suggestions);
+                if(actual){var timings=doc.getElementsByTagNameNS("*","QueryTimeStats");for(int i=0;i<timings.getLength();i++){Element time=(Element)timings.item(i);String prefix="Consulta "+(++query)+" · ";if(time.hasAttribute("ElapsedTime"))summary.put(prefix+PlanDiagnostics.QUERY_TIME,time.getAttribute("ElapsedTime"));if(time.hasAttribute("CpuTime"))summary.put(prefix+PlanDiagnostics.CPU,time.getAttribute("CpuTime"));}}
+            }
             if(!found)throw new IllegalArgumentException("No se encontró ShowPlanXML en el archivo.");
-            root=new Node("SQL Server · "+(actual?"plan real":"plan estimado"),Map.of("Métricas",actual?"Tiempos reportados por operador; no sumar tiempos de subárboles ni hilos.":"Costos estimados: no son milisegundos."),roots);
+            summary.put("Métricas",actual?"Tiempos reportados por operador; no sumar tiempos de subárboles ni hilos.":"Costos estimados: no son milisegundos.");
+            root=new Node("SQL Server · "+(actual?"plan real":"plan estimado"),summary,roots);
         }else if(type==DatabaseType.MYSQL||type==DatabaseType.MARIADB||type==DatabaseType.POSTGRESQL) {
             String input=raw.stripLeading();if(input.startsWith("{")||input.startsWith("[")){extension="json";Object json=Json.object("{\"plan\":"+raw+"}").get("plan");root=jsonNode(type.toString(),json,0);}
             else root=textTree(raw,type.toString());
         }else root=textTree(raw,type.toString());
-        return new Result(root,raw,extension,suggestions,actual,elapsed);
+        return new Result(PlanDiagnostics.enrich(type,root,actual),raw,extension,suggestions,actual,elapsed);
     }
     private static Document xml(String text)throws Exception {
         DocumentBuilderFactory factory=DocumentBuilderFactory.newInstance();factory.setNamespaceAware(true);factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl",true);factory.setFeature("http://xml.org/sax/features/external-general-entities",false);factory.setFeature("http://xml.org/sax/features/external-parameter-entities",false);factory.setXIncludeAware(false);factory.setExpandEntityReferences(false);factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD,"");factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA,"");
@@ -97,6 +100,10 @@ public final class QueryPlan {
         for(Element detail:details) {
             String name=detail.getLocalName();if(Set.of("Object","RunTimeCountersPerThread","Warnings","SpillToTempDb","MemoryGrantWarning","SortSpillDetails","HashSpillDetails").contains(name)) {
                 String prefix=name.equals("RunTimeCountersPerThread")?"Runtime hilo "+detail.getAttribute("Thread")+" · ":name+" · ";attributes(detail).forEach((k,v)->attrs.put(prefix+k,v));
+            }
+            if(Set.of("Predicate","SeekPredicates","OrderBy").contains(name)) {
+                var expressions=detail.getElementsByTagNameNS("*","ScalarOperator");
+                for(int i=0;i<expressions.getLength();i++){String expression=((Element)expressions.item(i)).getAttribute("ScalarString");if(!expression.isBlank())attrs.merge(name,expression,(a,b)->a+"; "+b);}
             }
         }
         String object=details.stream().filter(e->"Object".equals(e.getLocalName())).map(e->e.getAttribute("Table")).findFirst().orElse("");
@@ -126,7 +133,13 @@ public final class QueryPlan {
         if(value instanceof Map<?,?> map) {
             if(map.get("Node Type")!=null)name=map.get("Node Type").toString();
             else if(map.get("access_type")!=null)name=map.get("access_type")+" · "+map.get("table_name");
-            for(var entry:map.entrySet()){if(entry.getValue() instanceof Map<?,?>||entry.getValue() instanceof List<?>)children.add(jsonNode(entry.getKey().toString(),entry.getValue(),depth+1));else attrs.put(entry.getKey().toString(),String.valueOf(entry.getValue()));}
+            for(var entry:map.entrySet()){
+                String key=entry.getKey().toString();Object item=entry.getValue();
+                if(Set.of("cost_info","r_engine_stats").contains(key)&&item instanceof Map<?,?> info)info.forEach((k,v)->attrs.put(k.toString(),String.valueOf(v)));
+                else if(item instanceof List<?> list&&list.stream().noneMatch(v->v instanceof Map<?,?>||v instanceof List<?>))attrs.put(key,list.toString());
+                else if(item instanceof Map<?,?>||item instanceof List<?>)children.add(jsonNode(key,item,depth+1));
+                else if(item!=null)attrs.put(key,item.toString());
+            }
         }else if(value instanceof List<?> list){for(int i=0;i<list.size();i++)children.add(jsonNode("Paso "+(i+1),list.get(i),depth+1));}
         else attrs.put("Valor",String.valueOf(value));
         return new Node(name,attrs,children);
