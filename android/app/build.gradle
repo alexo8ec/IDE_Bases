@@ -1,14 +1,14 @@
 plugins { id 'com.android.application' }
 
 def rootRepo = rootProject.projectDir.parentFile
-def productVersion = new File(rootRepo, 'VERSION').getText('UTF-8').trim()
+def productVersion = new File(rootProject.projectDir, 'VERSION').getText('UTF-8').trim()
 def versionParts = productVersion.tokenize('.').collect { Integer.parseInt(it) }
 if (versionParts.size() != 3 || versionParts.any { it < 0 || it > 99 }) throw new GradleException('VERSION must contain major.minor.patch, each between 0 and 99.')
 def productVersionCode = versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
 def generatedCore = layout.buildDirectory.dir('generated/core')
 def sharedFiles = [
     'model/AuthenticationMode.java','model/DatabaseType.java','model/ConnectionProfile.java',
-    'db/SchemaItem.java','db/SchemaMetadataReader.java','db/QueryResult.java','db/QueryEditSupport.java',
+    'db/SchemaItem.java','db/SchemaMetadataReader.java','db/QueryResult.java','db/QueryEditSupport.java','db/ManagedConnection.java',
     'db/VisualQuery.java','db/DataSearch.java','db/SqlExecutionPolicy.java','db/SqlScriptTools.java',
     'db/ForeignKeyDefinition.java','db/MysqlTableDesign.java','db/SqlBackupService.java',
     'db/SqlImportService.java','db/SqlScriptReader.java','db/SqlTransferControl.java',

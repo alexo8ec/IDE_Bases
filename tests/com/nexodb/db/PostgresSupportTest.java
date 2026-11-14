@@ -110,9 +110,14 @@ public final class PostgresSupportTest {
             String database = url.substring(url.lastIndexOf('/') + 1).split("\\?", 2)[0];
             if (failures.containsKey(database)) throw new SQLException("Connection rejected", failures.get(database));
             boolean[] isClosed = {false};
+            boolean[] readOnly = {false};
             return (Connection) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{Connection.class}, (p, method, args) -> {
                 return switch (method.getName()) {
-                    case "setReadOnly", "setAutoCommit" -> null;
+                    case "setReadOnly" -> { readOnly[0]=(Boolean)args[0];yield null; }
+                    case "setAutoCommit" -> null;
+                    case "isReadOnly" -> readOnly[0];
+                    case "getTransactionIsolation" -> Connection.TRANSACTION_READ_COMMITTED;
+                    case "isValid" -> !isClosed[0];
                     case "getAutoCommit" -> true;
                     case "getCatalog" -> database;
                     case "isClosed" -> isClosed[0];

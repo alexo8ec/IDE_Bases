@@ -43,9 +43,10 @@ public final class MainActivity extends Activity {
         CompletableFuture<Uri> result=new CompletableFuture<>();runOnUiThread(()->{int request=++documentRequest;documents.put(request,result);Intent intent=new Intent(create?Intent.ACTION_CREATE_DOCUMENT:Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType(mime);if(create)intent.putExtra(Intent.EXTRA_TITLE,name);try{startActivityForResult(intent,request);}catch(Exception error){documents.remove(request);result.completeExceptionally(error);}});
         Uri uri=result.get();if(uri==null)throw new CancellationException("Operación cancelada.");return uri;
     }
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);CompletableFuture<Uri> future=documents.remove(request);if(future!=null)future.complete(result==RESULT_OK&&data!=null?data.getData():null);}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==UpdateInstaller.PERMISSION_REQUEST){new UpdateInstaller(this).permissionResult();return;}CompletableFuture<Uri> future=documents.remove(request);if(future!=null)future.complete(result==RESULT_OK&&data!=null?data.getData():null);}
     void copy(String text){runOnUiThread(()->((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("NexoDB",text)));}
     @Override public void onBackPressed(){web.evaluateJavascript("window.NexoBack && window.NexoBack()",null);}
+    @Override protected void onResume(){super.onResume();if(getPackageManager().canRequestPackageInstalls())new UpdateInstaller(this).permissionResult();}
     @Override protected void onPause(){if(web!=null)web.evaluateJavascript("window.NexoSave && window.NexoSave()",null);super.onPause();}
     @Override protected void onDestroy(){destroyed=true;documents.values().forEach(f->f.complete(null));documents.clear();if(backend!=null){backend.cancel();worker.execute(backend::close);}worker.shutdown();if(web!=null){web.removeJavascriptInterface("Native");web.destroy();}super.onDestroy();}
 }

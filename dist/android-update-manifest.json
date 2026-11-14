@@ -1,6 +1,6 @@
 {
-    "version":  "0.14.1",
-    "versionCode":  1401,
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.1-android.apk",
-    "sha256":  "f3bc2bc6e77a1d848221fe9c7e74f7dfc51e9c806afa5f855c2053451139f60e"
+    "version":  "0.14.2",
+    "versionCode":  1402,
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.2-android.apk",
+    "sha256":  "68a89beb7039ee2807bac4e373ad2d9c5bc769a84295c4721f55eb79b07f4638"
 }

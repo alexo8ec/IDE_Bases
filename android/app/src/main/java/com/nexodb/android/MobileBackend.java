@@ -80,7 +80,7 @@ final class MobileBackend {
         for(int i=0;i<incoming.length();i++){JSONObject change=incoming.getJSONObject(i);int row=change.getInt("row");var kind=QueryEditSupport.ChangeKind.valueOf(change.optString("kind","UPDATE"));List<Object> original=kind==QueryEditSupport.ChangeKind.INSERT?new ArrayList<>(Collections.nCopies(result.columns().size(),null)):result.rows().get(row);Map<Integer,Object> values=new LinkedHashMap<>();JSONObject cells=change.optJSONObject("values");if(cells!=null)for(Iterator<String> keys=cells.keys();keys.hasNext();){String key=keys.next();Object value=MobileJson.nullable(cells,key);if(value instanceof JSONObject flag&&flag.optBoolean("defaultValue"))value=QueryEditSupport.DefaultValue.INSTANCE;values.put(Integer.parseInt(key),value);}changes.add(new QueryEditSupport.RowChange(row,original,values,kind));}
         authorize("Guardar cambios",changes.size()+" filas en "+result.editing().target().qualifiedTable());return QueryEditSupport.saveChanges(session().connection(),result.editing().target(),changes);
     }
-    void cancel(){JdbcSession s=active;SqlTransferControl current=transfer;new Thread(()->{try{if(current!=null)current.cancel();if(s!=null)s.cancel();}catch(Exception ignored){}},"nexodb-cancel").start();}
+    void cancel(){update.cancel();JdbcSession s=active;SqlTransferControl current=transfer;new Thread(()->{try{if(current!=null)current.cancel();if(s!=null)s.cancel();}catch(Exception ignored){}},"nexodb-cancel").start();}
     void close(){for(JdbcSession s:sessions.values())try{s.close();}catch(Exception ignored){}sessions.clear();documents.close();}
     static java.util.concurrent.CancellationException cancelled(){return new java.util.concurrent.CancellationException("Operación cancelada.");}
 }

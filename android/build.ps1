@@ -37,7 +37,7 @@ $variant=if($Debug){'Debug'}else{'Release'}
 & $GradlePath -p $androidRoot "-PnexodbBuildRoot=$buildRoot" --project-cache-dir (Join-Path $buildRoot 'project-cache') ":app:assemble$variant" --no-daemon --console=plain
 if($LASTEXITCODE -ne 0){throw 'La compilación Android falló.'}
 $source=Join-Path $buildRoot ("app/outputs/apk/$($variant.ToLower())/app-$($variant.ToLower()).apk")
-$version=(Get-Content -LiteralPath (Join-Path $repository 'VERSION') -Raw).Trim()
+$version=(Get-Content -LiteralPath (Join-Path $androidRoot 'VERSION') -Raw).Trim()
 $parts=$version.Split('.')
 $versionCode=([int]$parts[0]*10000)+([int]$parts[1]*100)+[int]$parts[2]
 $target=Join-Path $repository ("dist/NexoDB-Studio-$version-android"+$(if($Debug){'-debug'}else{''})+'.apk')

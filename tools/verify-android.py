@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--sdk', required=True, type=Path)
 args = parser.parse_args()
-version = (ROOT/'VERSION').read_text(encoding='utf-8').strip()
+version = (ROOT/'android/VERSION').read_text(encoding='utf-8').strip()
 major, minor, patch = map(int, version.split('.'))
 code = major * 10000 + minor * 100 + patch
 apk = ROOT/f'dist/NexoDB-Studio-{version}-android.apk'
@@ -30,6 +30,8 @@ with zipfile.ZipFile(apk) as archive:
         assert not name.endswith(('.jks', '.keystore', '.nxvault', '.nexolicense', 'android-signing.properties', 'contraseña-inicial.txt'))
         if re.fullmatch(r'classes\d*\.dex', name):
             assert b'Lcom/nexodb/issuer/' not in archive.read(name), 'License issuer code bundled in client'
+            assert b'Lcom/nexodb/android/AndroidResultUiTest;' not in archive.read(name), 'Instrumentation code bundled in client'
+    assert 'assets/query-results-test.js' not in archive.namelist(), 'UI test harness bundled in client'
     assert all('assets/'+name in archive.namelist() for name in ('index.html','app.js','app.css','tools.js'))
 tools = args.sdk/'build-tools/35.0.0'
 badging = subprocess.check_output([str(tools/'aapt.exe'), 'dump', 'badging', str(apk)], text=True, encoding='utf-8')

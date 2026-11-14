@@ -111,6 +111,7 @@ public final class JdbcSession implements AutoCloseable {
 
         Connection connection = null;
         URLClassLoader loader = null;
+        Driver loadedDriver = null;
         try {
             File resolvedDriver = resolveDriver(profile);
             if (resolvedDriver != null) {
@@ -125,6 +126,7 @@ public final class JdbcSession implements AutoCloseable {
                     throw new IllegalArgumentException("El archivo seleccionado no contiene el controlador " + profile.driverClass() + ".", error);
                 }
                 Driver driver = (Driver) driverType.getDeclaredConstructor().newInstance();
+                loadedDriver = driver;
                 connection = driver.connect(profile.jdbcUrl(), props);
                 if (connection == null) throw new SQLException("El controlador no reconoce la URL JDBC indicada.");
             } else {
@@ -141,7 +143,17 @@ public final class JdbcSession implements AutoCloseable {
 
             connection.setReadOnly(profile.readOnly());
             connection.setAutoCommit(true);
-            return new JdbcSession(profile, connection, loader);
+            char[] retained = password == null ? new char[0] : password.clone();
+            Driver reconnectDriver = loadedDriver;
+            try {
+                Connection managed = ManagedConnection.wrap(connection, () -> {
+                    Properties options = connectionProperties(profile, retained);
+                    Connection reopened = reconnectDriver == null ? DriverManager.getConnection(profile.jdbcUrl(), options) : reconnectDriver.connect(profile.jdbcUrl(), options);
+                    if (reopened == null) throw new SQLException("El controlador no reconoce la URL JDBC.");
+                    return reopened;
+                }, () -> java.util.Arrays.fill(retained, '\0'));
+                return new JdbcSession(profile, managed, loader);
+            } catch (Exception error) { java.util.Arrays.fill(retained, '\0'); throw error; }
         } catch (Exception error) {
             if (connection != null) try { connection.close(); } catch (Exception ignored) {}
             if (loader != null) try { loader.close(); } catch (Exception ignored) {}
@@ -152,6 +164,9 @@ public final class JdbcSession implements AutoCloseable {
     static Properties connectionProperties(ConnectionProfile profile, char[] password) {
         Properties props = new Properties();
         props.setProperty("user", profile.username());
+        if (profile.type() == DatabaseType.MYSQL || profile.type() == DatabaseType.MARIADB || profile.type() == DatabaseType.POSTGRESQL) props.setProperty("tcpKeepAlive", "true");
+        if (profile.type() == DatabaseType.POSTGRESQL) props.setProperty("connectTimeout", "15");
+        if (profile.type() == DatabaseType.MYSQL || profile.type() == DatabaseType.MARIADB) props.setProperty("connectTimeout", "15000");
         if (profile.type() == DatabaseType.MYSQL) props.setProperty("useInformationSchema", "true");
         if (profile.authenticationMode() == AuthenticationMode.DATABASE) {
             props.setProperty("password", password == null ? "" : new String(password));
@@ -358,12 +373,9 @@ public final class JdbcSession implements AutoCloseable {
     @Override
     public void close() throws Exception {
         try {
-            if (!connection.isClosed()) {
-                if (!connection.getAutoCommit()) connection.rollback();
-                connection.close();
-            }
+            if (!connection.isClosed() && !connection.getAutoCommit()) connection.rollback();
         } finally {
-            if (driverLoader != null) driverLoader.close();
+            try { connection.close(); } finally { if (driverLoader != null) driverLoader.close(); }
         }
     }
 }

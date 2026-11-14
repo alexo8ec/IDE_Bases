@@ -10,12 +10,15 @@ public final class JdbcSession implements AutoCloseable {
     private JdbcSession(ConnectionProfile profile,Connection connection){this.profile=profile;this.connection=connection;}
     public static JdbcSession open(ConnectionProfile profile,char[] secret)throws Exception{
         if(profile.authenticationMode()!=AuthenticationMode.DATABASE)throw new SQLException("Android utiliza usuario y contraseña de la base de datos.");
-        Properties options=new Properties();options.setProperty("user",profile.username());options.setProperty("password",new String(secret));
+        Properties options=new Properties();options.setProperty("user",profile.username());options.setProperty("password",new String(secret));options.setProperty("tcpKeepAlive","true");
         String url=profile.jdbcUrl();Driver driver;
         if(profile.type()==DatabaseType.MYSQL||profile.type()==DatabaseType.MARIADB){driver=new org.mariadb.jdbc.Driver();url=url.replaceFirst("^jdbc:mysql:","jdbc:mariadb:");options.setProperty("connectTimeout","15000");options.setProperty("socketTimeout","60000");options.setProperty("restrictedAuth","mysql_native_password,caching_sha2_password,sha256_password,client_ed25519");}
         else if(profile.type()==DatabaseType.POSTGRESQL){driver=new org.postgresql.Driver();options.setProperty("connectTimeout","15");options.setProperty("socketTimeout","60");}
         else throw new SQLException("Este motor no tiene un controlador Android habilitado.");
-        Connection connection=driver.connect(url,options);if(connection==null)throw new SQLException("URL de conexión no compatible.");connection.setReadOnly(profile.readOnly());return new JdbcSession(profile,connection);
+        Connection connection=driver.connect(url,options);if(connection==null)throw new SQLException("URL de conexión no compatible.");
+        char[] retained=secret.clone();String reconnectUrl=url;Driver reconnectDriver=driver;options.remove("password");
+        try{connection.setReadOnly(profile.readOnly());connection=ManagedConnection.wrap(connection,()->{Properties next=new Properties();next.putAll(options);next.setProperty("password",new String(retained));Connection reopened=reconnectDriver.connect(reconnectUrl,next);if(reopened==null)throw new SQLException("URL de conexión no compatible.");return reopened;},()->Arrays.fill(retained,'\0'));return new JdbcSession(profile,connection);}
+        catch(Exception error){Arrays.fill(retained,'\0');try{connection.close();}catch(Exception ignored){}throw error;}
     }
     public ConnectionProfile profile(){return profile;}public Connection connection(){return connection;}
     public QueryResult execute(String sql,int maxRows)throws SQLException{

@@ -17,6 +17,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del nucleo fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.JdbcSessionTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de credenciales JDBC fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.ManagedConnectionTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de mantenimiento de conexiones fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.MysqlTableDesignTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diseno de tablas fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.PostgresSupportTest
