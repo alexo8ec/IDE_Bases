@@ -1,6 +1,8 @@
 {
-    "version":  "0.14.2",
-    "versionCode":  1402,
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.2-android.apk",
-    "sha256":  "68a89beb7039ee2807bac4e373ad2d9c5bc769a84295c4721f55eb79b07f4638"
+    "version":  "0.14.4",
+    "versionCode":  1404,
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.4-android.apk",
+    "sha256":  "bcd5b642346477ef0d8614b5de9b2c3c5261f43c9735261ebaeef3253bb8c046",
+    "size":  5674783,
+    "notes":  "Consulta de referencias de claves foráneas, búsqueda y selección con cambios pendientes, pantalla de actualizaciones y reintento de instalación sin descargar otra vez."
 }
