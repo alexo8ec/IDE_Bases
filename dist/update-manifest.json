@@ -1,6 +1,28 @@
-﻿{
-    "version":  "0.16.0",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.16.0-win64.zip",
-    "sha256":  "9d7b85de02f6119c76c8430d057d657c480c0a42e23c67e914b37527e1265bae",
-    "notes":  "NexoDB Studio 0.16.0: menus de vistas, procedimientos, funciones, triggers y eventos para MySQL/MariaDB; editor de definiciones y depuracion real de SP por copia temporal, con puntos de quiebre, paso sobre y contexto de variables. Incluye reporteria, IA, planes visuales y paginacion."
+{
+  "version": "0.16.0",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.16.0-win64.zip",
+  "sha256": "9d7b85de02f6119c76c8430d057d657c480c0a42e23c67e914b37527e1265bae",
+  "notes": "NexoDB Studio 0.16.0: menus de vistas, procedimientos, funciones, triggers y eventos para MySQL/MariaDB; editor de definiciones y depuracion real de SP por copia temporal, con puntos de quiebre, paso sobre y contexto de variables. Incluye reporteria, IA, planes visuales y paginacion.",
+  "platforms": {
+    "windows-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.16.0-win64.zip",
+      "sha256": "9d7b85de02f6119c76c8430d057d657c480c0a42e23c67e914b37527e1265bae"
+    },
+    "linux-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.16.0-linux-x64.deb",
+      "sha256": "7410704539945dcfea9ada5752570ab0783246deb1590fb3d57ae17c65ab88bc"
+    },
+    "linux-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.16.0-linux-arm64.deb",
+      "sha256": "14a9f3d0fe6bb8d1cf8c170ed7057fb71d8eafa20e813f2a5d5ad2b2579d04a2"
+    },
+    "macos-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.16.0-macos-x64.zip",
+      "sha256": "6d2ea302adfe3c04afa6abb08ee8f71cebdca95f61fdd2317313565ab65524b1"
+    },
+    "macos-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.16.0-macos-arm64.zip",
+      "sha256": "290e0d974e9f40db05f1fa485cd68708663d0a1fe5f2fdb5481662bfa23b91a7"
+    }
+  }
 }
