@@ -787,6 +787,7 @@ public final class QueryPanel extends JPanel {
             private Set<String> vocabulary=SqlVocabulary.base();
             @Override protected List<String> doInBackground() throws Exception {
                 vocabulary=SqlVocabulary.forDatabase(target.connection().getMetaData());
+                if (target.profile().type() == com.nexodb.model.DatabaseType.SQLITE) return List.of("main");
                 if (target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL) {
                     // PostgreSQL setCatalog is a no-op: another database needs a new connection.
                     return List.of(target.connection().getCatalog());
@@ -818,13 +819,14 @@ public final class QueryPanel extends JPanel {
                     for (String name : get()) database.addItem(name);
                     for (int i = 1; i < database.getItemCount(); i++) completionWords.add(database.getItemAt(i));
                     boolean postgres = target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL;
-                    database.setSelectedIndex(postgres ? 1 : 0);
-                    if (!postgres) try { target.connection().setCatalog(null); } catch (SQLException ignored) {}
+                    boolean sqlite = target.profile().type() == com.nexodb.model.DatabaseType.SQLITE;
+                    database.setSelectedIndex(postgres || sqlite ? 1 : 0);
+                    if (!postgres && !sqlite) try { target.connection().setCatalog(null); } catch (SQLException ignored) {}
                     state.setText(session.profile().name());
                 } catch (Exception ignored) {
                 }
                 updateActions();
-                if (target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL) changeDatabase();
+                if (target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL || target.profile().type() == com.nexodb.model.DatabaseType.SQLITE) changeDatabase();
             }
         }.execute();
     }

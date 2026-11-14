@@ -5,6 +5,7 @@ import static com.nexodb.util.I18n.tr;
 import com.nexodb.db.JdbcSession;
 import com.nexodb.db.DriverDownloadService;
 import com.nexodb.db.PostgresSupport;
+import com.nexodb.db.SQLiteSupport;
 import com.nexodb.model.AuthenticationMode;
 import com.nexodb.model.ConnectionProfile;
 import com.nexodb.model.DatabaseType;
@@ -42,6 +43,9 @@ public final class ConnectionDialog extends JDialog {
     private final JTextField host = new JTextField(30);
     private final JSpinner port = new JSpinner(new SpinnerNumberModel(0, 0, 65535, 1));
     private final JTextField database = new JTextField(30);
+    private final JPanel databasePanel = new JPanel(new BorderLayout(6, 0));
+    private final JButton browseDatabase = UiLanguage.button("Elegir archivo…");
+    private final java.util.Map<Component, JLabel> rowLabels = new java.util.IdentityHashMap<>();
     private final JTextField username = new JTextField(30);
     private final JPasswordField password = new JPasswordField(30);
     private final JCheckBox rememberPassword = UiLanguage.text(new JCheckBox(tr("Recordar de forma segura con Windows")), UiLanguage.key("Recordar de forma segura con Windows"));
@@ -60,6 +64,9 @@ public final class ConnectionDialog extends JDialog {
     private final boolean hadStoredPassword;
     private Result result;
     private boolean internalChange;
+    private DatabaseType currentEngine;
+    private final java.util.Map<DatabaseType, EngineDraft> engineDrafts = new java.util.EnumMap<>(DatabaseType.class);
+    private record EngineDraft(String host, int port, String database, String user, String url, String driverClass, String driverJar, TlsMode tls, AuthenticationMode authentication, boolean readOnly, boolean advanced) {}
 
     public ConnectionDialog(Window owner, ConnectionProfile profile) {
         this(owner, profile, new SecretStore());
@@ -88,6 +95,7 @@ public final class ConnectionDialog extends JDialog {
         rememberPassword.setSelected(hadStoredPassword);
         UiLanguage.tooltip(rememberPassword, UiLanguage.key("Se cifra con DPAPI para el usuario actual de Windows; nunca se guarda en el perfil."));
         updateAuthenticationUi();
+        currentEngine = (DatabaseType) type.getSelectedItem();
         pack();
         setLocationRelativeTo(owner);
     }
@@ -139,7 +147,11 @@ public final class ConnectionDialog extends JDialog {
         addRow(form, gc, "SSL / TLS", tlsMode);
         addRow(form, gc, "Host", host);
         addRow(form, gc, tr("Puerto"), port);
-        addRow(form, gc, tr("Base / servicio / archivo"), database);
+        databasePanel.add(database, BorderLayout.CENTER);
+        browseDatabase.setIcon(IconFactory.of(IconFactory.Kind.FOLDER, 16));
+        browseDatabase.addActionListener(e -> browseDatabase());
+        databasePanel.add(browseDatabase, BorderLayout.EAST);
+        addRow(form, gc, tr("Base / servicio / archivo"), databasePanel);
         addRow(form, gc, tr("Usuario"), username);
         addRow(form, gc, tr("Contraseña"), password);
         addRow(form, gc, tr("Seguridad"), rememberPassword);
@@ -236,7 +248,9 @@ public final class ConnectionDialog extends JDialog {
     private void addRow(JPanel panel, GridBagConstraints gc, String label, Component component) {
         gc.gridx = 0;
         gc.weightx = 0;
-        panel.add(UiLanguage.text(new JLabel(), UiLanguage.caption(label), ":"), gc);
+        JLabel caption = UiLanguage.text(new JLabel(), UiLanguage.caption(label), ":");
+        caption.setLabelFor(component); rowLabels.put(component, caption);
+        panel.add(caption, gc);
         gc.gridx = 1;
         gc.weightx = 1;
         panel.add(component, gc);
@@ -255,9 +269,10 @@ public final class ConnectionDialog extends JDialog {
     private void bindActions() {
         type.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED && !internalChange) {
-                applyPreset(false);
+                switchEngine((DatabaseType)e.getItem());
                 updateAuthenticationUi();
                 updateTlsUi();
+                pack();
             }
         });
         authentication.addItemListener(e -> {
@@ -343,6 +358,26 @@ public final class ConnectionDialog extends JDialog {
         if (!internalChange && type.getSelectedItem() != DatabaseType.GENERIC) generateUrl();
     }
 
+    private void switchEngine(DatabaseType next) {
+        if (currentEngine != null) engineDrafts.put(currentEngine, new EngineDraft(host.getText(), ((Number)port.getValue()).intValue(), database.getText(), username.getText(), jdbcUrl.getText(), driverClass.getText(), driverJar.getText(), (TlsMode)tlsMode.getSelectedItem(), (AuthenticationMode)authentication.getSelectedItem(), readOnly.isSelected(), advancedToggle.isSelected()));
+        internalChange = true;
+        try {
+            EngineDraft saved = engineDrafts.get(next);
+            if (saved == null) {
+                host.setText(next == DatabaseType.H2 || next == DatabaseType.SQLITE ? "" : "localhost"); database.setText(""); username.setText(next == DatabaseType.H2 ? "sa" : ""); driverJar.setText("");
+                authentication.setSelectedItem(AuthenticationMode.DATABASE); applyPreset(false);
+                readOnly.setSelected(next == DatabaseType.SQLITE); advancedToggle.setSelected(next == DatabaseType.GENERIC); advancedPanel.setVisible(next == DatabaseType.GENERIC);
+            } else {
+                host.setText(saved.host()); port.setValue(saved.port()); database.setText(saved.database()); username.setText(saved.user()); driverClass.setText(saved.driverClass()); driverJar.setText(saved.driverJar()); tlsMode.setSelectedItem(saved.tls()); authentication.setSelectedItem(saved.authentication()); readOnly.setSelected(saved.readOnly()); jdbcUrl.setText(saved.url()); advancedToggle.setSelected(saved.advanced()); advancedPanel.setVisible(saved.advanced());
+                headingIcon.setIcon(IconFactory.database(next,36));
+            }
+            password.setText(""); rememberPassword.setSelected(false);
+            if (name.getText().isBlank() || name.getText().matches("(PostgreSQL|SQLite|MySQL|MariaDB|H2|Oracle|SQL Server|MongoDB \\(Atlas SQL\\)|JDBC genérico) local")) name.setText(next.displayName() + " local");
+            currentEngine = next;
+            advancedToggle.setText(advancedToggle.isSelected() ? tr("Configuración avanzada   v") : tr("Configuración avanzada   >"));
+        } finally { internalChange = false; }
+    }
+
     private void applyPreset(boolean force) {
         DatabaseType selected = (DatabaseType) type.getSelectedItem();
         if (selected == null) return;
@@ -352,6 +387,7 @@ public final class ConnectionDialog extends JDialog {
             tlsMode.setSelectedItem(TlsMode.AUTOMATIC);
             port.setValue(selected.defaultPort());
             driverClass.setText(selected.driverClass());
+            if (selected == DatabaseType.SQLITE) readOnly.setSelected(true);
             if (force || host.getText().isBlank()) host.setText(selected == DatabaseType.SQLITE || selected == DatabaseType.H2 ? "" : "localhost");
             if (force && database.getText().isBlank()) database.setText(selected == DatabaseType.SQLITE ? "datos.db" : "");
             generateUrl();
@@ -415,6 +451,17 @@ public final class ConnectionDialog extends JDialog {
         if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) driverJar.setText(chooser.getSelectedFile().getAbsolutePath());
     }
 
+    private void browseDatabase() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle(tr("Selecciona tu base de datos SQLite"));
+        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(tr("Bases SQLite (*.sqlite, *.sqlite3, *.db, *.db3)"), "sqlite", "sqlite3", "db", "db3"));
+        if (!database.getText().isBlank()) chooser.setSelectedFile(new File(database.getText()));
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File file = chooser.getSelectedFile(); database.setText(file.getAbsolutePath());
+            if (name.getText().isBlank() || name.getText().matches("(PostgreSQL|SQLite|MySQL|MariaDB|H2|Oracle|SQL Server) local")) name.setText(file.getName());
+        }
+    }
+
     private void populate(ConnectionProfile profile) {
         internalChange = true;
         try {
@@ -448,6 +495,8 @@ public final class ConnectionDialog extends JDialog {
     }
 
     private ConnectionProfile profileFromForm() {
+        if (type.getSelectedItem() == DatabaseType.SQLITE) return new ConnectionProfile(profileId, name.getText(), DatabaseType.SQLITE, "", 0,
+                database.getText(), "", DatabaseType.SQLITE.buildUrl("",0,database.getText()), driverClass.getText(), driverJar.getText(), AuthenticationMode.DATABASE, readOnly.isSelected());
         return new ConnectionProfile(profileId, name.getText(), (DatabaseType) type.getSelectedItem(), host.getText(),
                 ((Number) port.getValue()).intValue(), database.getText(), username.getText(), jdbcUrl.getText(),
                 driverClass.getText(), driverJar.getText(), (AuthenticationMode) authentication.getSelectedItem(), readOnly.isSelected());
@@ -455,7 +504,12 @@ public final class ConnectionDialog extends JDialog {
 
     private boolean validateForm() {
         if (name.getText().isBlank()) return fail(tr("Escribe un nombre para la conexión."), name);
-        if (username.getText().isBlank()) return fail(tr("Escribe el usuario de la base de datos. La contraseña sí puede quedar vacía."), username);
+        DatabaseType engine = (DatabaseType) type.getSelectedItem();
+        if (engine == DatabaseType.SQLITE) {
+            try { SQLiteSupport.prepare(profileFromForm()); }
+            catch (Exception error) { return fail(error.getMessage(), database); }
+        } else if (engine != DatabaseType.H2 && engine != DatabaseType.GENERIC && username.getText().isBlank()) return fail(tr("Escribe el usuario de la base de datos. La contraseña sí puede quedar vacía."), username);
+        if ((engine == DatabaseType.H2 || engine == DatabaseType.ORACLE) && database.getText().isBlank()) return fail(tr("Indica la base de datos o el servicio al que deseas conectarte."), database);
         if (type.getSelectedItem() == DatabaseType.MONGODB && database.getText().isBlank()) {
             return fail(tr("Escribe la base de datos publicada en MongoDB Atlas SQL Interface."), database);
         }
@@ -472,6 +526,7 @@ public final class ConnectionDialog extends JDialog {
 
     private void updateAuthenticationUi() {
         DatabaseType engine = (DatabaseType) type.getSelectedItem();
+        updateEngineRows(engine);
         boolean supported = SecretStore.isSupported() && (engine == DatabaseType.MYSQL || engine == DatabaseType.MARIADB);
         if (!supported && authentication.getSelectedItem() == AuthenticationMode.WINDOWS) {
             authentication.setSelectedItem(AuthenticationMode.DATABASE);
@@ -488,7 +543,15 @@ public final class ConnectionDialog extends JDialog {
         password.setToolTipText(windows
                 ? tr("En este modo se usa la sesión actual de Windows y no se envía contraseña.")
                 : tr("Puede quedar vacía si la cuenta de la base de datos no tiene contraseña."));
-        if (engine == DatabaseType.MONGODB) {
+        if (engine == DatabaseType.SQLITE) {
+            UiLanguage.text(authenticationNote, UiLanguage.key("<html>Elige el archivo de tu computadora. No se sube ni se copia.<br>No necesitas servidor, usuario ni contraseña; cada archivo es una conexión.</html>"));
+        } else if (engine == DatabaseType.H2) {
+            UiLanguage.text(authenticationNote, UiLanguage.key("<html>Ejemplos: ~/datos, mem:pruebas o tcp://servidor/~/datos.<br>H2 sí admite usuarios. Para una base nueva suele usarse sa.</html>"));
+        } else if (engine == DatabaseType.GENERIC) {
+            UiLanguage.text(authenticationNote, UiLanguage.key("<html>Indica la URL JDBC, la clase y el archivo del controlador.<br>Usuario y contraseña son opcionales según el controlador.</html>"));
+        } else if (engine == DatabaseType.ORACLE) {
+            UiLanguage.text(authenticationNote, UiLanguage.key("<html>Indica host, puerto y nombre de servicio Oracle (por ejemplo, XEPDB1).<br>Para SID, TNS o SSL configura la URL JDBC avanzada.</html>"));
+        } else if (engine == DatabaseType.MONGODB) {
             UiLanguage.text(authenticationNote, UiLanguage.key("<html>MongoDB usa aquí su Atlas SQL Interface compatible con JDBC.<br>"), UiLanguage.key("Para MongoDB Community nativo se incorporará un explorador de documentos independiente.</html>"));
         } else if (!SecretStore.isSupported()) {
             UiLanguage.text(authenticationNote, UiLanguage.key("<html>El usuario es obligatorio; la contraseña puede quedar vacía.<br>"), UiLanguage.key("La contraseña se solicita al conectar y no se guarda en disco."), "</html>");
@@ -497,6 +560,25 @@ public final class ConnectionDialog extends JDialog {
                 : hadStoredPassword && rememberPassword.isSelected() && password.getDocument().getLength() == 0
                     ? tr("<html>La contraseña guardada está protegida por Windows y no se muestra.<br>") + tr("Déjala vacía para conservarla, o escribe otra para reemplazarla.</html>")
                     : tr("<html>El usuario es obligatorio; la contraseña puede quedar vacía.<br>")), UiLanguage.key("Si eliges recordarla se cifra con Windows y no se guarda en el perfil.</html>"));
+    }
+
+    private void rowVisible(Component component, boolean visible) {
+        component.setVisible(visible); JLabel label = rowLabels.get(component); if (label != null) label.setVisible(visible);
+    }
+    private void updateEngineRows(DatabaseType engine) {
+        boolean sqlite = engine == DatabaseType.SQLITE, generic = engine == DatabaseType.GENERIC;
+        boolean network = !sqlite && !generic && engine != DatabaseType.H2;
+        rowVisible(host, network); rowVisible(port, network);
+        rowVisible(authentication, engine == DatabaseType.MYSQL || engine == DatabaseType.MARIADB);
+        rowVisible(tlsMode, network && engine != DatabaseType.ORACLE);
+        rowVisible(username, !sqlite); rowVisible(password, !sqlite); rowVisible(rememberPassword, !sqlite);
+        rowVisible(databasePanel, !generic); browseDatabase.setVisible(sqlite);
+        jdbcUrl.setEditable(!sqlite);
+        String caption = sqlite ? "Archivo SQLite" : engine == DatabaseType.ORACLE ? "Servicio Oracle" : engine == DatabaseType.H2 ? "Ubicación / modo H2" : engine == DatabaseType.POSTGRESQL ? "Base de datos (opcional)" : "Base de datos";
+        UiLanguage.text(rowLabels.get(databasePanel), UiLanguage.key(caption), ":");
+        advancedToggle.setVisible(!generic);
+        if (generic) { advancedPanel.setVisible(true); advancedToggle.setSelected(true); }
+        databasePanel.revalidate();
     }
 
     private void updateTlsUi() {
@@ -521,7 +603,7 @@ public final class ConnectionDialog extends JDialog {
 
     private void accept(boolean connect) {
         if (!validateForm()) return;
-        result = new Result(profileFromForm(), password.getPassword(), connect,
+        result = new Result(profileFromForm(), type.getSelectedItem() == DatabaseType.SQLITE ? new char[0] : password.getPassword(), connect,
                 SecretStore.isSupported() && password.isEnabled() && rememberPassword.isSelected());
         dispose();
     }
@@ -532,8 +614,8 @@ public final class ConnectionDialog extends JDialog {
         status.setIcon(IconFactory.of(IconFactory.Kind.REFRESH, 18));
         UiLanguage.text(status, UiLanguage.key("Probando conexión…"));
         ConnectionProfile profile = profileFromForm();
-        char[] secret = password.getPassword();
-        if (secret.length == 0 && hadStoredPassword && rememberPassword.isSelected()) {
+        char[] secret = type.getSelectedItem() == DatabaseType.SQLITE ? new char[0] : password.getPassword();
+        if (type.getSelectedItem() != DatabaseType.SQLITE && secret.length == 0 && hadStoredPassword && rememberPassword.isSelected()) {
             try { secret = secretStore.load(profileId); }
             catch (Exception error) {
                 button.setEnabled(true);

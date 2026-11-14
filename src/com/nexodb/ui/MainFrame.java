@@ -717,6 +717,7 @@ public final class MainFrame extends JFrame {
             setStatus(new Object[]{UiLanguage.key("Conexión activa: "), profile.name()});
             return;
         }
+        if (profile.type() == DatabaseType.SQLITE) { connect(profile, new char[0]); return; }
         if (secretStore.has(profile.id())) {
             try {
                 char[] protectedPassword = secretStore.load(profile.id());
@@ -1071,6 +1072,7 @@ public final class MainFrame extends JFrame {
     }
 
     private List<SchemaItem> loadSchemas(JdbcSession target) throws SQLException {
+        if (target.profile().type() == DatabaseType.SQLITE) return List.of(new SchemaItem(SchemaItem.Kind.SCHEMA, null, null, "main", target.profile().database()));
         DatabaseMetaData metadata = target.connection().getMetaData();
         List<SchemaItem> schemas = new ArrayList<>();
         Set<String> seen = new HashSet<>();
@@ -1577,11 +1579,6 @@ public final class MainFrame extends JFrame {
     private void manageUsers() {
         if (session == null || !session.isOpen()) {
             JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Administrar usuarios"), JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-        if (session.profile().type() != DatabaseType.MYSQL && session.profile().type() != DatabaseType.MARIADB) {
-            JOptionPane.showMessageDialog(this, tr("Esta primera versión del administrador de usuarios está disponible para MySQL y MariaDB."),
-                    tr("Motor no compatible"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         new UserManagerDialog(this, session).showDialog();

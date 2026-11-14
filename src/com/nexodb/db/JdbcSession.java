@@ -35,6 +35,7 @@ public final class JdbcSession implements AutoCloseable {
     }
 
     public static JdbcSession open(ConnectionProfile profile, char[] password, IntConsumer driverProgress) throws Exception {
+        profile = SQLiteSupport.prepare(profile);
         if (profile.authenticationMode() == AuthenticationMode.WINDOWS && !com.nexodb.util.SecretStore.isSupported()) {
             throw new IllegalArgumentException("La autenticación integrada de Windows requiere Windows. Edita el perfil y elige usuario y contraseña.");
         }
@@ -141,6 +142,7 @@ public final class JdbcSession implements AutoCloseable {
                 connection = DriverManager.getConnection(profile.jdbcUrl(), props);
             }
 
+            if (profile.type() == DatabaseType.SQLITE) connection = SQLiteSupport.wrap(connection, profile.readOnly());
             connection.setReadOnly(profile.readOnly());
             connection.setAutoCommit(true);
             char[] retained = password == null ? new char[0] : password.clone();
@@ -150,6 +152,7 @@ public final class JdbcSession implements AutoCloseable {
                     Properties options = connectionProperties(profile, retained);
                     Connection reopened = reconnectDriver == null ? DriverManager.getConnection(profile.jdbcUrl(), options) : reconnectDriver.connect(profile.jdbcUrl(), options);
                     if (reopened == null) throw new SQLException("El controlador no reconoce la URL JDBC.");
+                    if (profile.type() == DatabaseType.SQLITE) reopened = SQLiteSupport.wrap(reopened, profile.readOnly());
                     return reopened;
                 }, () -> java.util.Arrays.fill(retained, '\0'));
                 return new JdbcSession(profile, managed, loader);
@@ -163,6 +166,11 @@ public final class JdbcSession implements AutoCloseable {
 
     static Properties connectionProperties(ConnectionProfile profile, char[] password) {
         Properties props = new Properties();
+        if (profile.type() == DatabaseType.SQLITE) {
+            props.setProperty("open_mode", profile.readOnly() ? "1" : "2");
+            props.setProperty("busy_timeout", "5000");
+            return props;
+        }
         props.setProperty("user", profile.username());
         if (profile.type() == DatabaseType.MYSQL || profile.type() == DatabaseType.MARIADB || profile.type() == DatabaseType.POSTGRESQL) props.setProperty("tcpKeepAlive", "true");
         if (profile.type() == DatabaseType.POSTGRESQL) props.setProperty("connectTimeout", "15");

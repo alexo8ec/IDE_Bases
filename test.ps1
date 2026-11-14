@@ -19,6 +19,14 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del nucleo fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de credenciales JDBC fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.ManagedConnectionTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de mantenimiento de conexiones fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.UserAdministrationTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de usuarios por motor fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.AccountConnectionUiTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de formularios y contrasenas fallaron.' }
+if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/sqlite-test.jar')) {
+    & java '-Dnexodb.disableDraftPersistence=true' -cp "$testClasspath;$projectRoot/build/lib/*" com.nexodb.db.SQLiteConnectionTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de conexion SQLite fallaron.' }
+}
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.MysqlTableDesignTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diseno de tablas fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.PostgresSupportTest

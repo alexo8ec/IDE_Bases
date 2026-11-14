@@ -33,6 +33,13 @@ public final class ManagedConnection implements InvocationHandler {
     }
     /** Also used by deterministic transport-failure tests without waiting for a timer. */
     static void maintain(Connection connection){((ManagedConnection)Proxy.getInvocationHandler(connection)).keepAliveNow();}
+    /** Account DDL can implicitly commit; never run it over an active user transaction. */
+    public static boolean hasActiveTransaction(Connection connection)throws SQLException{
+        synchronized(connection){
+            if(Proxy.isProxyClass(connection.getClass())&&Proxy.getInvocationHandler(connection) instanceof ManagedConnection managed)return managed.inTransaction();
+            return !connection.getAutoCommit();
+        }
+    }
     private void keepAlive(){synchronized(proxy){if(System.nanoTime()-lastActivity<IDLE_NANOS)return;keepAliveNow();}}
     private void keepAliveNow(){synchronized(proxy){
         if(closed||inTransaction()||resourcesOpen())return;
@@ -85,7 +92,7 @@ public final class ManagedConnection implements InvocationHandler {
             if(name.equals("setReadOnly"))readOnly=(Boolean)args[0];
             if(name.equals("setCatalog"))catalog=physical.getCatalog();
             if(name.equals("setTransactionIsolation"))isolation=(Integer)args[0];
-            lastActivity=System.nanoTime();Object wrapped=wrapValue(value,null);
+            lastActivity=System.nanoTime();Object wrapped=wrapValue(value,null,method.getReturnType());
             if(value instanceof PreparedStatement&&args!=null&&args.length>0&&args[0] instanceof String sql)handles.get(value).preparedSql=sql;
             return wrapped;
         }catch(InvocationTargetException e){throw failure(e.getCause());}
@@ -95,8 +102,11 @@ public final class ManagedConnection implements InvocationHandler {
             if(broken&&inTransaction()){SQLException lost=new SQLException("La conexión se interrumpió durante una transacción; no se reconectó ni se repitió la operación. Desconecta y vuelve a conectar.","08007");lost.addSuppressed(sql);return lost;}
         }return error;
     }
-    private Object wrapValue(Object value,Handle parent){
+    private Object wrapValue(Object value,Handle parent,Class<?> declaredType){
         if(value==null)return null;
+        // SQLite's result object also implements ResultSetMetaData. Respect the method's
+        // declared return type instead of handing a ResultSet-only proxy to getMetaData().
+        if(declaredType==ResultSetMetaData.class)return value;
         Class<?> type=value instanceof CallableStatement?CallableStatement.class:value instanceof PreparedStatement?PreparedStatement.class:value instanceof Statement?Statement.class:value instanceof ResultSet?ResultSet.class:value instanceof DatabaseMetaData?DatabaseMetaData.class:null;
         if(type==null)return value;
         // Metadata has no close method: do not retain each metadata view for the session's lifetime.
@@ -123,7 +133,7 @@ public final class ManagedConnection implements InvocationHandler {
                     Object result=method.invoke(resource?target:physical.getMetaData(),args);
                     if(control.matches("(?is)^(COMMIT\\b|ROLLBACK\\b|SET\\s+(?:SESSION\\s+)?AUTOCOMMIT\\s*=\\s*1\\b).*" )&&!control.matches("(?is)^ROLLBACK\\b.*\\bTO\\b.*"))sqlTransaction=false;
                     if(control.matches("(?is)^(SET|USE)\\b.*")){try{catalog=physical.getCatalog();schema=readSchema(physical);}catch(SQLException stateUnavailable){}}
-                    lastActivity=System.nanoTime();return wrapValue(result,this);
+                    lastActivity=System.nanoTime();return wrapValue(result,this,method.getReturnType());
                 }catch(InvocationTargetException e){throw failure(e.getCause());}
                 finally{if(name.equals("close")){closed=true;handles.remove(target);for(Handle handle:new ArrayList<>(handles.values()))if(handle.parent==this){handle.closed=true;handles.remove(handle.target);}}}
             }
