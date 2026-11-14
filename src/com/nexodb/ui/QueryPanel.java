@@ -6,6 +6,7 @@ import com.nexodb.db.JdbcSession;
 import com.nexodb.db.QueryResult;
 import com.nexodb.db.SqlColumnCompletion;
 import com.nexodb.db.SqlJoinCompletion;
+import com.nexodb.db.SqlTableAliases;
 import com.nexodb.db.SqlExecutionPolicy;
 import com.nexodb.util.DataExporter;
 import com.nexodb.util.SqlText;
@@ -82,6 +83,7 @@ public final class QueryPanel extends JPanel {
     private final JScrollPane completionScroll = new JScrollPane(completionList);
     private final javax.swing.Timer completionTimer;
     private final Set<String> completionWords = new LinkedHashSet<>();
+    private final Set<String> tableWords = new LinkedHashSet<>();
     private final Consumer<String> statusConsumer;
     private final Consumer<Boolean> busyConsumer;
     private Consumer<String> databaseChangeConsumer = name -> {};
@@ -209,7 +211,7 @@ public final class QueryPanel extends JPanel {
         if(columnWorker!=null)columnWorker.cancel(true);
         columnCompletion=session==null?null:new SqlColumnCompletion(session);
         joinCompletion=session==null?null:new SqlJoinCompletion(session);joinInsertions.clear();
-        columnWords.clear();completionWords.clear();addSqlKeywords();completionPopup.setVisible(false);
+        columnWords.clear();tableWords.clear();completionWords.clear();addSqlKeywords();completionPopup.setVisible(false);
         if (session == null) {
             UiLanguage.text(state, UiLanguage.key("Sin conexión"));
             database.removeAllItems();
@@ -900,7 +902,7 @@ public final class QueryPanel extends JPanel {
         if (session == null || selectedDatabase == null || selectedDatabase.isBlank()) return;
         JdbcSession target = session;
         long request=++completionCatalogGeneration;
-        completionGeneration++;columnWords.clear();completionWords.clear();addSqlKeywords();
+        completionGeneration++;columnWords.clear();tableWords.clear();completionWords.clear();addSqlKeywords();
         for(int i=1;i<database.getItemCount();i++)completionWords.add(database.getItemAt(i));
         if(columnCompletion!=null)columnCompletion.clear();
         boolean postgres = target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL;
@@ -929,8 +931,8 @@ public final class QueryPanel extends JPanel {
                 try {
                     if (session != target || request!=completionCatalogGeneration || !selectedDatabase.equals(activeDatabase())) return;
                     for (String name : get()) {
-                        completionWords.add(name);
-                        if (!postgres) completionWords.add(selectedDatabase + "." + name);
+                        completionWords.add(name);tableWords.add(name);
+                        if (!postgres) { completionWords.add(selectedDatabase + "." + name);tableWords.add(selectedDatabase + "." + name); }
                     }
                 } catch (Exception ignored) {
                 } finally {
@@ -951,7 +953,7 @@ public final class QueryPanel extends JPanel {
         boolean tablePosition=Pattern.compile("(?is)\\b(?:FROM|JOIN|UPDATE|INTO)\\s+[^\\s,()]*$").matcher(text.substring(0,caret)).find();
         boolean qualified=token.contains(".")&&!tablePosition;
         columnWords.clear();joinInsertions.clear();renderCompletions(filterPrefix,List.of(),qualified);
-        if(tablePosition){for(int i=completionModel.size()-1;i>=0;i--)if(isKeyword(completionModel.get(i)))completionModel.remove(i);if(completionModel.isEmpty())completionPopup.setVisible(false);else showCompletionList();}
+        if(tablePosition){for(int i=completionModel.size()-1;i>=0;i--)if(!tableWords.contains(completionModel.get(i)))completionModel.remove(i);if(completionModel.isEmpty())completionPopup.setVisible(false);else showCompletionList();}
         if(joinPosition&&joinCompletion!=null){
             long request=++completionGeneration;JdbcSession target=session;SqlJoinCompletion provider=joinCompletion;String db=activeDatabase();
             new SwingWorker<List<SqlJoinCompletion.Suggestion>,Void>(){protected List<SqlJoinCompletion.Suggestion> doInBackground()throws Exception{return provider.suggestions(text,caret,db);}protected void done(){if(request!=completionGeneration||session!=target||caret!=editor.getCaretPosition()||!text.equals(editor.getText())||!editor.isFocusOwner())return;try{List<String> fallback=new ArrayList<>();for(int i=0;i<completionModel.size();i++)fallback.add(completionModel.get(i));var suggestions=get();if(suggestions.isEmpty())return;completionModel.clear();joinInsertions.clear();for(var suggestion:suggestions){joinInsertions.put(suggestion.label(),suggestion.insertion());completionModel.addElement(suggestion.label());}for(String value:fallback)if(completionModel.size()<60)completionModel.addElement(value);showCompletionList();}catch(Exception ignored){}}}.execute();return;
@@ -1043,6 +1045,11 @@ public final class QueryPanel extends JPanel {
         int caret = editor.getCaretPosition();
         String token = completionToken();
         if(joinInsertions.containsKey(selected)){String insertion=joinInsertions.get(selected);int length=token.length();editor.editAtomically(()->{try{editor.getDocument().remove(caret-length,length);editor.getDocument().insertString(caret-length,insertion,null);}catch(Exception ignored){}});completionGeneration++;completionTimer.stop();completionPopup.setVisible(false);editor.requestFocusInWindow();return;}
+        if(tableWords.contains(selected)){
+            String quote=session!=null&&(session.profile().type()==com.nexodb.model.DatabaseType.MYSQL||session.profile().type()==com.nexodb.model.DatabaseType.MARIADB)?"`":"\"";
+            var edit=SqlTableAliases.complete(editor.getText(),caret,selected,quote);
+            if(edit!=null){editor.editAtomically(()->{try{editor.getDocument().remove(edit.start(),edit.end()-edit.start());editor.getDocument().insertString(edit.start(),edit.insertion(),null);}catch(Exception ignored){}});completionGeneration++;completionTimer.stop();completionPopup.setVisible(false);editor.requestFocusInWindow();return;}
+        }
         int tail = token.lastIndexOf('.') + 1;
         int replaceLength = token.length() - tail;
         boolean column=columnWords.contains(selected);

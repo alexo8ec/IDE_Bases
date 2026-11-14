@@ -23,6 +23,11 @@ public final class CompletionInteractionTest {
                 accept.invoke(panel);
                 if (!"SELECT".equals(editor.getText())) throw new AssertionError("Completion was not inserted: " + editor.getText());
                 editor.undoEdit();if(!"sele".equals(editor.getText()))throw new AssertionError("Completion must undo in one step: "+editor.getText());editor.redoEdit();
+                @SuppressWarnings("unchecked") java.util.Set<String> tables = field(panel,"tableWords",java.util.Set.class);
+                tables.add("ct_ventas");model.clear();model.addElement("ct_ventas");list.setSelectedIndex(0);
+                editor.setText("SELECT * FROM ct_");editor.setCaretPosition(editor.getDocument().getLength());accept.invoke(panel);
+                if(!editor.getText().equals("SELECT * FROM \"ct_ventas\" AS v"))throw new AssertionError("Table alias missing: "+editor.getText());
+                editor.undoEdit();if(!editor.getText().equals("SELECT * FROM ct_"))throw new AssertionError("Alias completion must undo atomically");
                 editor.setText("");
                 editor.getDocument().insertString(0, "select ", null);
                 if (!"SELECT ".equals(editor.getText())) throw new AssertionError("Keyword was not uppercased: " + editor.getText());

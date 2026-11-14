@@ -12,7 +12,7 @@ def sharedFiles = [
     'db/VisualQuery.java','db/DataSearch.java','db/SqlExecutionPolicy.java','db/SqlScriptTools.java',
     'db/ForeignKeyDefinition.java','db/MysqlTableDesign.java','db/SqlBackupService.java',
     'db/SqlImportService.java','db/SqlScriptReader.java','db/SqlTransferControl.java',
-    'db/CsvReader.java','db/CsvImportService.java','db/SqlColumnCompletion.java','db/SqlJoinCompletion.java',
+    'db/CsvReader.java','db/CsvImportService.java','db/SqlColumnCompletion.java','db/SqlJoinCompletion.java','db/SqlTableAliases.java',
     'licensing/LicenseCodec.java','util/DataExporter.java','util/SqlFiles.java'
 ]
 tasks.register('prepareSharedCore', Copy) {

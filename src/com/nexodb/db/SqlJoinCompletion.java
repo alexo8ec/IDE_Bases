@@ -32,11 +32,12 @@ public final class SqlJoinCompletion {
                     if(j<tokens.size()&&tokens.get(j).keyword("AS"))j++;String alias=j<tokens.size()&&tokens.get(j).name()&&!CLAUSES.contains(tokens.get(j).value().toUpperCase(Locale.ROOT))?normalize(tokens.get(j),metadata):table;sites.add(new Site(catalog,schema,table,alias));i=j-1;
                 }
             }
-            Set<String> used=new HashSet<>();sites.forEach(s->used.add(s.alias.toLowerCase(Locale.ROOT)));String alias="j1";for(int i=2;used.contains(alias.toLowerCase(Locale.ROOT));i++)alias="j"+i;
+            var after=QueryEditSupport.tokenize(sql.substring(Math.max(0,Math.min(caret,sql.length()))));if(!after.isEmpty()&&(after.get(0).keyword("AS")||after.get(0).name()&&!CLAUSES.contains(after.get(0).value().toUpperCase(Locale.ROOT))))return List.of();
+            Set<String> used=new HashSet<>(SqlTableAliases.used(before));sites.forEach(s->used.add(s.alias.toLowerCase(Locale.ROOT)));
             LinkedHashMap<String,Suggestion> result=new LinkedHashMap<>();for(Site site:sites)for(Edge edge:edges(site)){
                 boolean child=same(site,edge.child);Site target=child?edge.parent:edge.child;if(!target.table.toLowerCase(Locale.ROOT).startsWith(typed)&&!qualified(target,quote).replace("`","").replace("\"","").toLowerCase(Locale.ROOT).startsWith(typed))continue;
-                String targetAlias=alias;List<String> on=new ArrayList<>();for(Pair pair:edge.columns){String a=VisualQuery.quote(child?site.alias:targetAlias,quote)+"."+VisualQuery.quote(pair.child,quote),b=VisualQuery.quote(child?targetAlias:site.alias,quote)+"."+VisualQuery.quote(pair.parent,quote);on.add(a+" = "+b);}
-                String insertion=qualified(target,quote)+" AS "+VisualQuery.quote(alias,quote)+" ON "+String.join(" AND ",on);result.putIfAbsent(insertion,new Suggestion(target.table+"  ON "+String.join(" AND ",on)+"  ["+Objects.toString(edge.name,"FK")+"]",insertion));if(result.size()>=25)return List.copyOf(result.values());
+                String targetAlias=SqlTableAliases.next(target.table,used);List<String> on=new ArrayList<>();for(Pair pair:edge.columns){String a=VisualQuery.quote(child?site.alias:targetAlias,quote)+"."+VisualQuery.quote(pair.child,quote),b=VisualQuery.quote(child?targetAlias:site.alias,quote)+"."+VisualQuery.quote(pair.parent,quote);on.add(a+" = "+b);}
+                String insertion=qualified(target,quote)+" AS "+VisualQuery.quote(targetAlias,quote)+" ON "+String.join(" AND ",on);result.putIfAbsent(insertion,new Suggestion(target.table+" AS "+targetAlias+"  ON "+String.join(" AND ",on)+"  ["+Objects.toString(edge.name,"FK")+"]",insertion));if(result.size()>=25)return List.copyOf(result.values());
             }return List.copyOf(result.values());
         }
     }

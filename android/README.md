@@ -2,13 +2,13 @@
 
 ## Descargar e instalar
 
-La primera versión Android es **0.14.0**. El APK firmado se genera en
-[`dist/NexoDB-Studio-0.14.0-android.apk`](../dist/NexoDB-Studio-0.14.0-android.apk).
+La versión Android actual es **0.14.1**. El APK firmado se genera en
+[`dist/NexoDB-Studio-0.14.1-android.apk`](../dist/NexoDB-Studio-0.14.1-android.apk).
 No se necesita Java ni un ordenador encendido para utilizarla.
 
 Después de publicar los archivos en la rama `main`, la descarga es:
 
-https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.0-android.apk
+https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.1-android.apk
 
 1. Descarga el APK en el teléfono y ábrelo desde Descargas.
 2. Si Android lo solicita, permite instalar aplicaciones desde ese navegador o gestor de archivos.
