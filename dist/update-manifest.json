@@ -22,7 +22,7 @@
     },
     "macos-arm64": {
       "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.2-macos-arm64.zip",
-      "sha256": "837532727f2560e35de714c58d65c16a48fdb776a5ab44e59651dc609df4ef14"
+      "sha256": "7d9788e422d1e6d2625c742ea276cfbb423341db978d76e64529adb23e3f9b29"
     }
   }
 }

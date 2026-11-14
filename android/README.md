@@ -34,7 +34,7 @@ La versión móvil comparte componentes del motor SQL con escritorio, pero todav
 
 ## Actualizar
 
-**Ajustes → Buscar actualizaciones** consulta:
+**Preferencias → Buscar actualizaciones** consulta:
 
 https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/android-update-manifest.json
 
