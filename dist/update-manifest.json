@@ -1,6 +1,28 @@
-﻿{
-    "version":  "0.14.4",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.4-win64.zip",
-    "sha256":  "f3da67a0e1c299fa31782e3545f219b062a9537de9c622027977717f87d3a6a4",
-    "notes":  "Edicion con doble clic, filas marcadas resaltadas y menu de acciones para insertar, duplicar, eliminar, copiar, filtrar y exportar. Las consultas y el cursor se recuperan al abrir. La firma digital de distribucion requiere los certificados del editor."
+{
+  "version": "0.14.4",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.4-win64.zip",
+  "sha256": "f3da67a0e1c299fa31782e3545f219b062a9537de9c622027977717f87d3a6a4",
+  "notes": "Referencias de claves foraneas en resultados: tabla padre, busqueda, paginacion y seleccion al borrador, con guardado confirmado. Version 0.14.4.",
+  "platforms": {
+    "windows-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.4-win64.zip",
+      "sha256": "f3da67a0e1c299fa31782e3545f219b062a9537de9c622027977717f87d3a6a4"
+    },
+    "linux-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.4-linux-x64.deb",
+      "sha256": "83d3aaee062418559734e1a3d9bc3de02353d97446063192d2beba97bab28e39"
+    },
+    "linux-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.4-linux-arm64.deb",
+      "sha256": "b76450e79a5e8b247263899974f710d0361a8682c7a0caec8119227a82789796"
+    },
+    "macos-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.4-macos-x64.zip",
+      "sha256": "06589d2d02057baad7779db41a708c822cb1166a40197224665b7c2ea3370be7"
+    },
+    "macos-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.4-macos-arm64.zip",
+      "sha256": "0cd54cc5b8525ec7b4449f7e4253f9485a262e92dc74c2b5bc8a5a9c3f8801a1"
+    }
+  }
 }
