@@ -4,14 +4,14 @@
 !/dist/android-update-manifest.json
 !/dist/NexoDB-Studio-0.14.4-android.apk
 !/dist/NexoDB-Studio-0.14.4-android.apk.sha256
-!/dist/NexoDB-Studio-0.14.4-win64.zip
-!/dist/NexoDB-Studio-0.14.4-linux-x64.deb
-!/dist/NexoDB-Studio-0.14.4-linux-arm64.deb
-!/dist/NexoDB-Studio-0.14.4-macos-x64.zip
-!/dist/NexoDB-Studio-0.14.4-macos-arm64.zip
+!/dist/NexoDB-Studio-0.15.0-win64.zip
+!/dist/NexoDB-Studio-0.15.0-linux-x64.deb
+!/dist/NexoDB-Studio-0.15.0-linux-arm64.deb
+!/dist/NexoDB-Studio-0.15.0-macos-x64.zip
+!/dist/NexoDB-Studio-0.15.0-macos-arm64.zip
 !/dist/installer/
 /dist/installer/*
-!/dist/installer/NexoDB Studio-0.14.4.exe
+!/dist/installer/NexoDB Studio-0.15.0.exe
 /.tools/
 /.github/
 *.log

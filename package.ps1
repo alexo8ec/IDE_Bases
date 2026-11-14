@@ -98,7 +98,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = 'Edicion con doble clic, filas marcadas resaltadas y menu de acciones para insertar, duplicar, eliminar, copiar, filtrar y exportar. Las consultas y el cursor se recuperan al abrir. La firma digital de distribucion requiere los certificados del editor.'
+    notes = "NexoDB Studio ${version}: reporteria visual con plantillas y exportacion HTML, CSV, Excel y PDF; asistente IA configurable para generar y optimizar SQL; planes de ejecucion visuales; paginacion y tiempo al pie de los resultados; multiples resultados y mejoras de autocompletado."
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\NexoDB Studio.exe"

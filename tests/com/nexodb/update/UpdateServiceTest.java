@@ -9,6 +9,7 @@ import java.util.*;
 
 public final class UpdateServiceTest {
     public static void main(String[] args) throws Exception {
+        equal(Files.readString(Path.of("VERSION")).trim(), UpdateService.CURRENT_VERSION);
         if (args.length > 0 && args[0].equals("--live-check")) {
             UpdateService.UpdateInfo info = new UpdateService().check();
             System.out.println("Live update channel: " + info.version() + " / " + UpdateService.platformKey());
