@@ -48,5 +48,8 @@ if(-not $Debug){
 }
 $hash=(Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
 "$hash  $([IO.Path]::GetFileName($target))" | Set-Content -LiteralPath ($target+'.sha256') -Encoding ASCII
-if(-not $Debug){[ordered]@{version=$version;versionCode=$versionCode;downloadUrl='https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/'+[IO.Path]::GetFileName($target);sha256=$hash} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $repository 'dist/android-update-manifest.json') -Encoding UTF8}
+if(-not $Debug){
+    $manifest=[ordered]@{version=$version;versionCode=$versionCode;downloadUrl='https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/'+[IO.Path]::GetFileName($target);sha256=$hash} | ConvertTo-Json
+    [IO.File]::WriteAllText((Join-Path $repository 'dist/android-update-manifest.json'),$manifest+"`n",[Text.UTF8Encoding]::new($false))
+}
 Write-Output "APK lista: $target"
