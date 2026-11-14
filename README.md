@@ -1,6 +1,10 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.2**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.6**.
+La versión actual de escritorio es **0.18.3**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.6**.
+
+## Vicky integrada en el asistente SQL — 0.18.3
+
+El Asistente de IA incorpora **Vicky** como proveedor predeterminado. Se conecta a su agente de bases de datos en el VPS privado mediante Tailscale, conserva el token cifrado con DPAPI y deja el modelo administrado por Vicky. Solo comparte la solicitud y las pestañas visibles de SQL, esquema y plan; no envía credenciales JDBC, filas de resultados ni ejecuta automáticamente el SQL propuesto.
 
 ## Corrección del autocompletado SQL — 0.18.2
 
@@ -74,6 +78,10 @@ El pie de cada tabla muestra el **tiempo de consulta en milisegundos**, además 
 | PostgreSQL | EXPLAIN FORMAT JSON | EXPLAIN ANALYZE, BUFFERS y JSON |
 | SQLite | EXPLAIN QUERY PLAN, detalle básico | No disponible por esta interfaz |
 | H2 | EXPLAIN, detalle textual | EXPLAIN ANALYZE, con las métricas que reporte H2 |
+
+El gráfico muestra los tiempos disponibles, índice utilizado, forma de acceso y filas reales/leídas; la tabla permite ordenar las métricas y consultar sus propiedades. Los tiempos de MySQL/PostgreSQL se identifican como promedios por loop; SQL Server muestra el máximo de tiempo entre hilos y suma filas/CPU, sin sumar tiempos de operadores. Cuando el motor proporciona el tiempo total de la consulta, se muestra separado de la duración de obtención del plan. Las métricas ausentes permanecen sin reportar; los costos estimados no se convierten en milisegundos.
+
+La pestaña **Diagnóstico de rendimiento** señala escaneos y ordenamientos de al menos 100.000 filas, lecturas de al menos 10.000 filas que superan 100 veces las filas devueltas y derrames a disco reportados. Son umbrales orientativos: distingue volúmenes reales de estimados, y un escaneo no demuestra por sí solo que falte un índice. Explica cuándo revisar filtros, JOIN, selectividad, orden de columnas y ORDER BY; las recomendaciones SQL del optimizador se mantienen separadas de estas observaciones.
 
 El plan real ejecuta el SELECT y requiere confirmación. SQL Server necesita permisos SHOWPLAN y permisos para las instrucciones analizadas; el módulo restaura SHOWPLAN/STATISTICS al terminar, incluso ante error. Las recomendaciones de índices se abren como SQL para revisar, sin aplicarse. El plan Oracle y la depuración nativa de SQL Server/Oracle siguen fuera de esta integración; MySQL/MariaDB incorporan la copia instrumentada descrita en 0.16.0. Referencias: [XML de planes de SQL Server](https://learn.microsoft.com/en-us/sql/relational-databases/performance/save-an-execution-plan-in-xml-format), [MySQL EXPLAIN](https://dev.mysql.com/doc/refman/8.0/en/explain.html), [MariaDB ANALYZE JSON](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/analyze-and-explain-statements/analyze-format-json), [PostgreSQL EXPLAIN](https://www.postgresql.org/docs/current/sql-explain.html).
 
@@ -234,7 +242,7 @@ El script compila el programa y lo abre.
 .\package.ps1
 ```
 
-El resultado de esta versión queda en `dist\0.18.2\AdisDB\AdisDB.exe` e incluye un runtime Java reducido.
+El resultado de esta versión queda en `dist\0.18.3\AdisDB\AdisDB.exe` e incluye un runtime Java reducido.
 
 La distribución limita el heap a 256 MB y usa renderizado GDI por software para evitar problemas de controladores gráficos en Windows.
 

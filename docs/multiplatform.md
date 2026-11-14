@@ -1,17 +1,17 @@
 # Distribución para Windows, Linux, macOS y Android
 
-AdisDB 0.18.2 utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas.
+AdisDB utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas. La integración de Vicky se publica primero como 0.18.3 para Windows x64; los paquetes 0.18.2 de Linux y macOS continúan disponibles hasta su siguiente compilación nativa.
 
 ## Archivos disponibles
 
-Los paquetes de escritorio incluyen Java 17 para su sistema y arquitectura y corresponden a 0.18.2. Android mantiene su versión 0.14.6, utiliza su propio entorno y no requiere instalar Java. Se generan directamente en `dist`, sin copias en otra carpeta de publicación. Al iniciar requieren una licencia vigente, transferible entre equipos, mediante archivo `.nexolicense` o clave completa. Las actualizaciones conservan la licencia del perfil del usuario. El generador administrativo y su autoridad privada se distribuyen por separado y no forman parte de estos paquetes.
+Los paquetes de escritorio incluyen Java 17 para su sistema y arquitectura. Android mantiene su versión 0.14.6, utiliza su propio entorno y no requiere instalar Java. Se generan directamente en `dist`, sin copias en otra carpeta de publicación. Al iniciar requieren una licencia vigente, transferible entre equipos, mediante archivo `.nexolicense` o clave completa. Las actualizaciones conservan la licencia del perfil del usuario. El generador administrativo y su autoridad privada se distribuyen por separado y no forman parte de estos paquetes.
 
 Los ejecutables están sin firma comercial: la distribución macOS firmada queda pendiente de Developer ID y notarización. La firma criptográfica de las licencias no firma los ejecutables. Consulta la [guía de firma](signing.md).
 
 | Sistema | Archivo | Instalación |
 | --- | --- | --- |
 | Android 8.0+ | [AdisDB-0.14.6-android.apk](../dist/AdisDB-0.14.6-android.apk) | Abrir la APK en el teléfono; [guía móvil](../android/README.md) |
-| Windows x64 | [AdisDB-0.18.2.exe](../dist/installer/AdisDB-0.18.2.exe) | Ejecutar el instalador |
+| Windows x64 | [AdisDB-0.18.3.exe](../dist/installer/AdisDB-0.18.3.exe) | Ejecutar el instalador |
 | Debian/Ubuntu x64 | [AdisDB-0.18.2-linux-x64.deb](../dist/AdisDB-0.18.2-linux-x64.deb) | `sudo apt install ./AdisDB-0.18.2-linux-x64.deb` |
 | Debian/Ubuntu ARM64 | [AdisDB-0.18.2-linux-arm64.deb](../dist/AdisDB-0.18.2-linux-arm64.deb) | `sudo apt install ./AdisDB-0.18.2-linux-arm64.deb` |
 | macOS Intel | [AdisDB-0.18.2-macos-x64.zip](../dist/AdisDB-0.18.2-macos-x64.zip) | Extraer el ZIP y abrir `Instalar AdisDB.command` |
@@ -87,7 +87,7 @@ El manifiesto admite paquetes por sistema y arquitectura. Genera el manifiesto *
 ```sh
 python3 tools/create-update-manifest.py \
   --base-url https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist \
-  --windows-x64 dist/AdisDB-0.18.2-win64.zip \
+  --windows-x64 dist/AdisDB-0.18.3-win64.zip \
   --linux-x64 dist/AdisDB-0.18.2-linux-x64.deb \
   --linux-arm64 dist/AdisDB-0.18.2-linux-arm64.deb \
   --macos-x64 dist/AdisDB-0.18.2-macos-x64.zip \

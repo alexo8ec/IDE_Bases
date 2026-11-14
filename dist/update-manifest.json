@@ -1,28 +1,12 @@
 {
-  "version": "0.18.2",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.2-win64.zip",
-  "sha256": "f2bfd4ca03e1b9af2455800cc5ceab4c577e6fb28060940c9b21739883830d0e",
-  "notes": "AdisDB 0.18.2: corrige el autocompletado SQL con clic, Enter y Tab sin duplicar el prefijo escrito. Esc cierra el cuadro y descarta sugerencias pendientes. Conserva licencias, conexiones y preferencias.",
+  "version": "0.18.3",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.3-win64.zip",
+  "sha256": "12f69b9ff7eb70b88eb507d1b689bec3d24f290c8471582c5b30b50f3c864aba",
+  "notes": "AdisDB 0.18.3 integra Vicky como asistente SQL privado mediante Tailscale. Solo comparte el SQL, esquema y plan visibles, y nunca ejecuta automáticamente la propuesta.",
   "platforms": {
     "windows-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.2-win64.zip",
-      "sha256": "f2bfd4ca03e1b9af2455800cc5ceab4c577e6fb28060940c9b21739883830d0e"
-    },
-    "linux-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.2-linux-x64.deb",
-      "sha256": "322f175c8296c94941f0273671911546e16ef4886be3a9bf8052720169996902"
-    },
-    "linux-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.2-linux-arm64.deb",
-      "sha256": "b3e998c1920dc2352d4a119d96c6152347c94bd2883a1f0823b1fa38bd699315"
-    },
-    "macos-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.2-macos-x64.zip",
-      "sha256": "72483d167d5446f6110e0a93a28fe18cd026ec52e9cabcb88e097a50edefd23c"
-    },
-    "macos-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.2-macos-arm64.zip",
-      "sha256": "c732af90a61652155b0a697b05d2e0a1c3e836185f49af59bcc2f88dff2030c6"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.3-win64.zip",
+      "sha256": "12f69b9ff7eb70b88eb507d1b689bec3d24f290c8471582c5b30b50f3c864aba"
     }
   }
 }
