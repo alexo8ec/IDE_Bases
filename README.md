@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.1**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.6**.
+La versión actual de escritorio es **0.18.2**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.6**.
+
+## Corrección del autocompletado SQL — 0.18.2
+
+Aceptar una sugerencia con clic, Enter o Tab reemplaza el prefijo escrito sin duplicarlo: `c.ide` se convierte en `c.identificacion`. Se corrige el desfase de posiciones en consultas con saltos de línea de Windows, tanto para columnas como para tablas y JOIN. El cursor queda al final de la inserción, se conserva el SQL posterior y deshacer/rehacer agrupa el reemplazo en un solo paso.
+
+**Esc** cierra el autocompletado y descarta el temporizador y las respuestas pendientes, para que el cuadro no reaparezca al terminar una consulta de metadatos. Sin autocompletado pendiente, Esc conserva su función de cancelar la consulta.
+
+La actualización se ofrece desde el canal HTTPS existente al abrir AdisDB o mediante **Ayuda → Buscar actualizaciones**. Conserva las licencias, conexiones, preferencias y borradores existentes. La autoridad privada del generador de licencias no forma parte de la distribución.
 
 ## Corrección del depurador MySQL — 0.18.1
 
@@ -226,7 +234,7 @@ El script compila el programa y lo abre.
 .\package.ps1
 ```
 
-El resultado de esta versión queda en `dist\0.18.1\AdisDB\AdisDB.exe` e incluye un runtime Java reducido.
+El resultado de esta versión queda en `dist\0.18.2\AdisDB\AdisDB.exe` e incluye un runtime Java reducido.
 
 La distribución limita el heap a 256 MB y usa renderizado GDI por software para evitar problemas de controladores gráficos en Windows.
 

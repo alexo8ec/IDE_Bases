@@ -244,7 +244,7 @@ public final class QueryPanel extends JPanel {
     }
 
     public void executeCurrent() { executeSql(); }
-    public void cancelCurrent() { cancelSql(); }
+    public void cancelCurrent() { dismissCompletionOrCancelSql(); }
     void setColumnEditor(QueryResultPanel.ColumnEditor editor){columnEditor=editor;}
 
     public void selectDatabase(String name) {
@@ -383,7 +383,7 @@ public final class QueryPanel extends JPanel {
         actions.put("open-sql",new AbstractAction(){public void actionPerformed(ActionEvent e){openSqlFile();}});
         editor.setComponentPopupMenu(editorMenu(editor));
         actions.put("execute-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { executeSql(); }});
-        actions.put("cancel-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { cancelSql(); }});
+        actions.put("cancel-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { dismissCompletionOrCancelSql(); }});
         actions.put("export-csv", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { exportData(); }});
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, KeyEvent.CTRL_DOWN_MASK), "show-completions");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), "completion-down");
@@ -607,6 +607,20 @@ public final class QueryPanel extends JPanel {
     private void addDiagnosticTab(String title,com.nexodb.db.SqlDiagnostic diagnostic,Runnable locate){int messagesIndex=outputTabs.indexOfComponent(messagesScroll);outputTabs.insertTab(uniqueTabName(title),IconFactory.of(IconFactory.Kind.INFO,16),new SqlErrorPanel(diagnostic,locate),null,Math.max(0,messagesIndex));}
 
     private void recordHistory(JdbcSession origin,String database,String sql,long millis,long rows,String error){try{history.add(new QueryHistoryStore.Entry(java.time.Instant.now(),origin.profile().name(),database,sql,millis,rows,error==null?"":error));}catch(Exception failure){SwingUtilities.invokeLater(()->statusConsumer.accept(tr("No se pudo guardar el historial SQL.")));}}
+
+    private void dismissCompletionOrCancelSql() {
+        boolean completing = completionPopup.isVisible() || completionTimer.isRunning()
+                || columnWorker != null && !columnWorker.isDone();
+        dismissCompletions();
+        if (!completing) cancelSql();
+    }
+
+    private void dismissCompletions() {
+        completionGeneration++;
+        completionTimer.stop();
+        if (columnWorker != null) columnWorker.cancel(true);
+        completionPopup.setVisible(false);
+    }
 
     private void cancelSql() {
         if (worker == null || worker.isDone() || session == null) return;
@@ -915,6 +929,11 @@ public final class QueryPanel extends JPanel {
         completionPopup.setRequestFocusEnabled(false);
         completionPopup.setLightWeightPopupEnabled(true);
         completionPopup.setBorder(UIManager.getBorder("PopupMenu.border"));
+        completionPopup.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
+            @Override public void popupMenuWillBecomeVisible(javax.swing.event.PopupMenuEvent e) {}
+            @Override public void popupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent e) {}
+            @Override public void popupMenuCanceled(javax.swing.event.PopupMenuEvent e) { dismissCompletions(); }
+        });
         completionPopup.add(completionScroll);
     }
 
@@ -976,7 +995,7 @@ public final class QueryPanel extends JPanel {
         String token = completionToken();
         String prefix = token.contains(".") ? token.substring(token.lastIndexOf('.') + 1) : token;
         final String filterPrefix = prefix.replace("`", "").replace("\"", "").replace("[", "").toLowerCase(Locale.ROOT);
-        int caret=editor.getCaretPosition();String text=editor.getText();
+        int caret=editor.getCaretPosition();String text=completionText();
         boolean joinPosition=SqlJoinCompletion.atJoin(text.substring(0,caret));
         if (!SqlColumnCompletion.inCode(text.substring(0,caret)) || !forced && !joinPosition && filterPrefix.length() < 2 && !token.contains(".")) { completionPopup.setVisible(false);completionGeneration++;return; }
         boolean tablePosition=Pattern.compile("(?is)\\b(?:FROM|JOIN|UPDATE|INTO)\\s+[^\\s,()]*$").matcher(text.substring(0,caret)).find();
@@ -985,7 +1004,7 @@ public final class QueryPanel extends JPanel {
         if(tablePosition){for(int i=completionModel.size()-1;i>=0;i--)if(!tableWords.contains(completionModel.get(i)))completionModel.remove(i);if(completionModel.isEmpty())completionPopup.setVisible(false);else showCompletionList();}
         if(joinPosition&&joinCompletion!=null){
             long request=++completionGeneration;JdbcSession target=session;SqlJoinCompletion provider=joinCompletion;String db=activeDatabase();
-            new SwingWorker<List<SqlJoinCompletion.Suggestion>,Void>(){protected List<SqlJoinCompletion.Suggestion> doInBackground()throws Exception{return provider.suggestions(text,caret,db);}protected void done(){if(request!=completionGeneration||session!=target||caret!=editor.getCaretPosition()||!text.equals(editor.getText())||!editor.isFocusOwner())return;try{List<String> fallback=new ArrayList<>();for(int i=0;i<completionModel.size();i++)fallback.add(completionModel.get(i));var suggestions=get();if(suggestions.isEmpty())return;completionModel.clear();joinInsertions.clear();for(var suggestion:suggestions){joinInsertions.put(suggestion.label(),suggestion.insertion());completionModel.addElement(suggestion.label());}for(String value:fallback)if(completionModel.size()<60)completionModel.addElement(value);showCompletionList();}catch(Exception ignored){}}}.execute();return;
+            new SwingWorker<List<SqlJoinCompletion.Suggestion>,Void>(){protected List<SqlJoinCompletion.Suggestion> doInBackground()throws Exception{return provider.suggestions(text,caret,db);}protected void done(){if(request!=completionGeneration||session!=target||caret!=editor.getCaretPosition()||!text.equals(completionText())||!editor.isFocusOwner())return;try{List<String> fallback=new ArrayList<>();for(int i=0;i<completionModel.size();i++)fallback.add(completionModel.get(i));var suggestions=get();if(suggestions.isEmpty())return;completionModel.clear();joinInsertions.clear();for(var suggestion:suggestions){joinInsertions.put(suggestion.label(),suggestion.insertion());completionModel.addElement(suggestion.label());}for(String value:fallback)if(completionModel.size()<60)completionModel.addElement(value);showCompletionList();}catch(Exception ignored){}}}.execute();return;
         }
         if(tablePosition||columnCompletion==null)return;
         long request=++completionGeneration;
@@ -997,7 +1016,7 @@ public final class QueryPanel extends JPanel {
         columnWorker=new SwingWorker<>(){
             protected List<String> doInBackground()throws Exception{return provider.columns(statement,qualifier,db,known);}
             protected void done(){
-                if(isCancelled()||request!=completionGeneration||session!=target||caret!=editor.getCaretPosition()||!text.equals(editor.getText())||!editor.isFocusOwner())return;
+                if(isCancelled()||request!=completionGeneration||session!=target||caret!=editor.getCaretPosition()||!text.equals(completionText())||!editor.isFocusOwner())return;
                 try{List<String> columns=get();columnWords.clear();columnWords.addAll(columns);renderCompletions(filterPrefix,columns,qualified);}catch(Exception ignored){}
             }
         };
@@ -1034,9 +1053,15 @@ public final class QueryPanel extends JPanel {
         }
     }
 
+    private String completionText() {
+        // Caret and edit offsets refer to the document, while getText() may export CRLF.
+        try { return editor.getDocument().getText(0, editor.getDocument().getLength()); }
+        catch (javax.swing.text.BadLocationException error) { throw new IllegalStateException(error); }
+    }
+
     private String completionToken() {
         int caret = editor.getCaretPosition();
-        String text = editor.getText();
+        String text = completionText();
         int start = caret;
         while (start > 0) {
             char c = text.charAt(start - 1);
@@ -1076,7 +1101,7 @@ public final class QueryPanel extends JPanel {
         if(joinInsertions.containsKey(selected)){replaceCompletion(caret-token.length(),caret,joinInsertions.get(selected));return;}
         if(tableWords.contains(selected)){
             String quote=session!=null&&(session.profile().type()==com.nexodb.model.DatabaseType.MYSQL||session.profile().type()==com.nexodb.model.DatabaseType.MARIADB)?"`":"\"";
-            var edit=SqlTableAliases.complete(editor.getText(),caret,selected,quote);
+            var edit=SqlTableAliases.complete(completionText(),caret,selected,quote);
             if(edit!=null){replaceCompletion(edit.start(),edit.end(),edit.insertion());return;}
         }
         int tail = token.lastIndexOf('.') + 1;
@@ -1098,9 +1123,7 @@ public final class QueryPanel extends JPanel {
                 throw new IllegalStateException(error);
             }
         });
-        completionGeneration++;
-        completionTimer.stop();
-        completionPopup.setVisible(false);
+        dismissCompletions();
         editor.requestFocusInWindow();
     }
 

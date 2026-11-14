@@ -11,9 +11,17 @@
 !/dist/AdisDB-0.18.1-macos-arm64.zip
 !/dist/AdisDB-0.18.1-universal.zip
 !/dist/AdisDB-0.18.1-universal.zip.sha256
+!/dist/AdisDB-0.18.2-win64.zip
+!/dist/AdisDB-0.18.2-linux-x64.deb
+!/dist/AdisDB-0.18.2-linux-arm64.deb
+!/dist/AdisDB-0.18.2-macos-x64.zip
+!/dist/AdisDB-0.18.2-macos-arm64.zip
+!/dist/AdisDB-0.18.2-universal.zip
+!/dist/AdisDB-0.18.2-universal.zip.sha256
 !/dist/installer/
 /dist/installer/*
 !/dist/installer/AdisDB-0.18.1.exe
+!/dist/installer/AdisDB-0.18.2.exe
 /.tools/
 /.github/
 *.log

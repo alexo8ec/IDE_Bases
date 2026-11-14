@@ -106,7 +106,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: corrige el error de streaming S1000 de MySQL Connector/J al depurar SP con varios SELECT y pausas. Mantiene resultados en tiempo real y variables. Icono de base de datos con una A pequena."
+    notes = "AdisDB ${version}: corrige el autocompletado SQL con clic, Enter y Tab sin duplicar el prefijo escrito. Esc cierra el cuadro y descarta sugerencias pendientes. Conserva licencias, conexiones y preferencias."
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\AdisDB.exe"
