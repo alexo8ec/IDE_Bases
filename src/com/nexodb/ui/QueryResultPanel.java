@@ -52,7 +52,15 @@ final class QueryResultPanel extends JPanel {
         table.putClientProperty("terminateEditOnFocusLost",Boolean.TRUE);
         table.setDefaultEditor(Object.class,new DefaultCellEditor(new JTextField()){
             private Object original;
-            public Component getTableCellEditorComponent(JTable grid,Object value,boolean selected,int row,int column){original=value;Component field=super.getTableCellEditorComponent(grid,value==QueryEditSupport.DefaultValue.INSTANCE?"":value,selected,row,column);int modelRow=grid.convertRowIndexToModel(row),modelColumn=grid.convertColumnIndexToModel(column);if(!hasReference(modelColumn))return field;JPanel panel=new JPanel(new BorderLayout());panel.add(field);JButton lookup=new JButton("…");lookup.setName("reference-cell-button");lookup.setMargin(new Insets(0,5,0,5));lookup.addActionListener(e->{if(stopCellEditing())openReferenceModel(modelRow,modelColumn);});panel.add(lookup,BorderLayout.EAST);return panel;}
+            public Component getTableCellEditorComponent(JTable grid,Object value,boolean selected,int row,int column){
+                original=value;Component field=super.getTableCellEditorComponent(grid,value==QueryEditSupport.DefaultValue.INSTANCE?"":value,selected,row,column);
+                int modelRow=grid.convertRowIndexToModel(row),modelColumn=grid.convertColumnIndexToModel(column);
+                ((JTextField)field).getInputMap().remove(KeyStroke.getKeyStroke("control SPACE"));
+                if(!hasReference(modelColumn))return field;
+                Runnable open=()->{if(stopCellEditing())openReferenceModel(modelRow,modelColumn);};
+                ((JTextField)field).getInputMap().put(KeyStroke.getKeyStroke("control SPACE"),"reference");((JTextField)field).getActionMap().put("reference",new AbstractAction(){public void actionPerformed(ActionEvent e){open.run();}});
+                JPanel panel=new JPanel(new BorderLayout());panel.add(field);JButton lookup=new JButton("…");lookup.setName("reference-cell-button");lookup.setMargin(new Insets(0,5,0,5));lookup.addActionListener(e->open.run());panel.add(lookup,BorderLayout.EAST);return panel;
+            }
             public Object getCellEditorValue(){Object value=super.getCellEditorValue();return "".equals(value)&&(original==null||original==QueryEditSupport.DefaultValue.INSTANCE)?original:value;}
         });
         table.setDefaultRenderer(Object.class,new CellRenderer());
@@ -73,7 +81,7 @@ final class QueryResultPanel extends JPanel {
         grid.editingActions(new ResultGridActions.EditingActions(this::editSelectedCell,()->insertRow(false),this::deleteRows,this::save,this::requestDiscard,this::setSelectionValue,()->insertRow(true),()->{if(exportAction!=null)exportAction.run();},this::canWrite,this::hasChanges,this::canEditSelectedCell,()->origin.profile().type()!=com.nexodb.model.DatabaseType.SQLITE,()->exportAction!=null));
         grid.referenceAction(()->openReference(table.getSelectedRow(),table.getSelectedColumn()),()->table.getSelectedColumn()>=0&&hasReference(table.convertColumnIndexToModel(table.getSelectedColumn())));
         referenceButton.setName("query-reference");referenceButton.setIcon(IconFactory.of(IconFactory.Kind.KEY,16));referenceButton.addActionListener(e->openReference(table.getSelectedRow(),table.getSelectedColumn()));toolbar.add(referenceButton);
-        TableCellRenderer normalHeader=table.getTableHeader().getDefaultRenderer();table.getTableHeader().setDefaultRenderer((t,v,s,f,r,c)->{Component component=normalHeader.getTableCellRendererComponent(t,v,s,f,r,c);if(component instanceof JLabel label){int index=table.convertColumnIndexToModel(c);label.setIcon(hasReference(index)?IconFactory.of(IconFactory.Kind.KEY,14):null);label.setToolTipText(references.stream().filter(ref->ref.contains(index)).map(ref->ref.label()+" · "+String.join(", ",ref.parts().stream().map(p->p.local()+" → "+p.referenced()).toList())).collect(java.util.stream.Collectors.joining("; ")));}return component;});
+        TableCellRenderer normalHeader=table.getTableHeader().getDefaultRenderer();table.getTableHeader().setDefaultRenderer((t,v,s,f,r,c)->{Component component=normalHeader.getTableCellRendererComponent(t,v,s,f,r,c);if(component instanceof JLabel label){int index=table.convertColumnIndexToModel(c);Icon base=label.getIcon();if(base instanceof ReferenceHeaderIcon composed)base=composed.base();label.setIcon(hasReference(index)?new ReferenceHeaderIcon(base,IconFactory.of(IconFactory.Kind.KEY,14)):base);label.setToolTipText(references.stream().filter(ref->ref.contains(index)).map(ref->ref.label()+" · "+String.join(", ",ref.parts().stream().map(p->p.local()+" → "+p.referenced()).toList())).collect(java.util.stream.Collectors.joining("; ")));}return component;});
         actions.addActionListener(event->grid.showMenu(actions));
         add(toolbar,BorderLayout.NORTH);add(scroll,BorderLayout.CENTER);add(footer,BorderLayout.SOUTH);
         setHint(result);
@@ -176,7 +184,7 @@ final class QueryResultPanel extends JPanel {
         if(table.isEditing()&&table.getEditingRow()==row&&table.getEditingColumn()==column)return;
         if(!finishEditing())return;
         table.changeSelection(row,column,false,false);
-        if(table.editCellAt(row,column,event)&&table.getEditorComponent() instanceof JTextField field){field.requestFocusInWindow();field.selectAll();}
+        if(table.editCellAt(row,column,event)){Component editor=table.getEditorComponent();JTextField field=editor instanceof JTextField text?text:editor instanceof JPanel panel&&panel.getComponentCount()>0&&panel.getComponent(0) instanceof JTextField text?text:null;if(field!=null){field.requestFocusInWindow();field.selectAll();}}
     }
     private void setSelectionValue(Object value){if(!canEditSelectedCell()||!finishEditing()||!enableEditing())return;if(!confirm.test("Cambiar valores seleccionados",target.qualifiedTable()+"\n"+tr("Se asignará %s a las celdas seleccionadas. Se aplicará al pulsar Guardar. ¿Continuar?",value==null?"NULL":value==QueryEditSupport.DefaultValue.INSTANCE?"DEFAULT":value.toString().isEmpty()?tr("cadena vacía"):value.toString())))return;model.setValues(grid.selectedRows(),grid.selectedColumns(),value);}
     private void requestDiscard(){if(!hasChanges()||confirm.test("Descartar cambios",tr("Se perderán %s cambios pendientes del resultado. Los datos de la base no se modificarán. ¿Descartar?",model.changeCount())))discardChanges();}
@@ -227,6 +235,10 @@ final class QueryResultPanel extends JPanel {
     private void start(){saving=true;updateActions();busy.accept(true);}
     private void end(){saving=false;busy.accept(false);updateActions();}
     private void showError(Throwable error,String title){while(error.getCause()!=null)error=error.getCause();JOptionPane.showMessageDialog(this,error.getMessage(),tr(title),JOptionPane.ERROR_MESSAGE);}
+    private record ReferenceHeaderIcon(Icon base,Icon key) implements Icon{
+        public int getIconWidth(){return key.getIconWidth()+(base==null?0:4+base.getIconWidth());}public int getIconHeight(){return Math.max(key.getIconHeight(),base==null?0:base.getIconHeight());}
+        public void paintIcon(Component c,Graphics g,int x,int y){key.paintIcon(c,g,x,y);if(base!=null)base.paintIcon(c,g,x+key.getIconWidth()+4,y);}
+    }
     private final class CellRenderer extends DefaultTableCellRenderer {
         private boolean arrow,reference;
         public Component getTableCellRendererComponent(JTable grid,Object value,boolean selected,boolean focus,int row,int column){

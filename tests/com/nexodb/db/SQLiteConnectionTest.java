@@ -24,6 +24,11 @@ public final class SQLiteConnectionTest {
             ConnectionProfile prepared=SQLiteSupport.prepare(raw);
             if(!prepared.jdbcUrl().contains("%23") || !prepared.username().isEmpty())throw new AssertionError("Encoded path / credentials");
             try(JdbcSession session=JdbcSession.open(raw,new char[0])) {
+                if(!readOnly){
+                    try(Statement st=session.connection().createStatement()){st.execute("CREATE TABLE IF NOT EXISTS fk_parent(id INTEGER PRIMARY KEY,name TEXT)");st.execute("CREATE TABLE IF NOT EXISTS fk_child(id INTEGER PRIMARY KEY,parent INTEGER REFERENCES fk_parent(id))");st.execute("INSERT OR IGNORE INTO fk_parent VALUES(1,'Related SQLite')");st.execute("INSERT OR IGNORE INTO fk_child VALUES(1,1)");}
+                    QueryResult fk=session.execute("SELECT * FROM fk_child",25);var reference=ForeignKeyLookup.describe(session.connection(),fk);if(reference.size()!=1)throw new AssertionError("SQLite FK origin metadata");
+                    if(ForeignKeyLookup.search(session.connection(),DatabaseType.SQLITE,reference.get(0),fk.rows().get(0),1,"1","",true,0,25).result().rows().size()!=1)throw new AssertionError("SQLite parent lookup");
+                }
                 QueryResult result=session.execute("SELECT * FROM sample",1000);
                 if(result.rows().size()!=1)throw new AssertionError("SQLite SELECT");
                 try(ResultSet tables=session.connection().getMetaData().getTables(null,null,"sample",new String[]{"TABLE"})){if(!tables.next())throw new AssertionError("Tables");}

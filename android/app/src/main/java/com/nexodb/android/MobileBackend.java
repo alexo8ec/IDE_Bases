@@ -14,6 +14,7 @@ final class MobileBackend {
     final MainActivity activity;final MobileStore store;final MobileLicense license;final MobileDocuments documents;
     final Map<String,JdbcSession> sessions=new LinkedHashMap<>();final LinkedHashMap<String,QueryResult> results=new LinkedHashMap<>();
     private final Map<String,JdbcSession> resultOwners=new HashMap<>();
+    private final Map<String,List<ForeignKeyLookup.Reference>> references=new HashMap<>();
     final Map<String,MysqlTableDesign.Snapshot> designs=new HashMap<>();private final MobileTools tools;private final MobileUpdate update;
     volatile JdbcSession active;volatile SqlTransferControl transfer;private String activeId="";boolean writing;
     MobileBackend(MainActivity activity)throws Exception{this.activity=activity;store=new MobileStore(activity);license=new MobileLicense(activity,store);documents=new MobileDocuments(activity);tools=new MobileTools(this);update=new MobileUpdate(this);I18n.initialize(store.settings().optString("language","es"));}
@@ -37,6 +38,7 @@ final class MobileBackend {
             case "write.mode"->{boolean enabled=p.optBoolean("enabled");if(enabled&&(session().profile().readOnly()||!activity.ask("Habilitar cambios","Se habilitarán instrucciones de escritura y edición de resultados. Cada escritura solicitará confirmación. ¿Continuar?")))throw cancelled();if(session().getReadOnly()==enabled)session().setReadOnly(!enabled);writing=enabled;yield writing;}
             case "transaction"->{String action=p.getString("action");authorize("Transacción",action);switch(action){case "commit"->session().commit();case "rollback"->session().rollback();case "auto"->session().setAutoCommit(p.getBoolean("value"));default->throw new IllegalArgumentException("Acción no válida.");}yield session().getAutoCommit();}
             case "rows.save"->saveRows(p);
+            case "references.search"->referenceSearch(p);
             case "history"->new JSONArray(store.get("history","[]"));
             case "completion"->{String database=p.optString("database");List<String> tables=SchemaMetadataReader.listObjects(session(),database).stream().map(SchemaMetadataReader.DbObject::name).toList();Set<String> values=new LinkedHashSet<>(tables);values.addAll(new SqlColumnCompletion(session()).columns(p.optString("sql"),p.optString("qualifier"),database,tables));yield values;}
             case "join.completion"->new SqlJoinCompletion(session()).suggestions(p.getString("sql"),p.getInt("caret"),p.optString("database"));
@@ -71,9 +73,16 @@ final class MobileBackend {
         JSONArray values=new JSONArray();for(String statement:statements)values.put(queryOne(p,statement));if(values.length()==0)throw new IllegalArgumentException("No hay una sentencia SQL para ejecutar.");if(values.length()==1)return values.get(0);return new JSONObject().put("results",values);
     }
     private Object queryOne(JSONObject p,String sql)throws Exception{
-        int limit=p.optBoolean("unlimited")?Integer.MAX_VALUE:Math.max(1,p.optInt("limit",1000));QueryResult result=session().execute(sql,limit);String id=UUID.randomUUID().toString();results.put(id,result);resultOwners.put(id,session());while(results.size()>16){String expired=results.keySet().iterator().next();results.remove(expired);resultOwners.remove(expired);}
+        int limit=p.optBoolean("unlimited")?Integer.MAX_VALUE:Math.max(1,p.optInt("limit",1000));QueryResult result=session().execute(sql,limit);String id=UUID.randomUUID().toString();results.put(id,result);resultOwners.put(id,session());while(results.size()>16){String expired=results.keySet().iterator().next();results.remove(expired);resultOwners.remove(expired);references.remove(expired);}
         JSONArray previous=new JSONArray(store.get("history","[]")),history=new JSONArray();history.put(new JSONObject().put("sql",sql).put("profile",activeId).put("time",Instant.now().toString()).put("elapsed",result.elapsedMillis()));for(int i=0;i<Math.min(499,previous.length());i++)history.put(previous.get(i));store.put("history",history.toString());
-        JSONObject output=MobileJson.object(result);JSONArray rows=new JSONArray();for(var row:result.rows()){JSONArray values=new JSONArray();for(Object item:row)values.put(item==null?JSONObject.NULL:item.toString());rows.put(values);}output.put("rows",rows).put("resultId",id);return output;
+        List<ForeignKeyLookup.Reference> related;try{related=ForeignKeyLookup.describe(session().connection(),result);}catch(SQLException unsupported){related=List.of();}references.put(id,related);
+        JSONObject output=MobileJson.object(result);JSONArray rows=new JSONArray();for(var row:result.rows()){JSONArray values=new JSONArray();for(Object item:row)values.put(item==null?JSONObject.NULL:item.toString());rows.put(values);}output.put("rows",rows).put("resultId",id).put("references",MobileJson.value(related));return output;
+    }
+    private Object referenceSearch(JSONObject p)throws Exception{
+        String id=p.getString("resultId");QueryResult source=result(id);if(resultOwners.get(id)!=session())throw new IllegalArgumentException("El resultado pertenece a otra conexión.");
+        List<ForeignKeyLookup.Reference> available=references.getOrDefault(id,List.of());int index=p.getInt("reference"),column=p.getInt("column");if(index<0||index>=available.size()||!available.get(index).contains(column))throw new IllegalArgumentException("Relación no disponible. Ejecuta de nuevo la consulta.");
+        JSONArray incoming=p.getJSONArray("values");if(incoming.length()!=source.columns().size())throw new IllegalArgumentException("La fila no coincide con el resultado.");List<Object> values=new ArrayList<>();for(int i=0;i<incoming.length();i++){Object v=incoming.opt(i);values.add(v==JSONObject.NULL?null:v instanceof JSONObject?QueryEditSupport.DefaultValue.INSTANCE:v);}
+        return ForeignKeyLookup.search(session().connection(),session().profile().type(),available.get(index),values,column,p.optString("text"),p.optString("searchColumn"),p.optBoolean("matchOthers",true),p.optInt("offset",0),p.optBoolean("unlimited")?0:Math.max(1,Math.min(1000,p.optInt("limit",25))));
     }
     QueryResult result(String id){var result=results.get(id);if(result==null)throw new IllegalArgumentException("Ejecuta otra vez la consulta para recuperar el resultado.");return result;}
     void authorize(String title,String sql)throws Exception{if(session().profile().readOnly()||!writing)throw new IllegalStateException("La conexión está en Solo lectura. Activa Habilitar cambios para continuar.");if(!activity.ask(title,session().profile().name()+"\n\n"+sql+"\n\n¿Aplicar este cambio en la base de datos?"))throw cancelled();if(session().getReadOnly())session().setReadOnly(false);}

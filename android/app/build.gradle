@@ -10,7 +10,7 @@ def sharedFiles = [
     'model/AuthenticationMode.java','model/DatabaseType.java','model/ConnectionProfile.java',
     'db/SchemaItem.java','db/SchemaMetadataReader.java','db/QueryResult.java','db/QueryEditSupport.java','db/ManagedConnection.java',
     'db/VisualQuery.java','db/DataSearch.java','db/SqlExecutionPolicy.java','db/SqlScriptTools.java',
-    'db/ForeignKeyDefinition.java','db/MysqlTableDesign.java','db/SqlBackupService.java',
+    'db/ForeignKeyDefinition.java','db/ForeignKeyLookup.java','db/MysqlTableDesign.java','db/SqlBackupService.java',
     'db/SqlImportService.java','db/SqlScriptReader.java','db/SqlTransferControl.java',
     'db/CsvReader.java','db/CsvImportService.java','db/SqlColumnCompletion.java','db/SqlJoinCompletion.java','db/SqlTableAliases.java',
     'licensing/LicenseCodec.java','util/DataExporter.java','util/SqlFiles.java'
@@ -32,6 +32,7 @@ tasks.register('prepareSharedCore', Copy) {
 android {
     namespace 'com.nexodb.android'
     compileSdk 35
+    testBuildType (project.findProperty('nexodbTestBuildType') ?: 'debug')
     defaultConfig { applicationId 'com.nexodb.android'; minSdk 26; targetSdk 35; versionCode productVersionCode; versionName productVersion; testInstrumentationRunner 'com.nexodb.android.AndroidProbe' }
     buildFeatures { buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17; coreLibraryDesugaringEnabled true }

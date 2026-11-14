@@ -67,6 +67,6 @@ final class UpdateInstaller {
     void installationResult(){activity.getPreferences(Context.MODE_PRIVATE).edit().putString("pending-update-state","ready").apply();Toast.makeText(activity,"Puedes reintentar la instalación desde Actualizaciones sin descargar de nuevo.",Toast.LENGTH_LONG).show();}
     static Intent installIntent(Context context,File file){
         Uri uri=FileProvider.getUriForFile(context,context.getPackageName()+".updates",file);
-        return new Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        return new Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).putExtra(Intent.EXTRA_RETURN_RESULT,true);
     }
 }

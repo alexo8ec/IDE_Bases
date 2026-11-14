@@ -6,6 +6,7 @@ import javax.swing.table.AbstractTableModel;
 import java.util.*;
 import static com.nexodb.db.QueryEditSupport.ChangeKind.*;
 import static com.nexodb.db.QueryEditSupport.DefaultValue.INSTANCE;
+import static com.nexodb.util.I18n.tr;
 
 public final class ResultTableModel extends AbstractTableModel {
     private QueryResult result=new QueryResult(List.of(),List.of(),-1,0,false);

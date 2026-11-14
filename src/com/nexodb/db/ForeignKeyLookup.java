@@ -70,9 +70,9 @@ public final class ForeignKeyLookup {
             List<Parameter> params=new ArrayList<>();List<String> terms=otherTerms(reference,row,clicked,matchOthers,columns,quote,params);
             if(!input.isEmpty()){
                 List<String> likes=new ArrayList<>();String pattern="%"+input.replace("!","!!").replace("%","!%").replace("_","!_")+"%";
-                for(Column column:columns)if((searchColumn.isEmpty()||column.name().equals(searchColumn))&&searchable(column.type())){
+                for(Column column:columns)if((searchColumn.isEmpty()||column.name().equals(searchColumn))&&(searchable(column.type())||type==DatabaseType.POSTGRESQL&&column.type()==Types.OTHER)){
                     String sqlType=switch(type){case MYSQL,MARIADB->"CHAR";case POSTGRESQL,SQLITE->"TEXT";case SQLSERVER->"NVARCHAR(MAX)";case ORACLE->"VARCHAR2(4000)";default->"VARCHAR(4000)";};
-                    likes.add("LOWER(CAST("+VisualQuery.quote(column.name(),quote)+" AS "+sqlType+")) LIKE LOWER(?) ESCAPE '!'");params.add(new Parameter(pattern,Types.VARCHAR));
+                    likes.add("LOWER(CAST("+VisualQuery.quote(column.name(),quote)+" AS "+sqlType+")) LIKE LOWER(?) ESCAPE '!'");params.add(new Parameter(pattern,type==DatabaseType.SQLSERVER?Types.NVARCHAR:Types.VARCHAR));
                 }
                 if(likes.isEmpty())terms.add("1=0");else terms.add("("+String.join(" OR ",likes)+")");
             }
@@ -99,9 +99,9 @@ public final class ForeignKeyLookup {
         if(type==DatabaseType.SQLSERVER&&!clean(ref.parentCatalog()).isEmpty()&&!clean(ref.parentSchema()).isEmpty())table=VisualQuery.quote(ref.parentCatalog(),quote)+"."+table;
         String sql="SELECT * FROM "+table+(terms.isEmpty()?"":" WHERE "+String.join(" AND ",terms))+" ORDER BY "+String.join(", ",ref.parts().stream().map(p->VisualQuery.quote(p.referenced(),quote)).distinct().toList());
         if(limit>0){if(type==DatabaseType.SQLSERVER||type==DatabaseType.ORACLE){sql+=" OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";params.add(new Parameter(offset,Types.INTEGER));params.add(new Parameter(limit+1,Types.INTEGER));}else{sql+=" LIMIT ? OFFSET ?";params.add(new Parameter(limit+1,Types.INTEGER));params.add(new Parameter(offset,Types.INTEGER));}}
-        try(PreparedStatement s=c.prepareStatement(sql)){int i=1;for(Parameter p:params){if(p.type()==Types.OTHER)s.setObject(i++,p.value(),Types.OTHER);else s.setObject(i++,p.value(),p.type());}s.setMaxRows(limit>0?limit+1:0);try(ResultSet r=s.executeQuery()){return QueryResult.from(r,limit>0?limit:Integer.MAX_VALUE);}}
+        try(PreparedStatement s=c.prepareStatement(sql)){try{s.setQueryTimeout(30);}catch(SQLFeatureNotSupportedException ignored){}int i=1;for(Parameter p:params){if(p.type()==Types.OTHER)s.setObject(i++,p.value(),Types.OTHER);else s.setObject(i++,p.value(),p.type());}s.setMaxRows(limit>0?limit+1:0);try(ResultSet r=s.executeQuery()){return QueryResult.from(r,limit>0?limit:Integer.MAX_VALUE);}}
     }
     private static boolean searchable(int type){return switch(type){case Types.BLOB,Types.CLOB,Types.NCLOB,Types.BINARY,Types.VARBINARY,Types.LONGVARBINARY,Types.ARRAY,Types.JAVA_OBJECT,Types.SQLXML,Types.OTHER->false;default->true;};}
-    private static Object exactValue(String text,int type){try{return switch(type){case Types.INTEGER,Types.SMALLINT,Types.TINYINT,Types.BIGINT,Types.FLOAT,Types.REAL,Types.DOUBLE,Types.DECIMAL,Types.NUMERIC->new BigDecimal(text);case Types.DATE->java.sql.Date.valueOf(text);case Types.TIMESTAMP->java.sql.Timestamp.valueOf(text);case Types.BOOLEAN,Types.BIT->text.equals("1")||text.equalsIgnoreCase("true")?true:text.equals("0")||text.equalsIgnoreCase("false")?false:null;default->searchable(type)||type==Types.OTHER?text:null;};}catch(IllegalArgumentException invalid){return null;}}
+    private static Object exactValue(String text,int type){try{return switch(type){case Types.INTEGER,Types.SMALLINT,Types.TINYINT,Types.BIGINT->new BigDecimal(text).toBigIntegerExact();case Types.FLOAT,Types.REAL,Types.DOUBLE,Types.DECIMAL,Types.NUMERIC->new BigDecimal(text);case Types.DATE->java.sql.Date.valueOf(text);case Types.TIMESTAMP->java.sql.Timestamp.valueOf(text);case Types.BOOLEAN,Types.BIT->{if(text.equals("1")||text.equalsIgnoreCase("true"))yield Boolean.TRUE;if(text.equals("0")||text.equalsIgnoreCase("false"))yield Boolean.FALSE;yield null;}case Types.OTHER->{try{yield java.util.UUID.fromString(text);}catch(IllegalArgumentException invalid){yield null;}}default->searchable(type)?text:null;};}catch(IllegalArgumentException|ArithmeticException invalid){return null;}}
     private static String empty(String s){return s==null||s.isEmpty()?null:s;}
 }

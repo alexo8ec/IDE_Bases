@@ -22,7 +22,7 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
         for (int i = 1; i <= columnCount; i++) {
             String label = metadata.getColumnLabel(i);
             columns.add(label == null || label.isBlank() ? metadata.getColumnName(i) : label);
-            try {origins.add(new Origin(metadata.getCatalogName(i),metadata.getSchemaName(i),metadata.getTableName(i),metadata.getColumnName(i)));}
+            try {origins.add(new Origin(metadata.getCatalogName(i),base(metadata,"getBaseSchemaName",i,metadata.getSchemaName(i)),base(metadata,"getBaseTableName",i,metadata.getTableName(i)),base(metadata,"getBaseColumnName",i,metadata.getColumnName(i))));}
             catch(SQLException | AbstractMethodError unavailable){origins.add(new Origin("","","",""));}
         }
         List<List<Object>> rows = new ArrayList<>();
@@ -52,6 +52,10 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
     }
 
     public boolean hasRows() { return !columns.isEmpty(); }
+    private static String base(ResultSetMetaData metadata,String method,int column,String fallback){
+        // PostgreSQL exposes physical origins separately from aliases through its metadata extension.
+        try{return (String)metadata.getClass().getMethod(method,int.class).invoke(metadata,column);}catch(ReflectiveOperationException|SecurityException unavailable){return fallback;}
+    }
 
     private static Object displayValue(Object value) throws SQLException {
         if (value == null) return null;

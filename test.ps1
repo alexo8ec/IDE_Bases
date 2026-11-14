@@ -21,6 +21,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de credenciales JDBC fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de mantenimiento de conexiones fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.UserAdministrationTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de usuarios por motor fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.ForeignKeyLookupTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de registros relacionados fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.AccountConnectionUiTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de formularios y contrasenas fallaron.' }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/sqlite-test.jar')) {
@@ -74,6 +76,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de archivos SQL y deshacer/rehacer
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.licensing.LicenseTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de licencias y autoridad cifrada fallaron.' }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
+    & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.ForeignKeyLookupWindowTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de seleccion de referencias fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.SqlJoinCompletionTest
     if ($LASTEXITCODE -ne 0) { throw 'La prueba de sugerencias JOIN fallo.' }
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.JdbcRowLimitTest

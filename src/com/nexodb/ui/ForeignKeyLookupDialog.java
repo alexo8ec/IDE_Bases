@@ -43,6 +43,7 @@ final class ForeignKeyLookupDialog extends JDialog {
         JPanel footer=new JPanel(new BorderLayout(8,8));footer.add(status);JPanel actions=new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0));select.setName("reference-select");select.setEnabled(false);select.setVisible(this.writable);JButton close=UiLanguage.button(this.writable?"Cancelar":"Cerrar");close.addActionListener(e->dispose());select.addActionListener(e->choose());actions.add(select);actions.add(close);footer.add(actions,BorderLayout.EAST);root.add(footer,BorderLayout.SOUTH);setContentPane(root);
         find.addActionListener(e->{offset.setValue(0);load();});search.addActionListener(e->find.doClick());column.addActionListener(e->{if(!initializing){offset.setValue(0);load();}});others.addActionListener(e->{offset.setValue(0);load();});limit.addActionListener(e->{offset.setValue(0);load();});
         previous.addActionListener(e->{offset.setValue(Math.max(0,((Number)offset.getValue()).intValue()-((Number)size.getValue()).intValue()));load();});next.addActionListener(e->{long pos=((Number)offset.getValue()).longValue()+((Number)size.getValue()).longValue();if(pos<=Integer.MAX_VALUE){offset.setValue((int)pos);load();}});
+        offset.addChangeListener(e->{if(worker==null)load();});size.addChangeListener(e->{if(worker==null){offset.setValue(0);load();}});
         table.getSelectionModel().addListSelectionListener(e->select.setEnabled(this.writable&&worker==null&&table.getSelectedRow()>=0));table.addMouseListener(new MouseAdapter(){public void mouseClicked(MouseEvent e){if(e.getClickCount()==2&&SwingUtilities.isLeftMouseButton(e)&&ForeignKeyLookupDialog.this.writable)choose();}});
         getRootPane().setDefaultButton(find);getRootPane().registerKeyboardAction(e->dispose(),KeyStroke.getKeyStroke("ESCAPE"),JComponent.WHEN_IN_FOCUSED_WINDOW);load();
     }
@@ -51,7 +52,7 @@ final class ForeignKeyLookupDialog extends JDialog {
         if(worker!=null)return;
         try{size.commitEdit();offset.commitEdit();}catch(java.text.ParseException invalid){status.setText(tr("Límite o posición no válidos."));return;}
         String text=search.getText(),field=column.getSelectedIndex()<=0?"":Objects.toString(column.getSelectedItem(),"");boolean match=others.isSelected();int first=limit.isSelected()?((Number)offset.getValue()).intValue():0,maximum=limit.isSelected()?((Number)size.getValue()).intValue():0;
-        find.setEnabled(false);select.setEnabled(false);next.setEnabled(false);previous.setEnabled(false);size.setEnabled(limit.isSelected());offset.setEnabled(limit.isSelected());status.setText(tr("Leyendo tabla referenciada…"));
+        find.setEnabled(false);select.setEnabled(false);next.setEnabled(false);previous.setEnabled(false);size.setEnabled(false);offset.setEnabled(false);limit.setEnabled(false);column.setEnabled(false);others.setEnabled(false);status.setText(tr("Leyendo tabla referenciada…"));
         worker=new SwingWorker<>(){
             protected ForeignKeyLookup.Page doInBackground()throws Exception{return ForeignKeyLookup.search(session.connection(),session.profile().type(),reference,child,clicked,text,field,match,first,maximum);}
             protected void done(){
@@ -62,7 +63,7 @@ final class ForeignKeyLookupDialog extends JDialog {
                     if(table.getRowCount()>0)table.setRowSelectionInterval(0,0);
                     next.setEnabled(maximum>0&&result.truncated());previous.setEnabled(maximum>0&&first>0);status.setText(result.rows().size()+tr(" filas")+" · "+tr(page.exact()?"Coincidencia exacta":"Resultados de búsqueda"));
                 }catch(Exception error){result=null;rows.setRowCount(0);Throwable cause=error;while(cause.getCause()!=null)cause=cause.getCause();status.setText(tr("No se pudo consultar la referencia."));JOptionPane.showMessageDialog(ForeignKeyLookupDialog.this,cause.getMessage(),tr("Registro relacionado"),JOptionPane.ERROR_MESSAGE);}
-                finally{find.setEnabled(true);select.setEnabled(writable&&result!=null&&table.getSelectedRow()>=0);}
+                finally{find.setEnabled(true);size.setEnabled(limit.isSelected());offset.setEnabled(limit.isSelected());limit.setEnabled(true);column.setEnabled(true);others.setEnabled(true);select.setEnabled(writable&&result!=null&&table.getSelectedRow()>=0);}
             }
         };worker.execute();
     }
