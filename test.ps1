@@ -57,6 +57,8 @@ if ($LASTEXITCODE -ne 0) { throw 'La prueba del gestor de adaptadores JDBC fallo
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del actualizador fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.AppearanceTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de idiomas y temas fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.SqlLineNumbersTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de numeros de linea fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.SecureDownloadTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de descarga HTTPS fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.LanguageSwitchTest

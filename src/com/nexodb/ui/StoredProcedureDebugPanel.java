@@ -69,7 +69,22 @@ public final class StoredProcedureDebugPanel extends JPanel {
     public boolean canClose(){if(debugger!=null&&!debugger.finished()){status.setText(tr("Detén la depuración y espera la limpieza antes de cerrar."));return false;}return true;}
     public void dispose(){if(debugger!=null)debugger.close();Arrays.fill(password,'\0');}
     private final class Gutter extends JComponent {
-        Gutter(){setPreferredSize(new Dimension(65,1));setToolTipText(tr("Clic: punto de quiebre. F9: alternar en la línea del cursor."));addMouseListener(new MouseAdapter(){public void mousePressed(MouseEvent e){int offset=source.viewToModel2D(new Point(0,e.getY()));toggle(source.getDocument().getDefaultRootElement().getElementIndex(offset)+1);}});}
+        Gutter(){
+            setToolTipText(tr("Clic: punto de quiebre. F9: alternar en la línea del cursor."));
+            source.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){
+                private void refresh(){revalidate();repaint();}
+                public void insertUpdate(javax.swing.event.DocumentEvent e){refresh();}
+                public void removeUpdate(javax.swing.event.DocumentEvent e){refresh();}
+                public void changedUpdate(javax.swing.event.DocumentEvent e){refresh();}
+            });
+            source.addPropertyChangeListener("font",e->{revalidate();repaint();});
+            source.addComponentListener(new ComponentAdapter(){public void componentResized(ComponentEvent e){revalidate();repaint();}});
+            addMouseListener(new MouseAdapter(){public void mousePressed(MouseEvent e){int offset=source.viewToModel2D(new Point(0,e.getY()));toggle(source.getDocument().getDefaultRootElement().getElementIndex(offset)+1);}});
+        }
+        @Override public Dimension getPreferredSize(){
+            int digits=Integer.toString(source.getDocument().getDefaultRootElement().getElementCount()).length();
+            return new Dimension(Math.max(65,38+digits*source.getFontMetrics(source.getFont()).charWidth('0')),source.getPreferredSize().height);
+        }
         protected void paintComponent(Graphics graphics){graphics.setColor(ThemeManager.color(0xF1F5F9,0x30343B));graphics.fillRect(0,0,getWidth(),getHeight());graphics.setFont(source.getFont());var root=source.getDocument().getDefaultRootElement();Rectangle clip=graphics.getClipBounds();for(int i=0;i<root.getElementCount();i++)try{var rect=source.modelToView2D(root.getElement(i).getStartOffset());if(rect==null||rect.getY()+rect.getHeight()<clip.y||rect.getY()>clip.y+clip.height)continue;int y=(int)rect.getY(),line=i+1;if(program.executableLines().contains(line)){graphics.setColor(breakpoints.contains(line)?new Color(0xD3303E):new Color(0xA5B7BD));graphics.fillOval(6,y+4,10,10);}if(line==currentLine&&debugger!=null&&debugger.state()==MysqlDebugSession.State.PAUSED){graphics.setColor(new Color(0xD89100));graphics.fillPolygon(new int[]{20,28,20},new int[]{y+4,y+9,y+14},3);}graphics.setColor(ThemeManager.color(0x64748B,0xBAC5D0));String text=""+line;graphics.drawString(text,getWidth()-6-graphics.getFontMetrics().stringWidth(text),y+graphics.getFontMetrics().getAscent());}catch(Exception ignored){}}
     }
 }

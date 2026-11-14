@@ -3,11 +3,31 @@ package com.nexodb.ui;
 import javax.swing.*;
 import javax.swing.event.*;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 
 final class SqlLineNumbers extends JComponent {
     private final SqlEditorPane editor;
-    SqlLineNumbers(SqlEditorPane editor){this.editor=editor;setFont(editor.getFont());editor.getDocument().addDocumentListener(new DocumentListener(){public void insertUpdate(DocumentEvent e){refresh();}public void removeUpdate(DocumentEvent e){refresh();}public void changedUpdate(DocumentEvent e){repaint();}});editor.addCaretListener(e->repaint());editor.addPropertyChangeListener("sqlErrors",e->repaint());refresh();}
-    private void refresh(){int digits=Math.max(3,Integer.toString(editor.getDocument().getDefaultRootElement().getElementCount()).length());setPreferredSize(new Dimension(digits*getFontMetrics(getFont()).charWidth('0')+14,1));revalidate();repaint();}
+    SqlLineNumbers(SqlEditorPane editor){
+        this.editor=editor;
+        setFont(editor.getFont());
+        editor.getDocument().addDocumentListener(new DocumentListener(){
+            public void insertUpdate(DocumentEvent e){refresh();}
+            public void removeUpdate(DocumentEvent e){refresh();}
+            public void changedUpdate(DocumentEvent e){refresh();}
+        });
+        editor.addCaretListener(e->repaint());
+        editor.addPropertyChangeListener("sqlErrors",e->repaint());
+        editor.addPropertyChangeListener("font",e->{setFont(editor.getFont());refresh();});
+        editor.addComponentListener(new ComponentAdapter(){public void componentResized(ComponentEvent e){refresh();}});
+        refresh();
+    }
+    // The row-header viewport must scroll through the same document height as the editor.
+    @Override public Dimension getPreferredSize(){
+        int digits=Math.max(3,Integer.toString(editor.getDocument().getDefaultRootElement().getElementCount()).length());
+        return new Dimension(digits*getFontMetrics(getFont()).charWidth('0')+14,editor.getPreferredSize().height);
+    }
+    private void refresh(){revalidate();repaint();}
     protected void paintComponent(Graphics graphics){
         graphics.setColor(ThemeManager.color(0xF1F5F9,0x30343B));graphics.fillRect(0,0,getWidth(),getHeight());graphics.setFont(getFont());
         var root=editor.getDocument().getDefaultRootElement();Rectangle clip=graphics.getClipBounds();int current=root.getElementIndex(editor.getCaretPosition());
