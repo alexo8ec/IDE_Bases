@@ -33,6 +33,15 @@ final class QueryResultPanel extends JPanel {
     private final JButton reload = UiLanguage.text(new JButton(),UiLanguage.key("Recargar"));
     private final JTextField filter = new JTextField(14);
     private final JLabel status = new JLabel(), count = new JLabel();
+    private final JLabel elapsed=new JLabel(),pageLabel=new JLabel();
+    private final JButton previous=UiLanguage.button("Anterior"),next=UiLanguage.button("Siguiente");
+    private final JComboBox<String> pageSizeChoice=new JComboBox<>(new String[]{"100","500","1000","Personalizado…"});
+    private long pageOffset;
+    private int pageSize=1000;
+    private boolean changingPageSize;
+    private boolean pagingRequested;
+    private final boolean pageable;
+    private final String pageCatalog,pageSchema;
     private final Consumer<Boolean> busy;
     private final Consumer<String> changed;
     private final Consumer<JTable> resize;
@@ -46,6 +55,9 @@ final class QueryResultPanel extends JPanel {
     QueryResultPanel(JdbcSession origin, QueryResult result, ResultTableModel model, JTable table, String sql, int limit,
                      Consumer<Boolean> busy, Consumer<String> changed, Consumer<JTable> resize) {
         super(new BorderLayout());this.origin=origin;this.model=model;this.table=table;this.sql=sql;this.limit=limit;
+        pageable=QueryPaging.supported(sql);
+        pageCatalog=namespace(origin,true);pageSchema=namespace(origin,false);
+        pageSize=Math.min(10_000,Math.max(1,limit==Integer.MAX_VALUE?1000:limit));
         rowLimit=()->this.limit;
         this.busy=busy;this.changed=changed;this.resize=resize;
         target=result.editing()==null?null:result.editing().target();
@@ -75,7 +87,15 @@ final class QueryResultPanel extends JPanel {
         JButton actions=new JButton("▾");actions.setName("query-actions");UiLanguage.tooltip(actions,UiLanguage.key("Acciones del resultado"));toolbar.add(actions);
         toolbar.add(new JLabel(IconFactory.of(IconFactory.Kind.SEARCH,15)));
         UiLanguage.placeholder(filter,"Filtrar resultados…");filter.setName("query-filter");filter.setMaximumSize(new Dimension(200,28));toolbar.add(filter);
-        JPanel footer=new JPanel(new BorderLayout(8,0));footer.setBorder(BorderFactory.createEmptyBorder(4,5,4,5));footer.add(status);footer.add(count,BorderLayout.EAST);
+        JPanel footer=new JPanel(new BorderLayout(8,3));footer.setBorder(BorderFactory.createEmptyBorder(4,5,4,5));
+        JPanel counts=new JPanel(new BorderLayout(8,0));counts.add(status);counts.add(count,BorderLayout.EAST);footer.add(counts,BorderLayout.NORTH);
+        JPanel paging=new JPanel(new FlowLayout(FlowLayout.LEFT,7,0));paging.add(previous);paging.add(pageLabel);paging.add(next);paging.add(UiLanguage.label("Filas por página:"));paging.add(pageSizeChoice);paging.add(elapsed);footer.add(paging,BorderLayout.SOUTH);
+        previous.setName("query-page-previous");next.setName("query-page-next");pageSizeChoice.setName("query-page-size");elapsed.setName("query-elapsed");
+        changingPageSize=true;String initialSize=""+pageSize;if(!java.util.Set.of("100","500","1000").contains(initialSize))pageSizeChoice.insertItemAt(initialSize,0);pageSizeChoice.setSelectedItem(initialSize);changingPageSize=false;
+        UiLanguage.tooltip(pageSizeChoice,UiLanguage.key("Cambiar de página vuelve a ejecutar el SELECT. Usa ORDER BY para mantener un orden estable. Los filtros y el orden de la cuadrícula se aplican a la página cargada."));
+        previous.addActionListener(e->loadPage(Math.max(0,pageOffset-pageSize),pageSize));next.addActionListener(e->loadPage(pageOffset+model.getRowCount(),pageSize));
+        pageSizeChoice.addActionListener(e->{if(changingPageSize||!pageable)return;String choice=(String)pageSizeChoice.getSelectedItem();int size=pageSize;
+            try{if("Personalizado…".equals(choice)){String value=JOptionPane.showInputDialog(this,tr("Filas por página (1 a 10000):"),pageSize);if(value==null){restorePageChoice();return;}size=Integer.parseInt(value.trim());}else size=Integer.parseInt(choice);if(size<1||size>10000)throw new NumberFormatException();loadPage(0,size);}catch(NumberFormatException error){JOptionPane.showMessageDialog(this,tr("El tamaño de página debe estar entre 1 y 10.000 filas."));restorePageChoice();}});
         JScrollPane scroll=new JScrollPane(table);
         grid=new ResultGridActions(table,model,scroll,filter,this::updateCount,changed);
         grid.editingActions(new ResultGridActions.EditingActions(this::editSelectedCell,()->insertRow(false),this::deleteRows,this::save,this::requestDiscard,this::setSelectionValue,()->insertRow(true),()->{if(exportAction!=null)exportAction.run();},this::canWrite,this::hasChanges,this::canEditSelectedCell,()->origin.profile().type()!=com.nexodb.model.DatabaseType.SQLITE,()->exportAction!=null));
@@ -134,7 +154,23 @@ final class QueryResultPanel extends JPanel {
         if(target==null){String reason=result.editing()==null?"Este resultado es de solo lectura.":result.editing().reason();UiLanguage.text(status,UiLanguage.key(reason));UiLanguage.tooltip(status,UiLanguage.key(reason));}
         else UiLanguage.text(status,UiLanguage.key("Selecciona Editar datos para habilitar cambios. Después usa doble clic y pulsa Guardar para aplicar."));
     }
-    private void updateCount(){UiLanguage.text(count,UiLanguage.key("Filas: "),table.getRowCount(),UiLanguage.key(" · Marcadas: "),grid==null?0:grid.checkedCount(),UiLanguage.key(" · Cambios: "),model.changeCount());}
+    private void updateCount(){
+        UiLanguage.text(count,UiLanguage.key("Filas: "),table.getRowCount(),UiLanguage.key(" · Marcadas: "),grid==null?0:grid.checkedCount(),UiLanguage.key(" · Cambios: "),model.changeCount());
+        UiLanguage.text(elapsed,UiLanguage.key("Tiempo de consulta: "),model.definition().elapsedMillis()," ms");
+        pageLabel.setText((model.getRowCount()==0?0:pageOffset+1)+"–"+(pageOffset+model.getRowCount())+(model.definition().truncated()?" · +":""));
+        previous.setEnabled(available&&!saving&&pageable&&pageOffset>0);next.setEnabled(available&&!saving&&pageable&&model.definition().truncated());pageSizeChoice.setEnabled(available&&!saving&&pageable);
+    }
+    private static String namespace(JdbcSession origin,boolean catalog){if(origin==null)return "";try{return java.util.Objects.toString(catalog?origin.connection().getCatalog():origin.connection().getSchema(),"");}catch(Exception error){return "";}}
+    private void restorePageChoice(){changingPageSize=true;String value=""+pageSize;boolean present=false;for(int i=0;i<pageSizeChoice.getItemCount();i++)if(value.equals(pageSizeChoice.getItemAt(i)))present=true;if(!present)pageSizeChoice.insertItemAt(value,0);pageSizeChoice.setSelectedItem(value);changingPageSize=false;}
+    private void loadPage(long offset,int size){
+        if(!available||saving||!pageable||!confirmDiscard()){restorePageChoice();return;}
+        if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){JOptionPane.showMessageDialog(this,tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de paginar."));restorePageChoice();return;}
+        start();UiLanguage.text(status,UiLanguage.key("Cargando página…"));
+        new SwingWorker<QueryResult,Void>() {
+            protected QueryResult doInBackground()throws Exception{return origin.executePage(sql,size,offset);}
+            protected void done(){try{QueryResult fresh=get();pageOffset=offset;pageSize=size;pagingRequested=true;grid.clearChecked();model.setResult(fresh);target=fresh.editing()==null?null:fresh.editing().target();stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);loadReferences();}catch(Exception error){showError(error,"No se pudo cargar la página");}finally{restorePageChoice();end();}}
+        }.execute();
+    }
     private void updateActions(){
         boolean enabled=available&&!saving&&target!=null&&!origin.profile().readOnly();
         edit.setEnabled(enabled&&!stale);model.setEditable(enabled&&!stale&&edit.isSelected());
@@ -207,7 +243,7 @@ final class QueryResultPanel extends JPanel {
         boolean refresh=changes.stream().anyMatch(row->row.kind()!=QueryEditSupport.ChangeKind.UPDATE||row.values().containsValue(QueryEditSupport.DefaultValue.INSTANCE));
         start();UiLanguage.text(status,UiLanguage.key("Guardando cambios…"));
         new SwingWorker<SaveOutcome,Void>() {
-            protected SaveOutcome doInBackground()throws Exception{var saved=QueryEditSupport.saveChanges(origin.connection(),target,changes);if(refresh)try{return new SaveOutcome(saved,origin.execute(QueryEditSupport.qualifiedSelect(sql,target),rowLimit.getAsInt()),null);}catch(Exception error){return new SaveOutcome(saved,null,error);}return new SaveOutcome(saved,null,null);}
+            protected SaveOutcome doInBackground()throws Exception{var saved=QueryEditSupport.saveChanges(origin.connection(),target,changes);if(refresh)try{String qualified=QueryEditSupport.qualifiedSelect(sql,target);return new SaveOutcome(saved,pagingRequested?origin.executePage(qualified,pageSize,pageOffset):origin.execute(qualified,rowLimit.getAsInt()),null);}catch(Exception error){return new SaveOutcome(saved,null,error);}return new SaveOutcome(saved,null,null);}
             protected void done(){
                 try {
                     SaveOutcome outcome=get();QueryEditSupport.BatchSaved saved=outcome.saved();pendingCommit|=saved.pendingCommit();
@@ -223,6 +259,7 @@ final class QueryResultPanel extends JPanel {
     }
     private void reload(){
         if(!available||saving||target==null||!confirmDiscard())return;
+        if(pageable){loadPage(pageOffset,pageSize);return;}
         String qualified=QueryEditSupport.qualifiedSelect(sql,target);start();UiLanguage.text(status,UiLanguage.key("Recargando consulta…"));
         new SwingWorker<QueryResult,Void>() {
             protected QueryResult doInBackground()throws Exception{return origin.execute(qualified,rowLimit.getAsInt());}

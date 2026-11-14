@@ -31,4 +31,6 @@ cp -R "$root/resources/." "$classes/"
 printf '%s\n' 'Manifest-Version: 1.0' 'Main-Class: com.nexodb.App' \
   'Class-Path: lib/flatlaf-3.7.2.jar lib/flatlaf-extras-3.7.2.jar lib/jsvg-2.1.0.jar lib/waffle-jna-3.6.0.jar lib/jna-5.18.1.jar lib/jna-platform-5.18.1.jar lib/slf4j-api-2.0.17.jar lib/caffeine-3.2.3.jar lib/checker-qual-3.53.1.jar' '' > "$root/build/MANIFEST.MF"
 jar --create --file "$root/build/nexodb-studio.jar" --manifest "$root/build/MANIFEST.MF" -C "$classes" .
+printf '%s\n' 'Manifest-Version: 1.0' 'Automatic-Module-Name: com.nexodb.reporting' '' > "$root/build/REPORT-MANIFEST.MF"
+jar --create --file "$root/build/nexodb-reporting.jar" --manifest "$root/build/REPORT-MANIFEST.MF" -C "$classes" com/nexodb/reporting
 printf 'Built: %s\n' "$root/build/nexodb-studio.jar"

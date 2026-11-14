@@ -78,5 +78,10 @@ $manifestPath = Join-Path $buildRoot 'MANIFEST.MF'
 & jar "-J-Djava.io.tmpdir=$buildRoot" --create --file $jarPath --manifest $manifestPath -C $classesRoot .
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el JAR.' }
 
+$reportManifest = Join-Path $buildRoot 'REPORT-MANIFEST.MF'
+@('Manifest-Version: 1.0', 'Automatic-Module-Name: com.nexodb.reporting', '') | Set-Content -LiteralPath $reportManifest -Encoding ascii
+& jar "-J-Djava.io.tmpdir=$buildRoot" --create --file (Join-Path $buildRoot 'nexodb-reporting.jar') --manifest $reportManifest -C $classesRoot 'com/nexodb/reporting'
+if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el modulo de reporteria.' }
+
 Write-Host "Compilacion lista: $jarPath"
 

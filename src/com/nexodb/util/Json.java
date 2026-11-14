@@ -17,6 +17,17 @@ public final class Json {
         return result;
     }
 
+    public static String stringify(Object value) {
+        if(value==null)return "null";
+        if(value instanceof Boolean)return value.toString();
+        if(value instanceof Number){String text=value.toString();if(!text.matches("-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?"))throw new IllegalArgumentException("Número JSON no válido.");return text;}
+        if(value instanceof Map<?,?> map){var pairs=new ArrayList<String>();map.forEach((k,v)->pairs.add(stringify(k.toString())+":"+stringify(v)));return "{"+String.join(",",pairs)+"}";}
+        if(value instanceof Iterable<?> list){var values=new ArrayList<String>();for(var item:list)values.add(stringify(item));return "["+String.join(",",values)+"]";}
+        StringBuilder out=new StringBuilder("\"");String text=value.toString();
+        for(int i=0;i<text.length();i++){char c=text.charAt(i);switch(c){case '"'->out.append("\\\"");case '\\'->out.append("\\\\");case '\n'->out.append("\\n");case '\r'->out.append("\\r");case '\t'->out.append("\\t");default->{if(c<32)out.append(String.format(Locale.ROOT,"\\u%04x",(int)c));else out.append(c);}}}
+        return out.append('"').toString();
+    }
+
     private Object value(int depth) {
         if (depth > 32) throw invalid();
         space();

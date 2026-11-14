@@ -364,6 +364,12 @@ public final class MainFrame extends JFrame {
         power.add(toolMenuItem("Tareas programadas…",IconFactory.Kind.SETTINGS,0,0,()->openTasks(null)));power.addSeparator();
         power.add(toolMenuItem("Reconstruir autocompletado",IconFactory.Kind.REFRESH,0,0,()->{queryPanel.refreshCompletions();setStatus(tr("Autocompletado actualizado."));}));
 
+        JMenu reporting=UiLanguage.text(new JMenu(),UiLanguage.key("Reportería"));
+        reporting.add(toolMenuItem("Diseñador de reportes",IconFactory.Kind.TABLE,0,0,this::openReports));
+        JMenu ai=UiLanguage.text(new JMenu(),UiLanguage.key("Inteligencia artificial"));
+        ai.add(toolMenuItem("Asistente de IA",IconFactory.Kind.SQL,0,0,this::openAi));
+        query.add(toolMenuItem("Plan de ejecución",IconFactory.Kind.DIAGRAM,KeyEvent.VK_L,KeyEvent.CTRL_DOWN_MASK,this::openPlan));
+
         JMenu help = UiLanguage.text(new JMenu(tr("Ayuda")), UiLanguage.key("Ayuda"));
         JMenu view = UiLanguage.text(new JMenu(com.nexodb.util.I18n.tr("Preferencias")), UiLanguage.key("Preferencias"));
         JMenuItem preferences = UiLanguage.text(new JMenuItem(com.nexodb.util.I18n.tr("Idioma y apariencia…"), IconFactory.of(IconFactory.Kind.SETTINGS)), UiLanguage.key("Idioma y apariencia…"));
@@ -390,6 +396,8 @@ public final class MainFrame extends JFrame {
         bar.add(query);
         bar.add(comparison);
         bar.add(power);
+        bar.add(reporting);
+        bar.add(ai);
         bar.add(view);
         bar.add(help);
         return bar;
@@ -399,11 +407,35 @@ public final class MainFrame extends JFrame {
     private void addToolTab(String title,JComponent panel){UiDesign.enhance(panel);workspaceTabs.addTab(title,IconFactory.of(panel instanceof VisualDatabasePanel?IconFactory.Kind.DIAGRAM:panel instanceof DataSearchPanel?IconFactory.Kind.SEARCH:panel instanceof ScheduledTasksPanel?IconFactory.Kind.EVENT:IconFactory.Kind.SQL,16),panel);int index=workspaceTabs.indexOfComponent(panel);workspaceTabs.setTabComponentAt(index,closableTab(title,panel));workspaceTabs.setSelectedComponent(panel);}
     private boolean requireDatabase(){if(!LicenseGate.ensure(this))return false;if(session==null||!session.isOpen()||queryPanel.activeDatabase().isBlank()){JOptionPane.showMessageDialog(this,tr("Conecta y selecciona una base de datos primero."));return false;}return true;}
     private void openQueryTool(String tool){
+        if(tool.equals("reports")){openReports();return;}
+        if(tool.equals("ai")){openAi();return;}
+        if(tool.equals("plan")){openPlan();return;}
         if(!requireDatabase())return;JdbcSession origin=session;String database=queryPanel.activeDatabase();
         if(origin.profile().type()!=DatabaseType.MYSQL&&origin.profile().type()!=DatabaseType.MARIADB&&origin.profile().type()!=DatabaseType.H2){JOptionPane.showMessageDialog(this,tr("Las herramientas visuales de esta versión están disponibles para MySQL y MariaDB. El editor SQL sigue disponible para esta conexión."));return;}
         java.util.function.Consumer<String> open=sql->insertTemplate(origin,sql);
         if(tool.equals("search")){addToolTab(tr("Buscar datos")+" · "+database,new DataSearchPanel(origin,database,sql->{activateSession(origin);queryPanel.runSql(sql);workspaceTabs.setSelectedIndex(0);}));return;}
         boolean designer=tool.equals("designer");addToolTab(tr(designer?"Diseñador de esquemas":"Constructor visual de consultas")+" · "+database,new VisualDatabasePanel(origin,database,designer,open,item->openTable(origin,item,TableWorkbenchPanel.COLUMNS)));
+    }
+    private void openReports(){
+        if(!LicenseGate.ensure(this))return;
+        var sources=queryPanel.reportSources();
+        var panel=new com.nexodb.reporting.ui.ReportDesignerPanel(queryPanel::reportSources,sources.isEmpty()?null:sources.get(0),
+                (data,path,format)->DataExporter.write(new QueryResult(data.columns(),data.rows(),-1,0,data.limited()),path,
+                        format==com.nexodb.reporting.ReportExporter.Format.XLSX?DataExporter.Format.XLSX:DataExporter.Format.CSV,"reporte"),this::setStatus);
+        addToolTab(tr("Reportería"),panel);
+    }
+    private void openAi(){
+        openAi(queryPanel.analysisSql(),"");
+    }
+    private void openAi(String input,String plan){
+        if(!LicenseGate.ensure(this))return;JdbcSession origin=session;
+        var panel=new AiAssistantPanel(input,queryPanel.aiContext(),sql->{if(origin!=null&&origin.isOpen())activateSession(origin);if(queryPanel.openNewQuery(sql))workspaceTabs.setSelectedIndex(0);});
+        if(!plan.isBlank())panel.setPlanContext(plan);addToolTab(tr("Asistente de IA"),panel);
+    }
+    private void openPlan(){
+        if(!LicenseGate.ensure(this))return;if(session==null||!session.isOpen()){JOptionPane.showMessageDialog(this,tr("Conecta primero una base de datos."));return;}JdbcSession origin=session;
+        var panel=new ExecutionPlanPanel(origin,queryPanel.analysisSql(),busy->{queryPanel.setExternalBusy(busy);setBusy(busy);},sql->{if(origin.isOpen())activateSession(origin);if(queryPanel.openNewQuery(sql))workspaceTabs.setSelectedIndex(0);});
+        panel.setAiHandler((query,rawPlan)->{if(origin.isOpen())activateSession(origin);openAi(query,rawPlan);});addToolTab(tr("Plan de ejecución"),panel);
     }
     private void openTasks(com.nexodb.db.ScheduledTasks.Kind kind){
         ScheduledTasksPanel panel=null;for(int i=1;i<workspaceTabs.getTabCount();i++)if(workspaceTabs.getComponentAt(i) instanceof ScheduledTasksPanel found){panel=found;break;}
@@ -1390,7 +1422,7 @@ public final class MainFrame extends JFrame {
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
         UiLanguage.tooltip(close, UiLanguage.key("Cerrar pestaña"));
-        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;workspaceTabs.remove(component);});
+        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
         tab.add(close);
         return tab;
     }
@@ -1597,9 +1629,13 @@ public final class MainFrame extends JFrame {
 
     private void exitApplication() {
         for(Component component:workspaceTabs.getComponents())if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;
+        for(Component component:workspaceTabs.getComponents())if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report&&!report.canClose())return;
+        for(Component component:workspaceTabs.getComponents())if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;
         if(!queryPanel.confirmDiscardResults())return;
         if(!queryPanel.saveDraftBeforeClose())return;
         closeAllSessions();
+        for(Component component:workspaceTabs.getComponents())if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report)report.dispose();
+        for(Component component:workspaceTabs.getComponents())if(component instanceof AiAssistantPanel ai)ai.dispose();
         dispose();
     }
 

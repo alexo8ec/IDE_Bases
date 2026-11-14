@@ -1,5 +1,36 @@
 # NexoDB Studio
 
+## Reportería, IA y análisis de consultas (escritorio en desarrollo)
+
+**Reportería → Diseñador de reportes** y el botón **Reporte…** del resultado abren el módulo independiente `com.nexodb.reporting`. Permite mover y redimensionar objetos en el encabezado, editar títulos, colores y tamaños, agregar indicadores y gráficos de barras, elegir/reordenar columnas, configurar hasta cinco niveles de agrupación y calcular conteo, suma, promedio, mínimo y máximo. Ofrece deshacer/rehacer, vista previa paginada, orientación vertical/horizontal, encabezados de detalle repetidos, continuación de grupos y pie con origen/número de página. Los gráficos muestran hasta ocho categorías principales, sin inventar un total para promedios o mínimos.
+
+Las plantillas **.nxreport** guardan el diseño y sus campos, sin SQL, contraseñas ni filas. Se reutilizan con resultados que tengan las mismas columnas en el mismo orden. **HTML y PDF** conservan el diseño visual; **CSV y Excel (.xlsx)** exportan los datos con encabezados de grupo, subtotales y total general en columnas. El PDF se renderiza a 144 dpi para conservar fuentes y Unicode; su texto es una imagen, no texto seleccionable. El módulo usa una copia de las filas cargadas de un resultado, incluida su página/límite actual, y sigue funcionando después de desconectar. Para un reporte completo, carga primero todas las filas necesarias desde el editor.
+
+La compilación produce además `build/nexodb-reporting.jar`, reutilizable fuera de NexoDB con Java 17 y las bibliotecas estándar `java.base` y `java.desktop`. Su contrato es `ReportData` → `ReportDesign` → `ReportPlan`; `ReportDesignerPanel` recibe un proveedor de resultados y un adaptador CSV/XLSX. No depende de JDBC, licencias, preferencias ni clases de interfaz de NexoDB. `ReportStore` guarda plantillas y `ReportExporter` crea archivos mediante reemplazo atómico.
+
+El pie de cada tabla muestra el **tiempo de consulta en milisegundos**, además del tiempo que se conserva en Mensajes, el rango cargado y los botones **Anterior / Siguiente**. El selector ofrece **100, 500, 1000 y Personalizado (1–10000)**. Para avanzar se vuelve a ejecutar un único SELECT/WITH de lectura y se recupera la ventana solicitada mediante JDBC, conservando LIMIT/TOP escritos en el SQL. Esta alternativa portátil recorre las filas anteriores: páginas lejanas pueden costar más que paginación nativa. Usa ORDER BY para un orden estable; cambios concurrentes pueden mover registros. El orden y filtro de la cuadrícula se aplican a la página cargada. CALL, EXEC y lotes con escrituras no se repiten para paginar. Si cambia la base/esquema, primero hay que volver al origen del resultado.
+
+**Inteligencia artificial → Asistente de IA** genera SQL y propone optimizaciones de consultas o procedimientos. Permite configurar **OpenAI Responses**, un endpoint compatible con Chat Completions u **Ollama local**, y elegir el nombre del modelo. La solicitud, el SQL, el esquema y el plan son editables y visibles antes de enviar; no se incorporan filas automáticamente. La propuesta abre una consulta nueva en Solo lectura y nunca se ejecuta automáticamente. La clave puede permanecer en la sesión o guardarse con Windows DPAPI; la configuración ordinaria no guarda la clave. Para OpenAI se utiliza `store:false`; el transporte no sigue redirecciones. Referencias de los contratos: [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create), [compatibilidad de Ollama](https://docs.ollama.com/api/openai-compatibility).
+
+**Consulta → Plan de ejecución (Ctrl+L)** muestra operadores conectados, propiedades, una tabla ordenable de costos/tiempos, el documento original y las recomendaciones de índices que entregue el motor. **Analizar con IA** prepara el SQL y el plan en el asistente, sin enviarlos todavía. Los costos estimados se distinguen de los milisegundos observados; los tiempos de operadores pueden incluir hijos o promedios por loop y no deben sumarse.
+
+| Motor | Plan estimado | Plan real |
+| --- | --- | --- |
+| SQL Server | SHOWPLAN_XML, SELECT/WITH o EXEC | STATISTICS XML para SELECT/WITH, con confirmación |
+| MySQL | EXPLAIN FORMAT=JSON | EXPLAIN ANALYZE FORMAT=TREE, según versión |
+| MariaDB | EXPLAIN FORMAT=JSON | ANALYZE FORMAT=JSON, según versión |
+| PostgreSQL | EXPLAIN FORMAT JSON | EXPLAIN ANALYZE, BUFFERS y JSON |
+| SQLite | EXPLAIN QUERY PLAN, detalle básico | No disponible por esta interfaz |
+| H2 | EXPLAIN, detalle textual | EXPLAIN ANALYZE, con las métricas que reporte H2 |
+
+El plan real ejecuta el SELECT y requiere confirmación. SQL Server necesita permisos SHOWPLAN y permisos para las instrucciones analizadas; el módulo restaura SHOWPLAN/STATISTICS al terminar, incluso ante error. Las recomendaciones de índices se abren como SQL para revisar, sin aplicarse. Oracle y depuración de SP con puntos de quiebre todavía no están integrados. Referencias: [XML de planes de SQL Server](https://learn.microsoft.com/en-us/sql/relational-databases/performance/save-an-execution-plan-in-xml-format), [MySQL EXPLAIN](https://dev.mysql.com/doc/refman/8.0/en/explain.html), [MariaDB ANALYZE JSON](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/analyze-and-explain-statements/analyze-format-json), [PostgreSQL EXPLAIN](https://www.postgresql.org/docs/current/sql-explain.html).
+
+Validación: H2 real para ejecución/paginación/EXPLAIN, servidor HTTP local para IA, fixtures XML/JSON para SQL Server/MySQL/PostgreSQL, exportaciones y pruebas del diseñador. La validación no sustituye probar permisos, versiones de servidor y modelos con la conexión/API real del usuario. Los instaladores publicados y Android mantienen sus funciones/versiones actuales hasta una nueva publicación.
+
+Cambios de escritorio en desarrollo: **Tab** acepta el autocompletado y deja el cursor al final de la inserción, incluido el alias de tabla. **F5 / Ctrl+Enter** ejecutan únicamente el texto seleccionado; sin selección ejecutan todas las sentencias del editor, incluida la última aunque no termine en `;`. Cada resultado abre una pestaña independiente; también se recogen todos los resultados JDBC de `CALL` / `EXEC`, intercalados con sus conteos de filas afectadas. Si hay un error posterior se conservan los resultados anteriores. Los lotes con escrituras se detienen en el primer error y mantienen las confirmaciones y restricciones existentes.
+
+**Exportar… / Ctrl+Shift+E** incorpora **Excel (.xlsx)** para el resultado activo, además de CSV y los demás formatos. El libro conserva encabezados, números, booleanos, texto Unicode e identificadores de más de 15 dígitos; el texto no se convierte en fórmulas. Incluye filtro y encabezado fijo. Respeta los límites de Excel y rechaza celdas o resultados demasiado grandes sin recortarlos silenciosamente. Exporta las filas cargadas, con el límite de consulta vigente. La depuración de procedimientos con puntos de quiebre y variables todavía no está implementada: requiere un adaptador específico del motor, adicional a JDBC.
+
 **Android 0.14.4** corrige el error `Cannot read properties of null (reading forEach)` al mostrar consultas SELECT. Incluye una prueba de interfaz en el WebView real para consultas con filas, resultados vacíos y varias pestañas. [Descarga e instalación](android/README.md). Android mantiene su versión en `android/VERSION` y su propio manifiesto de actualización.
 
 La versión de escritorio actual es **0.14.4**. Incluye [consulta y selección de registros relacionados por claves foráneas](docs/foreign-key-lookup.md), con búsqueda, paginación y asignación al borrador. Android incorpora la misma búsqueda y una pantalla de actualización con reintento de instalación. Añade formularios de conexión adaptados al motor, apertura de SQLite mediante selector de archivo y administración de usuarios para MySQL/MariaDB, PostgreSQL, SQL Server, Oracle y H2, con generación de contraseñas. Consulta la [guía de conexiones y usuarios](docs/users-and-connections.md). Mantiene las conexiones inactivas con comprobaciones periódicas y recuperación de sesiones sin transacciones, conservando base/esquema y modo de lectura. No repite consultas ni recupera silenciosamente una transacción interrumpida. Al aceptar tablas en FROM/JOIN, el editor propone alias breves como `ct_ventas AS v` y `ct_clientes AS c`, con sufijos para evitar repeticiones. Los JOIN por claves foráneas y el constructor visual utilizan estos identificadores, respetando los alias existentes. Añade la primera aplicación **Android** con conexión directa a bases de datos y mejora el escritorio con iconos de herramientas, sugerencias JOIN basadas en claves foráneas y diagramas con cuadrícula, colores, cierre de tarjetas y tamaño ajustable. Los instaladores y manifiestos se generan con la misma versión. Consulta las [descargas e instalación de Android](android/README.md) y la [distribución de escritorio](docs/multiplatform.md).
@@ -126,9 +157,9 @@ Cliente de bases de datos de escritorio, portable y extensible mediante JDBC.
 - Selector explícito entre usuario/contraseña y autenticación integrada de Windows (GSSAPI/SSPI) para MySQL/MariaDB.
 - Descarga automática bajo demanda de los controladores JDBC registrados, con verificación SHA-256; también admite archivos `.jar` seleccionados manualmente.
 - Explorador de catálogos, esquemas, tablas, vistas y columnas.
-- Editor SQL con ejecución de la selección o sentencia actual.
+- Editor SQL con ejecución de la selección o de todas las sentencias cuando no hay selección.
 - Cancelación de consultas, límite de filas, transacciones manuales, `commit` y `rollback`.
-- Resultados ordenables y exportación CSV.
+- Resultados ordenables en pestañas y exportación Excel (.xlsx), CSV, TSV, JSON, XML, HTML y SQL.
 - Historial local de consultas.
 - Actualizaciones seguras desde la propia aplicación con verificación SHA-256.
 - Icono propio para la ventana y el ejecutable de Windows.
@@ -191,9 +222,11 @@ Los perfiles guardan la configuración, pero no la contraseña. Para SQLite, `Ho
 
 ## Atajos
 
-- `Ctrl+Enter` o `F5`: ejecutar selección o sentencia actual.
+- `Ctrl+Enter` o `F5`: ejecutar la selección; sin selección, todas las sentencias del editor.
 - `Escape`: cancelar consulta.
-- `Ctrl+S`: exportar el resultado visible a CSV.
+- `Ctrl+S`: guardar el archivo SQL; `Ctrl+Shift+S`: guardar como.
+- `Ctrl+Shift+E`: exportar el resultado activo, incluido Excel (.xlsx).
+- `Tab`: aceptar el autocompletado y continuar al final de la inserción.
 - Doble clic en una tabla o vista: generar un `SELECT` limitado.
 
 ## Seguridad

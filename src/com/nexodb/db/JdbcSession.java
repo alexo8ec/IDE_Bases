@@ -12,6 +12,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.*;
 import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.function.IntConsumer;
 import java.util.stream.Stream;
@@ -313,22 +315,71 @@ public final class JdbcSession implements AutoCloseable {
     }
 
     public QueryResult execute(String sql, int maxRows) throws SQLException {
+        return executeResults(sql, maxRows, false).get(0);
+    }
+
+    /** All result sets and update counts produced by a statement, including CALL/EXEC. */
+    public List<QueryResult> executeAll(String sql, int maxRows) throws SQLException {
+        return executeResults(sql, maxRows, true);
+    }
+
+    /** Forward-only JDBC fallback keeps SQL dialect, explicit LIMIT/TOP and scope intact. */
+    public QueryResult executePage(String sql,int pageSize,long offset)throws SQLException {
+      synchronized(connection) {
+        QueryPaging.validate(sql,pageSize,offset);long started=System.nanoTime();
+        try(Statement statement=connection.createStatement()) {
+            activeStatement=statement;long needed=offset+pageSize+1L;statement.setMaxRows(needed>0&&needed<=5_000_000?(int)needed:0);statement.setFetchSize(Math.min(pageSize,500));
+            if(!statement.execute(sql))throw new SQLException("La consulta no devolvió una tabla paginable.");
+            try(ResultSet rows=statement.getResultSet()) {
+                long skipped=0;while(skipped<offset&&rows.next()){skipped++;if(Thread.currentThread().isInterrupted())throw new SQLException("Paginación cancelada.");}
+                QueryResult result=QueryResult.from(rows,pageSize);
+                return result.withEditing(QueryEditSupport.describe(connection,profile.type(),sql,rows.getMetaData())).withElapsed(elapsedMillis(started));
+            }
+        }finally{activeStatement=null;}
+      }
+    }
+
+    public static final class ExecutionException extends SQLException {
+        private final List<QueryResult> results;
+        ExecutionException(SQLException cause, List<QueryResult> results) {
+            super(cause.getMessage(), cause.getSQLState(), cause.getErrorCode(), cause);
+            this.results = List.copyOf(results);
+        }
+        public List<QueryResult> results() { return results; }
+    }
+
+    private List<QueryResult> executeResults(String sql, int maxRows, boolean all) throws SQLException {
+      synchronized(connection) {
         long started = System.nanoTime();
+        List<QueryResult> results = new ArrayList<>();
         try (Statement statement = connection.createStatement()) {
             activeStatement = statement;
             configureRowLimit(statement,maxRows);
             boolean hasResult = statement.execute(sql);
-            if (hasResult) {
-                try (ResultSet resultSet = statement.getResultSet()) {
-                    QueryResult result = QueryResult.from(resultSet, maxRows);
-                    var eligibility = QueryEditSupport.describe(connection, profile.type(), sql, resultSet.getMetaData());
-                    return result.withEditing(eligibility).withElapsed(elapsedMillis(started));
+            do {
+                if (hasResult) {
+                    try (ResultSet resultSet = statement.getResultSet()) {
+                        QueryResult result = QueryResult.from(resultSet, maxRows);
+                        var eligibility = QueryEditSupport.describe(connection, profile.type(), sql, resultSet.getMetaData());
+                        results.add(result.withEditing(eligibility).withElapsed(elapsedMillis(started)));
+                    }
+                } else {
+                    int count = statement.getUpdateCount();
+                    if (count == -1) break;
+                    results.add(QueryResult.update(count, elapsedMillis(started)));
                 }
-            }
-            return QueryResult.update(statement.getUpdateCount(), elapsedMillis(started));
+                if (!all) break;
+                hasResult = statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT);
+            } while (true);
+            if (results.isEmpty()) results.add(QueryResult.update(-1, elapsedMillis(started)));
+            return List.copyOf(results);
+        } catch (SQLException error) {
+            if (!results.isEmpty() && all) throw new ExecutionException(error, results);
+            throw error;
         } finally {
             activeStatement = null;
         }
+      }
     }
 
     public void cancel() throws SQLException {

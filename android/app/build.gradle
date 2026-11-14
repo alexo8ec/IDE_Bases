@@ -13,7 +13,7 @@ def sharedFiles = [
     'db/ForeignKeyDefinition.java','db/ForeignKeyLookup.java','db/MysqlTableDesign.java','db/SqlBackupService.java',
     'db/SqlImportService.java','db/SqlScriptReader.java','db/SqlTransferControl.java',
     'db/CsvReader.java','db/CsvImportService.java','db/SqlColumnCompletion.java','db/SqlJoinCompletion.java','db/SqlTableAliases.java',
-    'licensing/LicenseCodec.java','util/DataExporter.java','util/SqlFiles.java'
+    'licensing/LicenseCodec.java','util/DataExporter.java','util/XlsxExporter.java','util/SqlFiles.java'
 ]
 tasks.register('prepareSharedCore', Copy) {
     inputs.property('androidJdbcCompatibility',4)

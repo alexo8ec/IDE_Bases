@@ -27,7 +27,17 @@ public final class CompletionInteractionTest {
                 tables.add("ct_ventas");model.clear();model.addElement("ct_ventas");list.setSelectedIndex(0);
                 editor.setText("SELECT * FROM ct_");editor.setCaretPosition(editor.getDocument().getLength());accept.invoke(panel);
                 if(!editor.getText().equals("SELECT * FROM \"ct_ventas\" AS v"))throw new AssertionError("Table alias missing: "+editor.getText());
+                if(editor.getCaretPosition()!=editor.getDocument().getLength())throw new AssertionError("Caret must follow the completed alias");
+                if(editor.getFocusTraversalKeysEnabled())throw new AssertionError("Tab must reach the completion action");
                 editor.undoEdit();if(!editor.getText().equals("SELECT * FROM ct_"))throw new AssertionError("Alias completion must undo atomically");
+                editor.restoreText("SELECT * FROM ct_ WHERE 1=1");editor.setCaretPosition("SELECT * FROM ct_".length());
+                popup.setVisible(true);
+                editor.getActionMap().get("completion-tab").actionPerformed(new java.awt.event.ActionEvent(editor,0,"tab"));
+                if(!editor.getText().equals("SELECT * FROM \"ct_ventas\" AS v WHERE 1=1"))throw new AssertionError("Tab completion lost SQL suffix: "+editor.getText());
+                if(editor.getCaretPosition()!= "SELECT * FROM \"ct_ventas\" AS v".length())throw new AssertionError("Tab caret must follow insertion");
+                if(popup.isVisible())throw new AssertionError("Completion must close after Tab");
+                editor.getActionMap().get("completion-tab").actionPerformed(new java.awt.event.ActionEvent(editor,0,"tab"));
+                if(!editor.getText().contains("AS v\t WHERE"))throw new AssertionError("Tab without completion must indent");
                 editor.setText("");
                 editor.getDocument().insertString(0, "select ", null);
                 if (!"SELECT ".equals(editor.getText())) throw new AssertionError("Keyword was not uppercased: " + editor.getText());

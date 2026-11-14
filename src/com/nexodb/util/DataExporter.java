@@ -12,7 +12,7 @@ import java.util.List;
 /** Exports a tabular result without requiring external libraries. */
 public final class DataExporter {
     public enum Format {
-        CSV("CSV (Excel)", "csv"), TSV("TSV", "tsv"), JSON("JSON", "json"),
+        CSV("CSV", "csv"), XLSX("Excel", "xlsx"), TSV("TSV", "tsv"), JSON("JSON", "json"),
         XML("XML", "xml"), HTML("HTML", "html"), SQL("SQL INSERT", "sql");
 
         private final String label;
@@ -25,6 +25,10 @@ public final class DataExporter {
     private DataExporter() {}
 
     public static void write(QueryResult result, Path path, Format format, String tableName) throws IOException {
+        if (format == Format.XLSX) {
+            XlsxExporter.write(result,path);
+            return;
+        }
         try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             switch (format) {
                 case CSV -> writeDelimited(writer, result, ',');
@@ -33,6 +37,7 @@ public final class DataExporter {
                 case XML -> writeXml(writer, result);
                 case HTML -> writeHtml(writer, result);
                 case SQL -> writeSql(writer, result, safeTableName(tableName));
+                case XLSX -> throw new IllegalStateException("Excel uses a ZIP workbook");
             }
         }
     }

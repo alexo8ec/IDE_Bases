@@ -9,6 +9,20 @@ public final class SqlText {
     public record Batch(List<String> statements, String incompleteTail) {}
     private SqlText() {}
 
+    /** Run exactly the selection, or the entire buffer when no text is selected. */
+    public static String selectedOrAll(JTextComponent editor) {
+        String selected = editor.getSelectedText();
+        return (selected == null || selected.isEmpty() ? editor.getText() : selected).trim();
+    }
+
+    public static List<String> executionStatements(String sql) throws java.io.IOException {
+        List<String> statements = new ArrayList<>();
+        try (var reader = new com.nexodb.db.SqlScriptReader(new java.io.StringReader(sql))) {
+            for (var statement = reader.next(); statement != null; statement = reader.next()) statements.add(statement.sql());
+        }
+        return List.copyOf(statements);
+    }
+
     public static String selectedOrCurrent(JTextComponent editor) {
         String selected = editor.getSelectedText();
         if (selected != null && !selected.isBlank()) return selected.trim();
