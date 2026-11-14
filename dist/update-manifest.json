@@ -1,6 +1,6 @@
 ﻿{
     "version":  "0.14.3",
     "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.14.3-win64.zip",
-    "sha256":  "51ba3cdd9d886f0ee857fe9ba0e10307096d870b98de994a59a220a233c3b313",
+    "sha256":  "7803d374d284e7efb4dd3accdb6bbf5db6b1608bdcaa645ae74e00452a873ab9",
     "notes":  "Edicion con doble clic, filas marcadas resaltadas y menu de acciones para insertar, duplicar, eliminar, copiar, filtrar y exportar. Las consultas y el cursor se recuperan al abrir. La firma digital de distribucion requiere los certificados del editor."
 }
