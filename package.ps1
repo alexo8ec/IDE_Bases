@@ -98,7 +98,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "NexoDB Studio ${version}: reporteria visual con plantillas y exportacion HTML, CSV, Excel y PDF; asistente IA configurable para generar y optimizar SQL; planes de ejecucion visuales; paginacion y tiempo al pie de los resultados; multiples resultados y mejoras de autocompletado."
+    notes = "NexoDB Studio ${version}: menus de vistas, procedimientos, funciones, triggers y eventos para MySQL/MariaDB; editor de definiciones y depuracion real de SP por copia temporal, con puntos de quiebre, paso sobre y contexto de variables. Incluye reporteria, IA, planes visuales y paginacion."
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\NexoDB Studio.exe"

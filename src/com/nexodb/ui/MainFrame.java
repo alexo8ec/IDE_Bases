@@ -6,6 +6,7 @@ import com.nexodb.db.JdbcSession;
 import com.nexodb.db.PostgresSupport;
 import com.nexodb.db.QueryResult;
 import com.nexodb.db.SchemaItem;
+import com.nexodb.db.StoredObjectService;
 import com.nexodb.model.ConnectionProfile;
 import com.nexodb.model.DatabaseType;
 import com.nexodb.update.UpdateService;
@@ -604,7 +605,7 @@ public final class MainFrame extends JFrame {
                                     : tr("La actualización fue descargada y verificada.\n\n¿Abrir el paquete con el instalador de tu sistema?"),
                             tr("Instalar actualización"), JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
                     if (install == JOptionPane.YES_OPTION) {
-                        if(!queryPanel.confirmDiscardResults()||!queryPanel.saveDraftBeforeClose())return;
+                        if(!canCloseStoredWorkspaces()||!queryPanel.confirmDiscardResults()||!queryPanel.saveDraftBeforeClose())return;
                         updateService.launchInstaller(zip);
                         if (UpdateService.canInstallInPlace()) {
                             closeAllSessions();
@@ -638,6 +639,10 @@ public final class MainFrame extends JFrame {
         objectTree.putClientProperty("Tree.wideSelection", true);
         objectTree.putClientProperty("Tree.selectionArc", 8);
         objectTree.setCellRenderer(new ObjectTreeRenderer());
+        bindObjectKey(KeyEvent.VK_F4,"object-create",()->selectedStoredAction("create"));
+        bindObjectKey(KeyEvent.VK_F6,"object-edit",()->selectedStoredAction("edit"));
+        bindObjectKey(KeyEvent.VK_DELETE,"object-drop",()->selectedStoredAction("drop"));
+        bindObjectKey(KeyEvent.VK_F2,"object-rename",()->selectedStoredAction("rename"));
         objectTree.addTreeWillExpandListener(new TreeWillExpandListener() {
             @Override public void treeWillExpand(TreeExpansionEvent event) throws ExpandVetoException {
                 Object node = event.getPath().getLastPathComponent();
@@ -1262,9 +1267,15 @@ public final class MainFrame extends JFrame {
         if (path == null) return;
         objectTree.setSelectionPath(path);
         LazyNode node = (LazyNode) path.getLastPathComponent();
+        JPopupMenu menu=objectMenu(node);
+        if(menu.getComponentCount()>0)menu.show(objectTree,event.getX(),event.getY());
+    }
+
+    private JPopupMenu objectMenu(LazyNode node){
         SchemaItem item = node.item();
         JdbcSession target = node.nodeSession();
         JPopupMenu menu = new JPopupMenu();
+        if(target!=null&&StoredObjectService.supported(target.profile().type())&&StoredObjectService.objectKind(item.kind())!=null){storedObjectMenu(menu,node);return menu;}
         if (item.kind() == SchemaItem.Kind.TABLE || item.kind() == SchemaItem.Kind.VIEW) {
             addMenu(menu, tr("Abrir datos"), IconFactory.Kind.TABLE, e -> openTable(target, item, TableWorkbenchPanel.DATA));
             addMenu(menu, tr("Ver estructura"), IconFactory.Kind.COLUMN, e -> openTable(target, item, TableWorkbenchPanel.COLUMNS));
@@ -1314,8 +1325,42 @@ public final class MainFrame extends JFrame {
             addMenu(menu, tr("Usar esta conexión"), IconFactory.Kind.CONNECT, e -> activateSession(target));
             addMenu(menu, tr("Actualizar objetos"), IconFactory.Kind.REFRESH, e -> refreshConnectionObjects(target));
         }
-        if (menu.getComponentCount() > 0) menu.show(objectTree, event.getX(), event.getY());
+        return menu;
     }
+
+    private void bindObjectKey(int key,String name,Runnable action){objectTree.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(key,0),name);objectTree.getActionMap().put(name,new AbstractAction(){public void actionPerformed(ActionEvent e){action.run();}});}
+    private void selectedStoredAction(String action){Object selected=objectTree.getLastSelectedPathComponent();if(!(selected instanceof LazyNode node)||node.nodeSession()==null)return;JdbcSession target=node.nodeSession();SchemaItem item=node.item();var kind=StoredObjectService.objectKind(item.kind());if(kind==null||!StoredObjectService.supported(target.profile().type())||target.profile().readOnly())return;
+        switch(action){case "create"->createStoredObject(target,item);case "edit"->{if(item.kind()==kind)editStoredObject(target,item);}case "drop"->{if(item.kind()==kind)dropStoredObject(target,item);}case "rename"->{if(item.kind()==kind&&(kind==SchemaItem.Kind.VIEW||kind==SchemaItem.Kind.EVENT))renameStoredObject(target,item);}}
+    }
+    private static String storedCaption(SchemaItem.Kind kind,String action){return switch(action){
+        case "create"->switch(kind){case VIEW->"Crear vista…";case PROCEDURE->"Crear procedimiento…";case FUNCTION->"Crear función…";case TRIGGER->"Crear trigger…";case EVENT->"Crear evento…";default->"";};
+        case "edit"->switch(kind){case VIEW->"Modificar vista…";case PROCEDURE->"Modificar procedimiento…";case FUNCTION->"Modificar función…";case TRIGGER->"Modificar trigger…";case EVENT->"Modificar evento…";default->"";};
+        default->switch(kind){case VIEW->"Eliminar vista…";case PROCEDURE->"Eliminar procedimiento…";case FUNCTION->"Eliminar función…";case TRIGGER->"Eliminar trigger…";case EVENT->"Eliminar evento…";default->"";};};}
+    private void storedObjectMenu(JPopupMenu menu,LazyNode node){
+        SchemaItem item=node.item();JdbcSession target=node.nodeSession();SchemaItem.Kind kind=StoredObjectService.objectKind(item.kind());boolean selected=item.kind()==kind,writable=!target.profile().readOnly()&&target.isOpen();
+        objectMenuEntry(menu,storedCaption(kind,"create"),"object-create",IconFactory.Kind.ADD,KeyEvent.VK_F4,writable,()->createStoredObject(target,item));
+        objectMenuEntry(menu,storedCaption(kind,"edit"),"object-edit",IconFactory.Kind.EDIT,KeyEvent.VK_F6,writable&&selected,()->editStoredObject(target,item));
+        objectMenuEntry(menu,storedCaption(kind,"drop"),"object-drop",IconFactory.Kind.DELETE,KeyEvent.VK_DELETE,writable&&selected,()->dropStoredObject(target,item));
+        if(kind==SchemaItem.Kind.VIEW||kind==SchemaItem.Kind.EVENT||kind==SchemaItem.Kind.TRIGGER){menu.addSeparator();var rename=objectMenuEntry(menu,"Renombrar…","object-rename",IconFactory.Kind.EDIT,KeyEvent.VK_F2,writable&&selected&&kind!=SchemaItem.Kind.TRIGGER,()->renameStoredObject(target,item));if(kind==SchemaItem.Kind.TRIGGER)UiLanguage.tooltip(rename,UiLanguage.key("MySQL/MariaDB no permiten renombrar un trigger directamente; modifica su definición y créalo con otro nombre."));}
+        menu.addSeparator();objectMenuEntry(menu,"Exportar definición…","object-export",IconFactory.Kind.EXPORT,0,selected,()->exportStoredObject(target,item));
+        if(kind==SchemaItem.Kind.VIEW){objectMenuEntry(menu,"Ver datos","object-data",IconFactory.Kind.TABLE,0,selected,()->openTable(target,item,TableWorkbenchPanel.DATA));objectMenuEntry(menu,"Exportar datos…","object-export-data",IconFactory.Kind.EXPORT,0,selected,()->exportTable(target,item));}
+        if(kind==SchemaItem.Kind.PROCEDURE){objectMenuEntry(menu,"Depurar procedimiento…","object-debug",IconFactory.Kind.PLAY,0,writable&&selected,()->debugStoredProcedure(target,item));if(selected)objectMenuEntry(menu,"Preparar CALL","object-call",IconFactory.Kind.SQL,0,true,()->insertTemplate(target,"CALL "+StoredObjectService.qualified(item)+"();\n"));}
+        if(kind==SchemaItem.Kind.FUNCTION&&selected)objectMenuEntry(menu,"Preparar SELECT","object-select",IconFactory.Kind.SQL,0,true,()->insertTemplate(target,"SELECT "+StoredObjectService.qualified(item)+"();\n"));
+        menu.addSeparator();objectMenuEntry(menu,"Actualizar","object-refresh",IconFactory.Kind.REFRESH,0,true,()->{if(isGroup(item.kind()))refreshNode(node);else if(node.getParent() instanceof LazyNode parent)refreshNode(parent);});
+    }
+    private JMenuItem objectMenuEntry(JPopupMenu menu,String caption,String name,IconFactory.Kind icon,int key,boolean enabled,Runnable action){JMenuItem entry=UiLanguage.text(new JMenuItem(tr(caption),IconFactory.of(icon,16)),UiLanguage.key(caption));entry.setName(name);entry.setEnabled(enabled);if(key!=0)entry.setAccelerator(KeyStroke.getKeyStroke(key,0));entry.addActionListener(e->action.run());menu.add(entry);return entry;}
+    private void createStoredObject(JdbcSession target,SchemaItem parent){if(!LicenseGate.ensure(this))return;String name=JOptionPane.showInputDialog(this,tr("Nombre del nuevo objeto:"));if(name==null)return;try{StoredObjectService.quote(name);SchemaItem item=new SchemaItem(StoredObjectService.objectKind(parent.kind()),StoredObjectService.namespace(parent),null,name,"");addToolTab(tr("Crear objeto")+" · "+name,new StoredObjectEditorPanel(target,item,null,this::storedObjectsChanged));}catch(Exception error){showError(tr("Crear objeto"),error);}}
+    private void storedObjectsChanged(JdbcSession target){if(target.isOpen()){refreshConnectionObjects(target);if(target==session)queryPanel.refreshCompletions();}}
+    private void readStoredObject(JdbcSession target,SchemaItem item,java.util.function.Consumer<StoredObjectService.Definition> action){if(!LicenseGate.ensure(this)||!target.isOpen())return;setBusy(true);new SwingWorker<StoredObjectService.Definition,Void>(){protected StoredObjectService.Definition doInBackground()throws Exception{return StoredObjectService.read(target,item);}protected void done(){setBusy(false);try{action.accept(get());}catch(Exception error){showError(tr("No se pudo abrir la definición"),rootCause(error));}}}.execute();}
+    private void editStoredObject(JdbcSession target,SchemaItem item){readStoredObject(target,item,definition->addToolTab(tr("Modificar objeto")+" · "+item.name(),new StoredObjectEditorPanel(target,item,definition,this::storedObjectsChanged)));}
+    private void runStoredDdl(JdbcSession target,String sql){if(!LicenseGate.ensure(this))return;try{StoredObjectService.requireWritable(target);}catch(Exception error){showError(tr("Modificar objeto"),error);return;}if(!Confirmations.ask(this,"Modificar objeto",target.profile().name()+"\n\n"+sql+"\n\n"+tr("Esta operación modifica la estructura y no se puede deshacer con Rollback. ¿Continuar?")))return;setBusy(true);new SwingWorker<Void,Void>(){protected Void doInBackground()throws Exception{StoredObjectService.apply(target,sql);return null;}protected void done(){setBusy(false);try{get();storedObjectsChanged(target);setStatus(tr("Objeto actualizado."));}catch(Exception error){showError(tr("No se pudo modificar el objeto"),rootCause(error));}}}.execute();}
+    private void dropStoredObject(JdbcSession target,SchemaItem item){runStoredDdl(target,StoredObjectService.dropSql(item));}
+    private void renameStoredObject(JdbcSession target,SchemaItem item){String name=JOptionPane.showInputDialog(this,tr("Nuevo nombre:"),item.name());if(name==null||name.equals(item.name()))return;try{runStoredDdl(target,StoredObjectService.renameSql(item,name));}catch(Exception error){showError(tr("Renombrar"),error);}}
+    private void exportStoredObject(JdbcSession target,SchemaItem item){readStoredObject(target,item,definition->{JFileChooser chooser=new JFileChooser();chooser.setSelectedFile(new java.io.File(item.name()+".sql"));if(chooser.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return;Path path=chooser.getSelectedFile().toPath();if(java.nio.file.Files.exists(path)&&!Confirmations.ask(this,"Reemplazar archivo",path.toString()))return;try{java.nio.file.Files.writeString(path,StoredObjectService.exportSql(definition));setStatus(tr("Definición exportada: ")+path.getFileName());}catch(Exception error){showError(tr("Exportar definición"),error);}});}
+    private void debugStoredProcedure(JdbcSession target,SchemaItem item){readStoredObject(target,item,definition->{
+        com.nexodb.debug.MysqlProcedure.compile(definition);char[] password=null;
+        try{if(secretStore.has(target.profile().id()))password=secretStore.load(target.profile().id());else if(target.profile().authenticationMode()==com.nexodb.model.AuthenticationMode.WINDOWS)password=new char[0];else{JPasswordField field=new JPasswordField(24);if(JOptionPane.showConfirmDialog(this,new Object[]{tr("Contraseña para dos conexiones independientes de depuración:"),target.profile().name(),field},tr("Depurar procedimiento"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;password=field.getPassword();}addToolTab(tr("Depurar procedimiento")+" · "+item.name(),new StoredProcedureDebugPanel(target.profile(),password,item,definition,this::setStatus));}catch(Exception error){showError(tr("No se pudo iniciar el depurador"),error);}finally{if(password!=null)Arrays.fill(password,'\0');}
+    });}
 
     private void addMenu(JPopupMenu menu, String text, IconFactory.Kind icon, ActionListener action) {
         JMenuItem entry = new JMenuItem(text, IconFactory.of(icon, 16));
@@ -1422,7 +1467,7 @@ public final class MainFrame extends JFrame {
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
         UiLanguage.tooltip(close, UiLanguage.key("Cerrar pestaña"));
-        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
+        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
         tab.add(close);
         return tab;
     }
@@ -1469,6 +1514,7 @@ public final class MainFrame extends JFrame {
 
     private void openDefinition(JdbcSession target, SchemaItem item) {
         if (target == null || !target.isOpen()) return;
+        if(StoredObjectService.supported(target.profile().type())){editStoredObject(target,item);return;}
         activateSession(target);
         setStatus(new Object[]{UiLanguage.key("Leyendo definición de "), item.name(), "…"});
         setBusy(true);
@@ -1628,16 +1674,19 @@ public final class MainFrame extends JFrame {
     }
 
     private void exitApplication() {
+        if(!canCloseStoredWorkspaces())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report&&!report.canClose())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;
         if(!queryPanel.confirmDiscardResults())return;
         if(!queryPanel.saveDraftBeforeClose())return;
         closeAllSessions();
+        for(Component component:workspaceTabs.getComponents())if(component instanceof StoredProcedureDebugPanel debug)debug.dispose();
         for(Component component:workspaceTabs.getComponents())if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report)report.dispose();
         for(Component component:workspaceTabs.getComponents())if(component instanceof AiAssistantPanel ai)ai.dispose();
         dispose();
     }
+    private boolean canCloseStoredWorkspaces(){for(Component component:workspaceTabs.getComponents()){if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return false;if(component instanceof StoredProcedureDebugPanel debug&&!debug.canClose())return false;}return true;}
 
     private void showError(String title, Throwable error) {
         String message = error.getMessage();

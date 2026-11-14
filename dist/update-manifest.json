@@ -1,28 +1,6 @@
-{
-  "version": "0.15.0",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.15.0-win64.zip",
-  "sha256": "8f83a86171561e437f512661ade4723bb1596a08e8dd5d9347f5e8e8368907c3",
-  "notes": "NexoDB Studio 0.15.0: reporteria visual con plantillas y exportacion HTML, CSV, Excel y PDF; asistente IA configurable para generar y optimizar SQL; planes de ejecucion visuales; paginacion y tiempo al pie de los resultados; multiples resultados y mejoras de autocompletado.",
-  "platforms": {
-    "windows-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.15.0-win64.zip",
-      "sha256": "8f83a86171561e437f512661ade4723bb1596a08e8dd5d9347f5e8e8368907c3"
-    },
-    "linux-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.15.0-linux-x64.deb",
-      "sha256": "8ea61747ac56b63ee95aadaa5f191b3ca2e1062c5fdb01da9ff881a88c3816ff"
-    },
-    "linux-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.15.0-linux-arm64.deb",
-      "sha256": "614850f6f96c49557e429db0f88112e2b034339343f59b75d47f4280f0761e2c"
-    },
-    "macos-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.15.0-macos-x64.zip",
-      "sha256": "f17af7fbe96b7be030dff7da93596590a65691a782bc57fff6a707c3b5b85a5b"
-    },
-    "macos-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.15.0-macos-arm64.zip",
-      "sha256": "cebd9c35b6c5e588d303fdb7991e8b2e67c13d4247c404d88688a09856038a17"
-    }
-  }
+﻿{
+    "version":  "0.16.0",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/NexoDB-Studio-0.16.0-win64.zip",
+    "sha256":  "9d7b85de02f6119c76c8430d057d657c480c0a42e23c67e914b37527e1265bae",
+    "notes":  "NexoDB Studio 0.16.0: menus de vistas, procedimientos, funciones, triggers y eventos para MySQL/MariaDB; editor de definiciones y depuracion real de SP por copia temporal, con puntos de quiebre, paso sobre y contexto de variables. Incluye reporteria, IA, planes visuales y paginacion."
 }
