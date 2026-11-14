@@ -22,7 +22,14 @@ public final class AiClientTest {
             equal("SELECT 'mañana' AS name;",answer.sql());equal("Bearer secret-test-key",auth.get());equal("test-model",sent.get().get("model"));
             if(!Json.stringify(sent.get()).contains("Conserva NULL"))throw new AssertionError("Request lost Unicode/context");
             if(sent.get().containsKey("tools"))throw new AssertionError("AI must not have execution tools");
-            var vickyConfig=new AiConfig(AiConfig.Provider.VICKY,URI.create(base+"/v1/database-agent/chat"),"");AiClient.Answer vicky=new AiClient().request(vickyConfig,"vicky-private-token".toCharArray(),AiClient.Task.GENERATE,"Crea una consulta","","Motor: H2","");equal("SELECT 2;",vicky.sql());equal("Bearer vicky-private-token",auth.get());equal("Crea una consulta",sent.get().get("instruction"));if(sent.get().containsKey("model"))throw new AssertionError("Vicky selects its own model");
+            var vickyConfig=new AiConfig(AiConfig.Provider.VICKY,URI.create(base+"/v1/database-agent/chat"),"");AiClient.Answer vicky=new AiClient().request(vickyConfig,"vicky-private-token".toCharArray(),AiClient.Task.GENERATE,"Crea una consulta","","Motor: H2","");equal("SELECT 2;",vicky.sql());equal("Bearer vicky-private-token",auth.get());contains(sent.get().get("instruction").toString(),"Crea una consulta");contains(sent.get().get("instruction").toString(),"Motor: H2");if(sent.get().containsKey("model"))throw new AssertionError("Vicky selects its own model");
+            String join="SELECT * FROM `ct_ventas` AS v JOIN `ct_clientes` AS c ON v.id_cliente=c.identificacion";
+            String schema="Motor: MySQL\nct_ventas: id_cliente BIGINT\nct_clientes: identificacion BIGINT PRIMARY KEY\nINDEX ix_cliente (id_cliente)";
+            String plan="Index lookup using ix_cliente; actual time=0.01..3 rows=10 loops=1";
+            new AiClient().request(vickyConfig,"vicky-private-token".toCharArray(),AiClient.Task.OPTIMIZE_QUERY,"",join,schema,plan);
+            String vickyInstruction=sent.get().get("instruction").toString();for(String required:List.of("Optimizar consulta",join,schema,plan))contains(vickyInstruction,required);
+            equal(join,sent.get().get("sql"));equal(schema,sent.get().get("schema"));equal(plan,sent.get().get("plan"));
+            String preview=AiClient.preview(vickyConfig,AiClient.Task.OPTIMIZE_QUERY,"",join,schema,plan);contains(preview,"JSON enviado");contains(preview,schema);if(preview.contains("vicky-private-token"))throw new AssertionError("Preview leaked API key");contains(vicky.diagnostics(),"HTTP 200");
             new AiClient().request(new AiConfig(AiConfig.Provider.OLLAMA,URI.create(base+"/chat"),"local-test"),new char[0],AiClient.Task.GENERATE,"Generate a SELECT","","H2","");equal(null,auth.get());
             var openai=new AiConfig(AiConfig.Provider.OPENAI,URI.create(AiConfig.Provider.OPENAI.defaultEndpoint()),"user-selected-model");var body=AiClient.requestBody(openai,AiClient.Task.OPTIMIZE_PROCEDURE,"Preserve parameters","CREATE PROCEDURE x AS SELECT 1","SQL Server","");equal(false,body.get("store"));equal("user-selected-model",body.get("model"));if(body.containsKey("tools"))throw new AssertionError("Unexpected tools");
             String text=AiClient.extract(AiConfig.Provider.OPENAI,Map.of("output",List.of(Map.of("type","message","content",List.of(Map.of("type","output_text","text","SQL answer"))))));equal("SQL answer",text);
@@ -35,4 +42,5 @@ public final class AiClientTest {
         System.out.println("AiClientTest: OK (local HTTP contract, Unicode, SQL extraction, Responses/store=false, selected model, no tools, endpoint validation, no redirects or credential disclosure)");
     }
     private static void equal(Object expected,Object actual){if(!Objects.equals(expected,actual))throw new AssertionError(expected+" != "+actual);}
+    private static void contains(String value,String text){if(!value.contains(text))throw new AssertionError("Missing "+text+" in "+value);}
 }

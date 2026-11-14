@@ -3,6 +3,7 @@ package com.nexodb.ui;
 import static com.nexodb.util.I18n.tr;
 
 import com.nexodb.db.JdbcSession;
+import com.nexodb.db.AiSchemaContext;
 import com.nexodb.db.PostgresSupport;
 import com.nexodb.db.QueryResult;
 import com.nexodb.db.SchemaItem;
@@ -429,8 +430,10 @@ public final class MainFrame extends JFrame {
         openAi(queryPanel.analysisSql(),"");
     }
     private void openAi(String input,String plan){
-        if(!LicenseGate.ensure(this))return;JdbcSession origin=session;
-        var panel=new AiAssistantPanel(input,queryPanel.aiContext(),sql->{if(origin!=null&&origin.isOpen())activateSession(origin);if(queryPanel.openNewQuery(sql))workspaceTabs.setSelectedIndex(0);});
+        if(!LicenseGate.ensure(this))return;JdbcSession origin=queryPanel.currentSession()!=null?queryPanel.currentSession():session;
+        String database=queryPanel.currentSession()==origin?queryPanel.activeDatabase():origin==null?"":origin.profile().database();
+        var panel=new AiAssistantPanel(input,AiSchemaContext.header(origin,database),sql->{if(origin!=null&&origin.isOpen())activateSession(origin);if(queryPanel.openNewQuery(sql))workspaceTabs.setSelectedIndex(0);});
+        panel.setContextSource(origin,database);
         if(!plan.isBlank())panel.setPlanContext(plan);addToolTab(tr("Asistente de IA"),panel);
     }
     private void openPlan(){

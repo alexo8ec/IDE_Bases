@@ -6,6 +6,8 @@ La versión actual de escritorio es **0.18.3**. Incluye los siguientes cambios y
 
 El Asistente de IA incorpora **Vicky** como proveedor predeterminado. Se conecta a su agente de bases de datos en el VPS privado mediante Tailscale, conserva el token cifrado con DPAPI y deja el modelo administrado por Vicky. Solo comparte la solicitud y las pestañas visibles de SQL, esquema y plan; no envía credenciales JDBC, filas de resultados ni ejecuta automáticamente el SQL propuesto.
 
+Al abrir el asistente desde una conexión, carga en segundo plano columnas, tipos, claves primarias, índices ordenados y relaciones de las tablas referenciadas en el SQL (hasta 20 tablas y 100.000 caracteres de esquema). **Actualizar contexto de tablas** vuelve a leer esos metadatos sin ejecutar la consulta. Los fallos de permisos o metadatos no disponibles quedan visibles. **Solicitud a enviar** permite inspeccionar el contexto y el JSON sin la clave API; **Diagnóstico** conserva el envío y el resultado HTTP, su duración y los avisos del proveedor. Vicky recibe también el SQL, motor, esquema y plan dentro de la instrucción completa para evitar que se pierdan si el agente solo procesa ese campo. Una respuesta sin SQL se identifica expresamente y no se anuncia como propuesta lista.
+
 ## Corrección del autocompletado SQL — 0.18.2
 
 Aceptar una sugerencia con clic, Enter o Tab reemplaza el prefijo escrito sin duplicarlo: `c.ide` se convierte en `c.identificacion`. Se corrige el desfase de posiciones en consultas con saltos de línea de Windows, tanto para columnas como para tablas y JOIN. El cursor queda al final de la inserción, se conserva el SQL posterior y deshacer/rehacer agrupa el reemplazo en un solo paso.

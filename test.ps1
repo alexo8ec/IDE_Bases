@@ -90,6 +90,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de archivos SQL y deshacer/rehacer
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.licensing.LicenseTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de licencias y autoridad cifrada fallaron.' }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.AiSchemaContextTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del contexto de esquema para IA fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.AiAssistantContextTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diagnostico del asistente IA fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.QueryPagingTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de paginacion fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.QueryPagingUiTest

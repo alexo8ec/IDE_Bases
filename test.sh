@@ -23,6 +23,8 @@ if [[ -f "$root/build/sqlite-test.jar" ]]; then
   java -Dnexodb.disableDraftPersistence=true -Djava.awt.headless=true -cp "$test_classes:$classpath" com.nexodb.db.SQLiteConnectionTest
 fi
 if [[ -f "$root/build/h2-test.jar" ]]; then
+  java -Dnexodb.disableDraftPersistence=true -Djava.awt.headless=true -cp "$test_classes:$classpath" com.nexodb.db.AiSchemaContextTest
+  java -Dnexodb.disableDraftPersistence=true -Djava.awt.headless=true -cp "$test_classes:$classpath" com.nexodb.ui.AiAssistantContextTest
   java -Dnexodb.disableDraftPersistence=true -Djava.awt.headless=true -cp "$test_classes:$classpath" com.nexodb.db.QueryPagingTest
   java -Dnexodb.disableDraftPersistence=true -Djava.awt.headless=true -cp "$test_classes:$classpath" com.nexodb.ui.QueryPagingUiTest
   java -Dnexodb.disableDraftPersistence=true -Djava.awt.headless=true -cp "$test_classes:$classpath" com.nexodb.db.QueryPlanTest
