@@ -139,6 +139,7 @@ public final class IconFactory {
                 case DIAGRAM -> {g.draw(new RoundRectangle2D.Double(1.5,2.5,6,5,1,1));g.draw(new RoundRectangle2D.Double(10.5,10.5,6,5,1,1));line(g,4.5,7.5,4.5,13);line(g,4.5,13,10.5,13);line(g,1.5,4.5,7.5,4.5);line(g,10.5,12.5,16.5,12.5);}
                 case FILTER -> {Path2D p=new Path2D.Double();p.moveTo(2,3);p.lineTo(16,3);p.lineTo(11,9);p.lineTo(11,14);p.lineTo(7,16);p.lineTo(7,9);p.closePath();g.draw(p);}
                 case HISTORY -> {g.draw(new Arc2D.Double(3,2.5,13,13,-25,295,Arc2D.OPEN));line(g,2,3,2,8);line(g,2,8,7,8);line(g,9.5,5,9.5,9.5);line(g,9.5,9.5,12.5,11);}
+                case FORMAT -> {line(g,3,4,15,4);line(g,3,9,12,9);line(g,3,14,15,14);line(g,13,2,13,6);line(g,11,4,13,4);line(g,13,4,15,4);}
                 case COMMIT -> { line(g, 3, 9, 7, 13); line(g, 7, 13, 15, 4); }
                 case ROLLBACK -> {
                     g.draw(new Arc2D.Double(3, 3, 12, 12, 70, 245, Arc2D.OPEN));
