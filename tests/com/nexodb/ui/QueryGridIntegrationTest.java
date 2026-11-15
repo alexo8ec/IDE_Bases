@@ -47,6 +47,11 @@ public final class QueryGridIntegrationTest {
             SwingUtilities.invokeAndWait(()->button(panel,"query-discard").doClick());
             SwingUtilities.invokeAndWait(()->{
                 ResultTableModel model=field(panel,"model",ResultTableModel.class);JTable table=field(panel,"table",JTable.class);
+                model.setValueAt("Guardado al cambiar de fila",0,1);table.setRowSelectionInterval(0,0);table.setRowSelectionInterval(1,1);
+            });await(()->!busy.get());
+            equal("Guardado al cambiar de fila",session.execute("SELECT name FROM people WHERE id=1",10).rows().get(0).get(0));
+            SwingUtilities.invokeAndWait(()->{
+                ResultTableModel model=field(panel,"model",ResultTableModel.class);JTable table=field(panel,"table",JTable.class);
                 model.setValueAt("Edited",1,1);button(panel,"query-save").doClick();
             });await(()->!busy.get());
             equal("Edited",session.execute("SELECT name FROM people WHERE id=2",10).rows().get(0).get(0));
@@ -73,7 +78,7 @@ public final class QueryGridIntegrationTest {
                 equal(List.of(2),actions.selectedRows());equal("Carol\ttwo",ResultGridActions.text(model,actions.selectedRows(),List.of(1,2)));
                 // Reordered display columns still map NULL to the correct database column.
                 table.moveColumn(2,0);table.changeSelection(0,0,false,false);button(panel,"query-null").doClick();
-                equal(null,model.getValueAt(2,2));equal(1,model.changeCount());equal("Alice",model.getValueAt(0,1));
+                equal(null,model.getValueAt(2,2));equal(1,model.changeCount());equal("Guardado al cambiar de fila",model.getValueAt(0,1));
                 button(panel,"query-discard").doClick();equal("two",model.getValueAt(2,2));
                 // Header click selects the entire column without changing sort order.
                 List<? extends RowSorter.SortKey> order=table.getRowSorter().getSortKeys();
@@ -96,8 +101,21 @@ public final class QueryGridIntegrationTest {
             SwingUtilities.invokeAndWait(frame.get()::dispose);
             com.nexodb.util.I18n.initialize("es");
             completion(session);
+            joinTargetSelector(session);
         }
-        System.out.println("QueryGridIntegrationTest: OK (staging/save/discard, checkbox identity, reordered columns, NULL, filters, copy, both themes and live column completion)");
+        System.out.println("QueryGridIntegrationTest: OK (auto-save, JOIN target selector, staging, filters, copy, themes and completion)");
+    }
+    private static void joinTargetSelector(JdbcSession session)throws Exception {
+        session.execute("CREATE TABLE join_companies(id INT PRIMARY KEY,name VARCHAR(50)); CREATE TABLE join_docs(id INT PRIMARY KEY,company_id INT,status VARCHAR(30)); INSERT INTO join_companies VALUES(1,'Acme'); INSERT INTO join_docs VALUES(10,1,'draft')",100);
+        QueryResult result=session.execute("SELECT c.id company_id,c.name,d.id document_id,d.status FROM join_companies c JOIN join_docs d ON d.company_id=c.id",100);
+        SwingUtilities.invokeAndWait(()->{
+            ResultTableModel model=new ResultTableModel();model.setResult(result);JTable table=new JTable(model);
+            QueryResultPanel panel=new QueryResultPanel(session,result,model,table,"SELECT c.id company_id,c.name,d.id document_id,d.status FROM join_companies c JOIN join_docs d ON d.company_id=c.id",100,value->{},text->{},grid->{});
+            try{Field confirm=QueryResultPanel.class.getDeclaredField("confirm");confirm.setAccessible(true);confirm.set(panel,(java.util.function.BiPredicate<String,String>)(title,text)->true);}catch(Exception error){throw new RuntimeException(error);}
+            JComboBox<?> mode=field(panel,"mode",JComboBox.class);equal(3,mode.getItemCount());mode.setSelectedIndex(2);
+            QueryEditSupport.Target target=field(panel,"target",QueryEditSupport.Target.class);equal("JOIN_DOCS",target.table().name().toUpperCase(Locale.ROOT));
+            equal(false,model.isCellEditable(0,1));equal(true,model.isCellEditable(0,2));equal(true,model.isCellEditable(0,3));
+        });
     }
     private static void completion(JdbcSession session)throws Exception {
         SqlColumnCompletion provider=new SqlColumnCompletion(session);

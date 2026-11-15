@@ -125,6 +125,8 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
     if ($LASTEXITCODE -ne 0) { throw 'La prueba de tamano y cierre del diagrama fallo.' }
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.QueryEditIntegrationTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de escritura y transacciones fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.JoinEditIntegrationTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de edición de consultas JOIN fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.QueryGridIntegrationTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de la cuadricula editable fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.VisualToolsTest

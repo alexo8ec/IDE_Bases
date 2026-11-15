@@ -27,8 +27,9 @@ public final class QueryEditIntegrationTest {
             equal(false,saved.pendingCommit());equal("O'Reilly'; DROP TABLE people; --",value(session,1,"name"));equal(true,db.getAutoCommit());
             QueryResult aliases=session.execute("SELECT id AS identity_column,name AS caption FROM people WHERE id=1",100);requireTarget(aliases);
             QueryEditSupport.save(db,aliases.editing().target(),aliases.rows().get(0),1,"Alias works");equal("Alias works",value(session,1,"name"));
-            for(String sql:List.of("SELECT name FROM people","SELECT * FROM no_key","SELECT * FROM people_view","SELECT DISTINCT id FROM people","SELECT p.* FROM people p JOIN pairs x ON p.id=x.a","SELECT count(*),id FROM people GROUP BY id","SELECT id+0 AS id,name FROM people"))
+            for(String sql:List.of("SELECT name FROM people","SELECT * FROM no_key","SELECT * FROM people_view","SELECT DISTINCT id FROM people","SELECT count(*),id FROM people GROUP BY id","SELECT id+0 AS id,name FROM people"))
                 if(session.execute(sql,100).editing().target()!=null)throw new AssertionError("Should be read only: "+sql);
+            QueryResult joined=session.execute("SELECT p.* FROM people p JOIN pairs x ON p.id=x.a",100);requireTarget(joined);equal(1,joined.editing().targets().size());
             QueryResult composite=session.execute("SELECT * FROM pairs ORDER BY b",100);requireTarget(composite);
             QueryEditSupport.save(db,composite.editing().target(),composite.rows().get(1),2,"only second");
             equal("a",session.execute("SELECT payload FROM pairs WHERE a=1 AND b=1",10).rows().get(0).get(0));

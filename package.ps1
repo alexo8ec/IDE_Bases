@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: editores completos para TEXT/XML/JSON, calendario para fechas y horas, paginacion compacta y mas espacio al retirar la barra inferior global. Conserva licencias, conexiones y preferencias."
+    notes = "AdisDB ${version}: permite editar resultados con JOIN eligiendo la tabla de destino y guarda automaticamente una fila modificada al pasar a otra. Valida claves primarias y conserva los cambios pendientes si el servidor rechaza la escritura."
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\AdisDB.exe"

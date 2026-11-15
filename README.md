@@ -1,6 +1,12 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.5**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.7**.
+La versión actual de escritorio es **0.18.6**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.7**.
+
+## Edición segura de consultas JOIN y guardado por fila — 0.18.6
+
+Los resultados de consultas con `JOIN` ya no quedan forzosamente en solo lectura. El selector de modo muestra cada tabla física que puede modificarse; al elegir una, AdisDB habilita exclusivamente sus columnas y usa su clave primaria completa para identificar la fila. Las tablas sin clave primaria proyectada no se ofrecen, las columnas calculadas siguen protegidas y las escrituras continúan usando parámetros y control de cambios concurrentes.
+
+Al terminar una edición y pasar a otra fila, la fila anterior se guarda automáticamente. Si el servidor rechaza el cambio, el valor permanece marcado como pendiente para corregirlo o descartarlo. **Guardar** continúa disponible para cambios masivos, inserciones y eliminaciones.
 
 ## Editores completos de valores y espacio de trabajo compacto — 0.18.5
 

@@ -13,10 +13,13 @@ public final class ResultTableModel extends AbstractTableModel {
     private final List<List<Object>> rows=new ArrayList<>();
     private final Map<Integer,Map<Integer,Object>> pending=new LinkedHashMap<>();
     private final Set<Integer> deleted=new TreeSet<>();
+    private QueryEditSupport.Target target;
     private boolean editable;
     private Runnable changed=()->{};
 
-    public void setResult(QueryResult result){this.result=result;rows.clear();pending.clear();deleted.clear();for(var row:result.rows())rows.add(new ArrayList<>(row));editable=false;fireTableStructureChanged();}
+    public void setResult(QueryResult result){this.result=result;target=result.editing()==null?null:result.editing().target();rows.clear();pending.clear();deleted.clear();for(var row:result.rows())rows.add(new ArrayList<>(row));editable=false;fireTableStructureChanged();}
+    public void setTarget(QueryEditSupport.Target target){this.target=target;fireTableDataChanged();changed.run();}
+    public QueryEditSupport.Target target(){return target;}
     public void onChange(Runnable changed){this.changed=changed;}
     public void setEditable(boolean editable){this.editable=editable;}
     public boolean isNewRow(int row){return row>=result.rows().size();}
@@ -31,15 +34,16 @@ public final class ResultTableModel extends AbstractTableModel {
         for(int row=result.rows().size();row<rows.size();row++)changes.add(new QueryEditSupport.RowChange(row,rows.get(row),pending.getOrDefault(row,Map.of()),INSERT));
         return changes;
     }
+    public List<QueryEditSupport.RowChange> changesForRow(int row){return changes().stream().filter(change->change.row()==row&&change.kind()==UPDATE).toList();}
     public void accept(List<QueryEditSupport.RowChange> saved){
         List<List<Object>> originals=new ArrayList<>(result.rows());
-        for(var row:saved){if(row.kind()!=UPDATE)throw new IllegalArgumentException("Row mutations require a refreshed result");List<Object> original=new ArrayList<>(originals.get(row.row()));for(var cell:row.values().entrySet()){rows.get(row.row()).set(cell.getKey(),cell.getValue());original.set(cell.getKey(),cell.getValue());}originals.set(row.row(),original);}
-        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes());pending.clear();deleted.clear();fireTableDataChanged();changed.run();
+        for(var row:saved){if(row.kind()!=UPDATE)throw new IllegalArgumentException("Row mutations require a refreshed result");List<Object> original=new ArrayList<>(originals.get(row.row()));for(var cell:row.values().entrySet()){rows.get(row.row()).set(cell.getKey(),cell.getValue());original.set(cell.getKey(),cell.getValue());}originals.set(row.row(),original);pending.remove(row.row());deleted.remove(row.row());}
+        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes());fireTableDataChanged();changed.run();
     }
     public int insertRow(Integer duplicate){
-        if(!editable||result.editing()==null||result.editing().target()==null)return -1;
+        if(!editable||target==null)return -1;
         int row=rows.size();List<Object> values=new ArrayList<>(Collections.nCopies(getColumnCount(),INSTANCE));
-        if(duplicate!=null){var target=result.editing().target();for(int column=0;column<getColumnCount();column++)if(target.columns().get(column).writable()&&!target.keys().contains(column))values.set(column,rows.get(duplicate).get(column));}
+        if(duplicate!=null)for(int column=0;column<getColumnCount();column++)if(target.columns().get(column).writable()&&!target.keys().contains(column))values.set(column,rows.get(duplicate).get(column));
         rows.add(values);for(int column=0;column<getColumnCount();column++)if(values.get(column)!=INSTANCE)pending.computeIfAbsent(row,key->new LinkedHashMap<>()).put(column,values.get(column));
         fireTableRowsInserted(row,row);changed.run();return row;
     }
@@ -61,7 +65,7 @@ public final class ResultTableModel extends AbstractTableModel {
     }
     public int getRowCount(){return rows.size();}public int getColumnCount(){return result.columns().size();}public String getColumnName(int column){return result.columns().get(column);}
     public Object getValueAt(int row,int column){return rows.get(row).get(column);}
-    public boolean isCellEditable(int row,int column){return editable&&!deleted.contains(row)&&result.editing()!=null&&result.editing().target()!=null&&result.editing().target().columns().get(column).writable();}
+    public boolean isCellEditable(int row,int column){return editable&&!deleted.contains(row)&&target!=null&&target.columns().get(column).writable();}
     public void setValueAt(Object value,int row,int column){if(isCellEditable(row,column)&&!Objects.equals(value,rows.get(row).get(column))){stage(value,row,column);fireTableCellUpdated(row,column);changed.run();}}
     public void setValues(List<Integer> rowIndexes,List<Integer> columnIndexes,Object value){for(int row:rowIndexes)for(int column:columnIndexes)if(isCellEditable(row,column))stage(value,row,column);fireTableDataChanged();changed.run();}
     private void stage(Object value,int row,int column){

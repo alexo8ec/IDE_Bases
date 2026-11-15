@@ -14,7 +14,12 @@ public final class QueryEditSupport {
     public record Target(String qualifiedTable, List<Column> columns, List<Integer> keys, SchemaItem table, DatabaseType type) {
         public Target { columns=List.copyOf(columns); keys=List.copyOf(keys); }
     }
-    public record Eligibility(Target target, String reason) {}
+    public record Eligibility(Target target, String reason, List<Target> targets) {
+        public Eligibility {
+            targets=targets==null?(target==null?List.of():List.of(target)):List.copyOf(targets);
+        }
+        public Eligibility(Target target,String reason){this(target,reason,target==null?List.of():List.of(target));}
+    }
     static record Token(String value, boolean identifier, int start, int end) {
         boolean keyword(String word) { return !identifier && value.equalsIgnoreCase(word); }
         boolean name() { return identifier || value.matches("[\\p{L}_$][\\p{L}\\p{N}_$]*"); }
@@ -24,67 +29,74 @@ public final class QueryEditSupport {
 
     public static Eligibility describe(Connection connection, DatabaseType type, String sql, ResultSetMetaData result) {
         try {
-            if (!simpleSelect(sql)) return denied("La edición requiere un SELECT de una sola tabla, sin columnas calculadas, agrupaciones ni uniones.");
+            if (!editableSelect(sql)) return denied("La edición requiere un SELECT sin columnas calculadas, agrupaciones, subconsultas ni uniones de resultados.");
             int count=result.getColumnCount();
-            String table="",catalog="",schema="";
+            Map<TableOrigin,List<Integer>> origins=new LinkedHashMap<>();
             for(int i=1;i<=count;i++) {
-                String name=clean(result.getTableName(i));
-                if(name.isEmpty()) return denied("El controlador no identifica la tabla de origen de estas columnas.");
-                String cat=clean(result.getCatalogName(i)), sch=clean(result.getSchemaName(i));
-                if(i==1) { table=name;catalog=cat;schema=sch; }
-                else if(!table.equals(name)||!catalog.equals(cat)||!schema.equals(sch))
-                    return denied("La edición requiere columnas de una sola tabla.");
+                String table=clean(result.getTableName(i));
+                if(table.isEmpty()) return denied("El controlador no identifica la tabla de origen de una o más columnas calculadas.");
+                String catalog=clean(result.getCatalogName(i)),schema=clean(result.getSchemaName(i));
+                if(catalog.isEmpty())catalog=clean(connection.getCatalog());
+                if(schema.isEmpty()&&type!=DatabaseType.MYSQL&&type!=DatabaseType.MARIADB&&type!=DatabaseType.SQLITE)schema=clean(connection.getSchema());
+                origins.computeIfAbsent(new TableOrigin(catalog,schema,table),key->new ArrayList<>()).add(i-1);
             }
-            if(table.isEmpty()) return denied("El resultado no contiene una tabla editable.");
-            // Capture the actual namespace now, so changing the active database cannot redirect an edit.
-            if(catalog.isEmpty()) catalog=clean(connection.getCatalog());
-            if(schema.isEmpty() && type!=DatabaseType.MYSQL && type!=DatabaseType.MARIADB && type!=DatabaseType.SQLITE)
-                schema=clean(connection.getSchema());
+            if(origins.isEmpty())return denied("El resultado no contiene una tabla editable.");
             DatabaseMetaData metadata=connection.getMetaData();
             String escape=clean(metadata.getSearchStringEscape());
-            boolean baseTable=false;
-            try(ResultSet tables=metadata.getTables(empty(catalog),empty(pattern(schema,escape)),pattern(table,escape),new String[]{"TABLE"})) {
-                while(tables.next()) if(table.equals(tables.getString("TABLE_NAME"))) baseTable=true;
-            }
-            if(!baseTable) return denied("La edición requiere una tabla física con clave primaria.");
-            Set<String> actual=new HashSet<>(), generated=new HashSet<>();
-            try(ResultSet columns=metadata.getColumns(empty(catalog),empty(pattern(schema,escape)),pattern(table,escape),"%")) {
-                while(columns.next()) {
-                    String name=columns.getString("COLUMN_NAME");actual.add(name);
-                    try { if("YES".equalsIgnoreCase(columns.getString("IS_GENERATEDCOLUMN"))) generated.add(name); }catch(SQLException ignored) {}
-                }
-            }
-            List<Column> columns=new ArrayList<>();Map<String,Integer> indexes=new HashMap<>();
-            for(int i=1;i<=count;i++) {
-                String name=clean(result.getColumnName(i));int jdbcType=result.getColumnType(i);
-                if(!actual.contains(name)) return denied("El controlador no identifica las columnas originales de esta consulta.");
-                if(indexes.put(name,i-1)!=null) return denied("La consulta contiene columnas repetidas. Selecciona cada columna una sola vez.");
-                columns.add(new Column(name,jdbcType,!generated.contains(name)&&supported(jdbcType)));
-            }
-            SortedMap<Integer,String> primary=new TreeMap<>();
-            try(ResultSet keys=metadata.getPrimaryKeys(empty(catalog),empty(schema),table)) {
-                while(keys.next()) primary.put(keys.getInt("KEY_SEQ"),keys.getString("COLUMN_NAME"));
-            }
-            if(primary.isEmpty()) return denied("La tabla no tiene clave primaria; el resultado permanece en solo lectura.");
-            List<Integer> keys=new ArrayList<>();
-            for(String name:primary.values()) {
-                Integer index=indexes.get(name);
-                if(index==null || !supported(columns.get(index).type())) return denied("Incluye todas las columnas de la clave primaria en el SELECT para editar sus resultados.");
-                keys.add(index);
-            }
             String quote=clean(metadata.getIdentifierQuoteString());
-            List<String> parts=new ArrayList<>();
-            if(type==DatabaseType.MYSQL || type==DatabaseType.MARIADB) { if(!catalog.isEmpty()) parts.add(quoted(catalog,quote)); }
-            else if(type==DatabaseType.SQLSERVER) { if(!catalog.isEmpty())parts.add(quoted(catalog,quote));if(!schema.isEmpty())parts.add(quoted(schema,quote)); }
-            else if(!schema.isEmpty()) parts.add(quoted(schema,quote));
-            parts.add(quoted(table,quote));
-            // Store names already quoted; user data is always bound as parameters.
-            List<Column> quotedColumns=columns.stream().map(c->new Column(quoted(c.name(),quote),c.type(),c.writable(),c.name())).toList();
-            return new Eligibility(new Target(String.join(".",parts),quotedColumns,keys,new SchemaItem(SchemaItem.Kind.TABLE,empty(catalog),empty(schema),table,""),type),"");
+            List<Target> targets=new ArrayList<>();
+            for(TableOrigin origin:origins.keySet()) {
+                Target target=target(metadata,result,type,origin,count,escape,quote);
+                if(target!=null)targets.add(target);
+            }
+            if(targets.isEmpty())return denied(origins.size()>1
+                    ?"Para editar un JOIN, incluye en el SELECT la clave primaria completa de la tabla que deseas modificar."
+                    :"La tabla no tiene una clave primaria completa en el resultado; permanece en solo lectura.");
+            return new Eligibility(targets.get(0),"",targets);
         }catch(SQLException|RuntimeException error) {
             return denied("No se pudo identificar una clave primaria editable para este resultado.");
         }
     }
+
+    private record TableOrigin(String catalog,String schema,String table) {}
+    private static Target target(DatabaseMetaData metadata,ResultSetMetaData result,DatabaseType type,TableOrigin origin,int count,String escape,String quote)throws SQLException {
+        boolean baseTable=false;
+        try(ResultSet tables=metadata.getTables(empty(origin.catalog()),empty(pattern(origin.schema(),escape)),pattern(origin.table(),escape),new String[]{"TABLE"})) {
+            while(tables.next())if(origin.table().equalsIgnoreCase(clean(tables.getString("TABLE_NAME"))))baseTable=true;
+        }
+        if(!baseTable)return null;
+        Map<String,String> actual=new TreeMap<>(String.CASE_INSENSITIVE_ORDER);Set<String> generated=new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        try(ResultSet columns=metadata.getColumns(empty(origin.catalog()),empty(pattern(origin.schema(),escape)),pattern(origin.table(),escape),"%")) {
+            while(columns.next()) {
+                String name=columns.getString("COLUMN_NAME");actual.put(name,name);
+                try{if("YES".equalsIgnoreCase(columns.getString("IS_GENERATEDCOLUMN")))generated.add(name);}catch(SQLException ignored){}
+            }
+        }
+        List<Column> columns=new ArrayList<>();Map<String,Integer> indexes=new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for(int i=1;i<=count;i++) {
+            String source=clean(result.getColumnName(i));int jdbcType=result.getColumnType(i);
+            boolean belongs=origin.table().equalsIgnoreCase(clean(result.getTableName(i)))
+                    && namespaceMatches(origin.catalog(),clean(result.getCatalogName(i)))
+                    && namespaceMatches(origin.schema(),clean(result.getSchemaName(i)));
+            String real=actual.get(source);boolean writable=belongs&&real!=null&&!generated.contains(real)&&supported(jdbcType);
+            if(belongs&&real!=null&&indexes.put(real,i-1)!=null)return null;
+            columns.add(new Column(quoted(real==null?source:real,quote),jdbcType,writable,real==null?source:real));
+        }
+        SortedMap<Integer,String> primary=new TreeMap<>();
+        try(ResultSet keys=metadata.getPrimaryKeys(empty(origin.catalog()),empty(origin.schema()),origin.table())) {
+            while(keys.next())primary.put(keys.getInt("KEY_SEQ"),keys.getString("COLUMN_NAME"));
+        }
+        if(primary.isEmpty())return null;
+        List<Integer> keys=new ArrayList<>();
+        for(String name:primary.values()) {Integer index=indexes.get(name);if(index==null||!supported(columns.get(index).type()))return null;keys.add(index);}
+        List<String> parts=new ArrayList<>();
+        if(type==DatabaseType.MYSQL||type==DatabaseType.MARIADB){if(!origin.catalog().isEmpty())parts.add(quoted(origin.catalog(),quote));}
+        else if(type==DatabaseType.SQLSERVER){if(!origin.catalog().isEmpty())parts.add(quoted(origin.catalog(),quote));if(!origin.schema().isEmpty())parts.add(quoted(origin.schema(),quote));}
+        else if(!origin.schema().isEmpty())parts.add(quoted(origin.schema(),quote));
+        parts.add(quoted(origin.table(),quote));
+        return new Target(String.join(".",parts),columns,keys,new SchemaItem(SchemaItem.Kind.TABLE,empty(origin.catalog()),empty(origin.schema()),origin.table(),""),type);
+    }
+    private static boolean namespaceMatches(String resolved,String reported){return reported.isEmpty()||resolved.equalsIgnoreCase(reported);}
 
     public record Saved(Object value, boolean pendingCommit) {}
     public enum DefaultValue { INSTANCE; @Override public String toString(){return "(DEFAULT)";} }
@@ -230,6 +242,34 @@ public final class QueryEditSupport {
     private static String pattern(String value,String escape){return escape.isEmpty()?value:value.replace(escape,escape+escape).replace("_",escape+"_").replace("%",escape+"%");}
     private static String quoted(String name,String quote){quote=quote.trim();return quote.isEmpty()?name:quote+name.replace(quote,quote+quote)+quote;}
 
+    /** Allows ordinary JOINs while rejecting result shapes whose rows cannot be mapped safely. */
+    static boolean editableSelect(String sql) {
+        List<Token> tokens=tokenize(sql);if(tokens.isEmpty()||!tokens.get(0).keyword("SELECT"))return false;
+        int from=-1;
+        for(int i=1;i<tokens.size();i++) {
+            Token token=tokens.get(i);
+            if(token.keyword("SELECT")||token.keyword("UNION")||token.keyword("INTERSECT")||token.keyword("EXCEPT")
+                    ||token.keyword("GROUP")||token.keyword("HAVING")||token.keyword("DISTINCT")||token.keyword("INTO")||token.keyword("OVER"))return false;
+            if(token.keyword("FROM")){if(from!=-1)return false;from=i;}
+            if(token.value().equals(";")&&i!=tokens.size()-1)return false;
+        }
+        if(from<2||from+1>=tokens.size())return false;
+        int index=1;
+        while(index<from) {
+            if(!tokens.get(index).name()&&!tokens.get(index).value().equals("*"))return false;
+            boolean star=tokens.get(index++).value().equals("*");
+            while(index<from&&tokens.get(index).value().equals(".")) {
+                if(star||++index>=from||(!tokens.get(index).name()&&!tokens.get(index).value().equals("*")))return false;
+                star=tokens.get(index++).value().equals("*");
+            }
+            if(index<from&&tokens.get(index).keyword("AS")){if(star||++index>=from||!tokens.get(index++).name())return false;}
+            else if(index<from&&tokens.get(index).name()){if(star)return false;index++;}
+            if(index==from)break;
+            if(!tokens.get(index++).value().equals(",")||index==from)return false;
+        }
+        return true;
+    }
+
     /** Conservative SELECT shape check; WHERE/ORDER/LIMIT expressions are permitted. */
     static boolean simpleSelect(String sql) {
         List<Token> tokens=tokenize(sql);if(tokens.isEmpty()||!tokens.get(0).keyword("SELECT"))return false;
@@ -264,6 +304,9 @@ public final class QueryEditSupport {
     }
     private static boolean clause(Token token){return token.keyword("WHERE")||token.keyword("ORDER")||token.keyword("LIMIT")||token.keyword("OFFSET")||token.keyword("FETCH")||token.keyword("FOR");}
     public static String qualifiedSelect(String sql,Target target) {
+        // JOIN queries already carry their complete FROM clause. Replacing its first table with
+        // the selected edit target would change the meaning of the query.
+        if(!simpleSelect(sql))return sql;
         List<Token> tokens=tokenize(sql);
         for(int i=0;i<tokens.size();i++)if(tokens.get(i).keyword("FROM")) {
             int first=i+1,last=first;
