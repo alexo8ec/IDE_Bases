@@ -11,16 +11,16 @@ import static com.nexodb.util.I18n.tr;
 public final class StoredObjectEditorPanel extends JPanel {
     private final JdbcSession session;private final SchemaItem item;private StoredObjectService.Definition original;
     private final SqlEditorPane editor=new SqlEditorPane();private final JLabel status=new JLabel(" ");
-    private final JButton apply=UiLanguage.button("Guardar y aplicar"),export=UiLanguage.button("Exportar definición…");
+    private final JButton apply=UiLanguage.button("Guardar y aplicar"),format=UiLanguage.button("Formatear SQL"),export=UiLanguage.button("Exportar definición…");
     private String saved;private boolean busy;private final Consumer<JdbcSession> changed;
     private final JPanel footer=new JPanel(new BorderLayout());
     private java.util.function.BiPredicate<String,String> confirm=(title,text)->Confirmations.ask(this,title,text);
     public StoredObjectEditorPanel(JdbcSession session,SchemaItem item,StoredObjectService.Definition original,Consumer<JdbcSession> changed){
         super(new BorderLayout(6,6));this.session=session;this.item=item;this.original=original;this.changed=changed;
-        setName("stored-object-editor");setBorder(BorderFactory.createEmptyBorder(8,8,8,8));saved=StoredProgramScript.editor(item,original==null?StoredObjectService.template(item):original.sql(),original!=null);editor.restoreText(saved);editor.setFont(new Font(Font.MONOSPACED,Font.PLAIN,14));
-        JPanel top=new JPanel(new BorderLayout(6,6));top.add(new JLabel(item.kind()+" · "+StoredObjectService.qualified(item)),BorderLayout.NORTH);JPanel bar=new JPanel(new FlowLayout(FlowLayout.LEFT));bar.add(apply);bar.add(export);top.add(bar);JTextArea note=new JTextArea(original==null?tr("Completa la definición y pulsa Guardar y aplicar. Se enviará todo el cuerpo como una única sentencia."):StoredObjectService.replacementNote(item.kind()));note.setEditable(false);note.setOpaque(false);note.setLineWrap(true);note.setWrapStyleWord(true);note.setRows(2);top.add(note,BorderLayout.SOUTH);add(top,BorderLayout.NORTH);
+        setName("stored-object-editor");setBorder(BorderFactory.createEmptyBorder(8,8,8,8));saved=StoredProgramScript.editor(item,original==null?StoredObjectService.template(item):original.sql(),original!=null);editor.setDialect(session.profile().type());editor.restoreText(saved);editor.setFont(new Font(Font.MONOSPACED,Font.PLAIN,14));
+        JPanel top=new JPanel(new BorderLayout(6,6));top.add(new JLabel(item.kind()+" · "+StoredObjectService.qualified(item)),BorderLayout.NORTH);JPanel bar=new JPanel(new FlowLayout(FlowLayout.LEFT));format.setIcon(IconFactory.of(IconFactory.Kind.FORMAT,16));UiLanguage.tooltip(format,UiLanguage.key("Formatear SQL (Ctrl+Shift+F)"));bar.add(apply);bar.add(format);bar.add(export);top.add(bar);JTextArea note=new JTextArea(original==null?tr("Completa la definición y pulsa Guardar y aplicar. Se enviará todo el cuerpo como una única sentencia."):StoredObjectService.replacementNote(item.kind()));note.setEditable(false);note.setOpaque(false);note.setLineWrap(true);note.setWrapStyleWord(true);note.setRows(2);top.add(note,BorderLayout.SOUTH);add(top,BorderLayout.NORTH);
         JScrollPane scroll=new JScrollPane(editor);scroll.setRowHeaderView(new SqlLineNumbers(editor));add(scroll);footer.add(status,BorderLayout.NORTH);add(footer,BorderLayout.SOUTH);
-        apply.setEnabled(!session.profile().readOnly());apply.addActionListener(e->save());export.addActionListener(e->export());
+        apply.setEnabled(!session.profile().readOnly());apply.addActionListener(e->save());format.addActionListener(e->editor.formatSql());export.addActionListener(e->export());
         editor.getInputMap().put(KeyStroke.getKeyStroke("control S"),"save-object");editor.getActionMap().put("save-object",new AbstractAction(){public void actionPerformed(java.awt.event.ActionEvent e){save();}});
     }
     private void save(){

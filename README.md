@@ -1,6 +1,6 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.6**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.7**.
+La versión actual de escritorio es **0.18.11**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.8**.
 
 ## Edición segura de consultas JOIN y guardado por fila — 0.18.6
 

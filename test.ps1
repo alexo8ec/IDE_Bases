@@ -18,6 +18,8 @@ $testClasspath = "$testRoot;$mainClasspath"
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diagnostico de planes fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.SqlTextTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.util.SqlFormatterTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del formateador SQL fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.CoreTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del nucleo fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.JdbcSessionTest

@@ -7,6 +7,8 @@ import javax.swing.text.*;
 import javax.swing.undo.*;
 import java.awt.event.*;
 import java.awt.*;
+import com.nexodb.model.DatabaseType;
+import com.nexodb.util.SqlFormatter;
 import com.nexodb.util.SqlVocabulary;
 import java.util.Locale;
 import java.util.Set;
@@ -20,8 +22,10 @@ public final class SqlEditorPane extends JTextPane {
     public void goToError(int line,int column){var root=getDocument().getDefaultRootElement();var element=root.getElement(Math.max(0,Math.min(root.getElementCount()-1,line-1)));setCaretPosition(Math.max(element.getStartOffset(),Math.min(getDocument().getLength(),Math.min(element.getEndOffset()-1,element.getStartOffset()+Math.max(0,column-1)))));requestFocusInWindow();try{var rect=modelToView2D(getCaretPosition());if(rect!=null)scrollRectToVisible(rect.getBounds());}catch(BadLocationException ignored){}}
     @Override public String getToolTipText(MouseEvent event){int at=viewToModel2D(event.getPoint());String error=errors.get(getDocument().getDefaultRootElement().getElementIndex(at)+1);return error==null?super.getToolTipText(event):error;}
     private Set<String> keywords = SqlVocabulary.base();
+    private DatabaseType dialect = DatabaseType.GENERIC;
 
     public void setKeywords(Set<String> words) { keywords=Set.copyOf(words);highlightTimer.restart(); }
+    public void setDialect(DatabaseType value) { dialect=value==null?DatabaseType.GENERIC:value; }
 
     private final Style defaultStyle;
     private final Style keywordStyle;
@@ -75,6 +79,8 @@ public final class SqlEditorPane extends JTextPane {
         });
         bindUndo(KeyEvent.CTRL_DOWN_MASK);
         if(!GraphicsEnvironment.isHeadless())bindUndo(Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+        bindFormat(KeyEvent.CTRL_DOWN_MASK);
+        if(!GraphicsEnvironment.isHeadless())bindFormat(Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
         updatePalette();
     }
     private void bindUndo(int mask){
@@ -83,6 +89,28 @@ public final class SqlEditorPane extends JTextPane {
         getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_Z,mask|KeyEvent.SHIFT_DOWN_MASK),"sql-redo");
         getActionMap().put("sql-undo",new AbstractAction(){public void actionPerformed(ActionEvent e){undoEdit();}});
         getActionMap().put("sql-redo",new AbstractAction(){public void actionPerformed(ActionEvent e){redoEdit();}});
+    }
+    private void bindFormat(int mask){
+        getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_F,mask|KeyEvent.SHIFT_DOWN_MASK),"format-sql");
+        getActionMap().put("format-sql",new AbstractAction(){public void actionPerformed(ActionEvent e){formatSql();}});
+    }
+
+    /** Formats the selection when complete, otherwise the whole document, as one undoable edit. */
+    public boolean formatSql(){
+        if(!isEditable())return false;
+        int start=getSelectionStart(),end=getSelectionEnd();boolean selection=end>start;
+        String original=selection?getSelectedText():getText();
+        String formatted=selection?SqlFormatter.formatSelection(original,dialect):SqlFormatter.format(original,dialect);
+        if(formatted==null||formatted.equals(original))return false;
+        int replaceStart=selection?start:0,replaceEnd=selection?end:getDocument().getLength();
+        editAtomically(()->{
+            select(replaceStart,replaceEnd);
+            replaceSelection(formatted);
+            if(selection)select(replaceStart,replaceStart+formatted.length());
+            else setCaretPosition(Math.min(replaceStart+formatted.length(),getDocument().getLength()));
+        });
+        highlightTimer.restart();
+        return true;
     }
     public void onUndoStateChanged(Runnable listener){undoStateChanged=listener==null?()->{}:listener;}
     public boolean canUndoEdit(){return undo.canUndo();}

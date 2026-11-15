@@ -155,7 +155,7 @@ public final class QueryPanel extends JPanel {
         return text;
     }
     private SqlEditorPane addQuery(String sql){
-        SqlEditorPane pane=new SqlEditorPane();configureEditor(pane);pane.setKeywords(sqlKeywords);pane.restoreText(sql);
+        SqlEditorPane pane=new SqlEditorPane();configureEditor(pane);pane.setKeywords(sqlKeywords);pane.setDialect(session==null?com.nexodb.model.DatabaseType.GENERIC:session.profile().type());pane.restoreText(sql);
         queryEditors.add(pane);JScrollPane scroll=new JScrollPane(pane);scroll.setRowHeaderView(new SqlLineNumbers(pane));int number=++querySequence;
         DocumentState info=new DocumentState();info.number=number;documents.put(pane,info);
         UiLanguage.addTab(queryTabs,new Object[]{UiLanguage.key("Consulta")," ",number},IconFactory.of(IconFactory.Kind.SQL,14),scroll);
@@ -208,7 +208,7 @@ public final class QueryPanel extends JPanel {
             if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && panel.isShowing()) panel.finishEditing();
         this.session = session;
         readOnly.setSelected(true);
-        sqlKeywords=SqlVocabulary.base();for(SqlEditorPane pane:queryEditors)pane.setKeywords(sqlKeywords);
+        sqlKeywords=SqlVocabulary.base();for(SqlEditorPane pane:queryEditors){pane.setKeywords(sqlKeywords);pane.setDialect(session==null?com.nexodb.model.DatabaseType.GENERIC:session.profile().type());}
         completionGeneration++;completionCatalogGeneration++;
         if(columnWorker!=null)columnWorker.cancel(true);
         columnCompletion=session==null?null:new SqlColumnCompletion(session);
@@ -378,7 +378,6 @@ public final class QueryPanel extends JPanel {
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK),"save-sql-as");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_O,KeyEvent.CTRL_DOWN_MASK),"open-sql");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_E,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK),"export-csv");
-        input.put(KeyStroke.getKeyStroke(KeyEvent.VK_F,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK),"format-sql");
         actions.put("save-sql",new AbstractAction(){public void actionPerformed(ActionEvent e){saveSqlFile(false);}});
         actions.put("save-sql-as",new AbstractAction(){public void actionPerformed(ActionEvent e){saveSqlFile(true);}});
         actions.put("open-sql",new AbstractAction(){public void actionPerformed(ActionEvent e){openSqlFile();}});
@@ -386,7 +385,6 @@ public final class QueryPanel extends JPanel {
         actions.put("execute-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { executeSql(); }});
         actions.put("cancel-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { dismissCompletionOrCancelSql(); }});
         actions.put("export-csv", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { exportData(); }});
-        actions.put("format-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { formatSql(); }});
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, KeyEvent.CTRL_DOWN_MASK), "show-completions");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), "completion-down");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), "completion-up");
@@ -488,16 +486,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void formatSql() {
-        if (editor == null) return;
-        String text = editor.getText();
-        if (text.isBlank()) return;
-        String formatted = com.nexodb.util.SqlFormatter.format(text);
-        if (!formatted.equals(text)) {
-            editor.editAtomically(() -> {
-                editor.setText(formatted);
-                editor.setCaretPosition(0);
-            });
-        }
+        if (editor != null) editor.formatSql();
     }
 
     private void styleAction(AbstractButton button, IconFactory.Kind icon, String tooltip) {
