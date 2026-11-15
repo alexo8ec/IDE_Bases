@@ -45,6 +45,8 @@ public final class SqlEditorPane extends JTextPane {
         StyleConstants.setFontFamily(defaultStyle,Font.MONOSPACED);
         StyleConstants.setFontSize(defaultStyle,14);
         StyleConstants.setForeground(defaultStyle, new Color(0x172033));
+        StyleConstants.setBold(defaultStyle, false);
+        StyleConstants.setItalic(defaultStyle, false);
         keywordStyle = addStyle("keyword", defaultStyle);
         StyleConstants.setForeground(keywordStyle, new Color(0x155EEF));
         StyleConstants.setBold(keywordStyle, true);
