@@ -1,5 +1,8 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$javacCommand = Get-Command javac -ErrorAction Stop
+$jdkBin = Split-Path -Parent $javacCommand.Source
+$env:PATH = "$jdkBin;$env:PATH"
 & (Join-Path $projectRoot 'build.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $testRoot = Join-Path $projectRoot 'build\test-classes'
@@ -47,6 +50,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diseno de tablas fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de seleccion de bases PostgreSQL fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.CompletionInteractionTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de autocompletado fallo.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ResultCellEditorDialogTest
+if ($LASTEXITCODE -ne 0) { throw 'La prueba de editores de resultados fallo.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.ZeroDateTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de fechas cero fallo.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.SecretStoreTest
@@ -98,6 +103,8 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de paginacion fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.QueryPagingUiTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de controles de paginacion fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ResultCellMetadataIntegrationTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de metadatos para editores de resultados fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.QueryPlanTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del plan de ejecucion fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ExecutionPlanPanelTest

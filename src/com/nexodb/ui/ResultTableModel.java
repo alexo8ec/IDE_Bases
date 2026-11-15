@@ -34,7 +34,7 @@ public final class ResultTableModel extends AbstractTableModel {
     public void accept(List<QueryEditSupport.RowChange> saved){
         List<List<Object>> originals=new ArrayList<>(result.rows());
         for(var row:saved){if(row.kind()!=UPDATE)throw new IllegalArgumentException("Row mutations require a refreshed result");List<Object> original=new ArrayList<>(originals.get(row.row()));for(var cell:row.values().entrySet()){rows.get(row.row()).set(cell.getKey(),cell.getValue());original.set(cell.getKey(),cell.getValue());}originals.set(row.row(),original);}
-        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins());pending.clear();deleted.clear();fireTableDataChanged();changed.run();
+        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes());pending.clear();deleted.clear();fireTableDataChanged();changed.run();
     }
     public int insertRow(Integer duplicate){
         if(!editable||result.editing()==null||result.editing().target()==null)return -1;
@@ -53,7 +53,8 @@ public final class ResultTableModel extends AbstractTableModel {
         fireTableDataChanged();changed.run();
     }
     public void discard(){rows.clear();for(var row:result.rows())rows.add(new ArrayList<>(row));pending.clear();deleted.clear();fireTableDataChanged();changed.run();}
-    public QueryResult snapshot(){List<List<Object>> copy=rows.stream().map(row->(List<Object>)new ArrayList<>(row)).toList();return new QueryResult(result.columns(),copy,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins());}
+    public QueryResult snapshot(){List<List<Object>> copy=rows.stream().map(row->(List<Object>)new ArrayList<>(row)).toList();return new QueryResult(result.columns(),copy,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes());}
+    public int jdbcType(int column){return column>=0&&column<result.jdbcTypes().size()?result.jdbcTypes().get(column):java.sql.Types.OTHER;}
     public void setReference(int row,Map<Integer,Object> values){
         if(values.isEmpty()||values.keySet().stream().anyMatch(column->column<0||column>=getColumnCount()||!isCellEditable(row,column)))throw new IllegalStateException(tr("La referencia completa no se puede editar en este resultado."));
         values.forEach((column,value)->stage(value,row,column));fireTableRowsUpdated(row,row);changed.run();

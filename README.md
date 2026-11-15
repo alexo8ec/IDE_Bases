@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.4**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.7**.
+La versión actual de escritorio es **0.18.5**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.7**.
+
+## Editores completos de valores y espacio de trabajo compacto — 0.18.5
+
+Al hacer doble clic sobre una columna `TEXT`, `LONGTEXT`, `CLOB`, XML, JSON o un texto largo se abre una ventana amplia con todo el contenido, contador de caracteres, copia completa y carga/guardado UTF-8. En modo de edición el valor queda como cambio pendiente y solo se envía a la base al pulsar **Guardar**; en solo lectura el diálogo permite inspeccionar y copiar sin modificar datos. Los CLOB ya no se recortan a 10.000 caracteres.
+
+Las columnas `DATE`, `TIME`, `DATETIME` y `TIMESTAMP` abren un selector con calendario, hora hasta segundos, acción **Ahora** y opción para establecer `NULL`. Los tipos JDBC se conservan desde el resultado para que los editores funcionen también al visualizar datos sin habilitar cambios.
+
+La paginación usa flechas compactas en lugar de los textos Anterior/Siguiente. Se retiró la barra inferior global de sentencias y versión para entregar más altura a las cuadrículas; el progreso de operaciones permanece visible en la barra superior y los estados propios continúan dentro de cada pestaña.
 
 ## Vicky integrada en el asistente SQL — 0.18.3
 

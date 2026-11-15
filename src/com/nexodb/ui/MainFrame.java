@@ -139,21 +139,6 @@ public final class MainFrame extends JFrame {
         split.setResizeWeight(0.0);
         root.add(split, BorderLayout.CENTER);
 
-        JPanel statusBar = new JPanel(new BorderLayout());
-        statusBar.setBorder(new EmptyBorder(7, 12, 7, 12));
-        status.setIcon(IconFactory.of(IconFactory.Kind.INFO, 15));
-        status.setIconTextGap(7);
-        statusBar.add(status, BorderLayout.WEST);
-        busyBar.setIndeterminate(true);
-        busyBar.setPreferredSize(new Dimension(190, 15));
-        busyBar.setVisible(false);
-        JPanel progressHolder = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        progressHolder.add(busyBar);
-        statusBar.add(progressHolder, BorderLayout.CENTER);
-        JLabel version = new JLabel("AdisDB · AdisOne  " + UpdateService.CURRENT_VERSION);version.setName("product-brand");
-        version.setForeground(UIManager.getColor("Label.disabledForeground"));
-        statusBar.add(version, BorderLayout.EAST);
-        root.add(statusBar, BorderLayout.SOUTH);
         return root;
     }
 
@@ -180,6 +165,12 @@ public final class MainFrame extends JFrame {
         toolbar.add(refreshButton);
         toolbar.addSeparator();
         toolbar.add(compareButton);
+        toolbar.add(Box.createHorizontalGlue());
+        busyBar.setIndeterminate(true);
+        busyBar.setPreferredSize(new Dimension(150, 14));
+        busyBar.setMaximumSize(new Dimension(150, 14));
+        busyBar.setVisible(false);
+        toolbar.add(busyBar);
         return toolbar;
     }
 

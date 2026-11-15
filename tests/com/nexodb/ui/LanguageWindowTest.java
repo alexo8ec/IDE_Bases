@@ -28,6 +28,7 @@ public final class LanguageWindowTest {
                 ConnectionDialog dialog = new ConnectionDialog(frame, null);
                 try {
                     frame.setSize(1280, 780); frame.addNotify(); frame.validate();
+                    if(((BorderLayout)frame.getContentPane().getLayout()).getLayoutComponent(BorderLayout.SOUTH)!=null)throw new AssertionError("The global bottom status bar must remain hidden");
                     dialog.addNotify(); dialog.validate();
                     QueryPanel query = field(frame, "queryPanel", QueryPanel.class);
                     SqlEditorPane editor = field(query, "editor", SqlEditorPane.class);
