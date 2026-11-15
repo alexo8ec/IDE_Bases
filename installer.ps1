@@ -1,5 +1,5 @@
 param(
-    [string]$DownloadBaseUrl = '',
+    [string]$DownloadBaseUrl = 'https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist',
     [string]$UpdateManifestUrl = '',
     [string]$CertificateThumbprint = $env:NEXODB_SIGN_CERT_THUMBPRINT,
     [switch]$RequireSigning
@@ -38,10 +38,13 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $staging = Join-Path $projectRoot 'build\installer-input'
 $installerRoot = Join-Path $projectRoot 'dist\installer'
+$installerBuildRoot = Join-Path ([IO.Path]::GetTempPath()) ('nexodb-installer-' + [Math]::Abs($projectRoot.GetHashCode()))
 $iconPath = Join-Path $projectRoot 'build\adisdb.ico'
 if (Test-Path $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
+if (Test-Path $installerBuildRoot) { Remove-Item -LiteralPath $installerBuildRoot -Recurse -Force }
 New-Item -ItemType Directory -Path $staging -Force | Out-Null
 New-Item -ItemType Directory -Path $installerRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $installerBuildRoot -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'build\nexodb-studio.jar') -Destination $staging
 Copy-Item -LiteralPath (Join-Path $projectRoot 'build\lib') -Destination $staging -Recurse
 Copy-Item -LiteralPath (Join-Path $projectRoot 'build\drivers') -Destination $staging -Recurse
@@ -60,7 +63,7 @@ try {
         --description 'Cliente profesional y universal de bases de datos' `
         --app-image (Join-Path $projectRoot "dist/$version/AdisDB") `
         --icon $iconPath `
-        --dest $installerRoot `
+        --dest $installerBuildRoot `
         --install-dir 'AdisDB' `
         --win-per-user-install `
         --win-dir-chooser `
@@ -74,10 +77,12 @@ try {
     $env:PATH = $previousPath
 }
 
-$installer = Get-ChildItem -LiteralPath $installerRoot -Filter '*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$generatedInstaller = Get-ChildItem -LiteralPath $installerBuildRoot -Filter '*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 $portable = Join-Path $projectRoot "dist\AdisDB-$version-win64.zip"
-if (-not $installer) { throw 'No se encontró el instalador generado.' }
-if ($signer) { Invoke-NexoSignFile $signer $installer.FullName }
+if (-not $generatedInstaller) { throw 'No se encontró el instalador generado.' }
+if ($signer) { Invoke-NexoSignFile $signer $generatedInstaller.FullName }
+Copy-Item -LiteralPath $generatedInstaller.FullName -Destination $existingInstaller -Force
+$installer = Get-Item -LiteralPath $existingInstaller
 $installerHash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 $portableHash = (Get-FileHash -LiteralPath $portable -Algorithm SHA256).Hash.ToLowerInvariant()
 $base = $DownloadBaseUrl.TrimEnd('/')

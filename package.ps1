@@ -1,5 +1,5 @@
 param(
-    [string]$UpdateBaseUrl = '',
+    [string]$UpdateBaseUrl = 'https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist',
     [string]$UpdateManifestUrl = '',
     [string]$CertificateThumbprint = $env:NEXODB_SIGN_CERT_THUMBPRINT,
     [switch]$RequireSigning

@@ -1,6 +1,6 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.3**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.6**.
+La versión actual de escritorio es **0.18.4**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.14.7**.
 
 ## Vicky integrada en el asistente SQL — 0.18.3
 

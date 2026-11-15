@@ -5,12 +5,12 @@
     "contact":  "alexo8ec@hotmail.com",
     "installer":  {
                       "file":  "AdisDB-0.18.4.exe",
-                      "url":  "",
-                      "sha256":  "8cad16bc269359b5ddf84f98975b05d56d0683019efd059a6141ee0b5383a3c4"
+                      "url":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/installer/AdisDB-0.18.4.exe",
+                      "sha256":  "4075fc5a628751c5ff4a43b3375f03128347d29a84b48109ba48ed98c576c2db"
                   },
     "portable":  {
                      "file":  "AdisDB-0.18.4-win64.zip",
-                     "url":  "",
-                     "sha256":  "6988d2fd29cab9dc14b0870cc295de1d8da8babdaeb1408319e38e5e97cf9b16"
+                     "url":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.4-win64.zip",
+                     "sha256":  "9dcba6d7dc3901f17629f3d97e2aca9c0f663f9ef523bd41553a5a779648b314"
                  }
 }

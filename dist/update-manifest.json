@@ -1,6 +1,6 @@
 ﻿{
     "version":  "0.18.4",
-    "downloadUrl":  "",
-    "sha256":  "6988d2fd29cab9dc14b0870cc295de1d8da8babdaeb1408319e38e5e97cf9b16",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.4-win64.zip",
+    "sha256":  "9dcba6d7dc3901f17629f3d97e2aca9c0f663f9ef523bd41553a5a779648b314",
     "notes":  "AdisDB 0.18.4: corrige el autocompletado SQL con clic, Enter y Tab sin duplicar el prefijo escrito. Esc cierra el cuadro y descarta sugerencias pendientes. Conserva licencias, conexiones y preferencias."
 }
