@@ -378,6 +378,7 @@ public final class QueryPanel extends JPanel {
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK),"save-sql-as");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_O,KeyEvent.CTRL_DOWN_MASK),"open-sql");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_E,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK),"export-csv");
+        input.put(KeyStroke.getKeyStroke(KeyEvent.VK_F,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK),"format-sql");
         actions.put("save-sql",new AbstractAction(){public void actionPerformed(ActionEvent e){saveSqlFile(false);}});
         actions.put("save-sql-as",new AbstractAction(){public void actionPerformed(ActionEvent e){saveSqlFile(true);}});
         actions.put("open-sql",new AbstractAction(){public void actionPerformed(ActionEvent e){openSqlFile();}});
@@ -385,6 +386,7 @@ public final class QueryPanel extends JPanel {
         actions.put("execute-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { executeSql(); }});
         actions.put("cancel-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { dismissCompletionOrCancelSql(); }});
         actions.put("export-csv", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { exportData(); }});
+        actions.put("format-sql", new AbstractAction() { @Override public actionPerformed(ActionEvent e) { formatSql(); }});
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, KeyEvent.CTRL_DOWN_MASK), "show-completions");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), "completion-down");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), "completion-up");
@@ -424,7 +426,9 @@ public final class QueryPanel extends JPanel {
         styleAction(commit, IconFactory.Kind.COMMIT, tr("Confirmar la transacción"));
         styleAction(rollback, IconFactory.Kind.ROLLBACK, tr("Revertir la transacción"));
         styleAction(export, IconFactory.Kind.EXPORT, tr("Exportar resultados (Ctrl+Shift+E)"));
+        styleAction(format, IconFactory.Kind.FORMAT, tr("Formatear SQL (Ctrl+Shift+F)"));
         execute.addActionListener(e -> executeSql());
+        format.addActionListener(e -> formatSql());
         cancel.addActionListener(e -> cancelSql());
         commit.addActionListener(e -> transaction(true));
         rollback.addActionListener(e -> transaction(false));
@@ -438,6 +442,7 @@ public final class QueryPanel extends JPanel {
         for(JButton button:List.of(openSqlButton,saveSqlButton,undoButton,redoButton)){button.putClientProperty("JButton.buttonType","toolBarButton");toolbar.add(button);}toolbar.addSeparator();
         toolbar.add(execute);
         toolbar.add(cancel);
+        toolbar.add(format);
         toolbar.add(readOnly);readOnly.addActionListener(e->{
             if(!readOnly.isSelected()&&(session==null||session.profile().readOnly()||!confirm.test("Habilitar cambios",tr("La conexión podrá ejecutar instrucciones que modifican datos o estructura. Cada ejecución de cambios pedirá confirmación. ¿Habilitar cambios?")+"\n"+session.profile().name())))readOnly.setSelected(true);
             if(readOnly.isSelected())for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel)panel.resetReadOnly();updateActions();
@@ -479,6 +484,19 @@ public final class QueryPanel extends JPanel {
         state.setBorder(new EmptyBorder(4, 8, 4, 8));
         toolbar.add(state);
         return toolbar;
+    }
+
+    private void formatSql() {
+        if (editor == null) return;
+        String text = editor.getText();
+        if (text.isBlank()) return;
+        String formatted = com.nexodb.util.SqlFormatter.format(text);
+        if (!formatted.equals(text)) {
+            editor.editAtomically(() -> {
+                editor.setText(formatted);
+                editor.setCaretPosition(0);
+            });
+        }
     }
 
     private void styleAction(AbstractButton button, IconFactory.Kind icon, String tooltip) {
