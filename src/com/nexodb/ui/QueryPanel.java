@@ -386,7 +386,7 @@ public final class QueryPanel extends JPanel {
         actions.put("execute-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { executeSql(); }});
         actions.put("cancel-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { dismissCompletionOrCancelSql(); }});
         actions.put("export-csv", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { exportData(); }});
-        actions.put("format-sql", new AbstractAction() { @Override public actionPerformed(ActionEvent e) { formatSql(); }});
+        actions.put("format-sql", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { formatSql(); }});
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, KeyEvent.CTRL_DOWN_MASK), "show-completions");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), "completion-down");
         input.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), "completion-up");
@@ -426,6 +426,7 @@ public final class QueryPanel extends JPanel {
         styleAction(commit, IconFactory.Kind.COMMIT, tr("Confirmar la transacción"));
         styleAction(rollback, IconFactory.Kind.ROLLBACK, tr("Revertir la transacción"));
         styleAction(export, IconFactory.Kind.EXPORT, tr("Exportar resultados (Ctrl+Shift+E)"));
+        JButton format = new JButton();
         styleAction(format, IconFactory.Kind.FORMAT, tr("Formatear SQL (Ctrl+Shift+F)"));
         execute.addActionListener(e -> executeSql());
         format.addActionListener(e -> formatSql());
