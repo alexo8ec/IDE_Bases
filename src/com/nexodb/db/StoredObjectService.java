@@ -59,7 +59,7 @@ public final class StoredObjectService {
                 if(original!=null&&!read(session,item).hash().equals(original.hash()))throw new SQLException("El objeto cambió en el servidor. Vuelve a abrirlo para evitar sobrescribir cambios ajenos.");
                 if(original!=null&&item.kind()!=SchemaItem.Kind.VIEW)setMode(session.connection(),original.sqlMode());
                 if(original==null)exec(session.connection(),proposed);
-                else if(item.kind()==SchemaItem.Kind.VIEW||item.kind()==SchemaItem.Kind.EVENT)exec(session.connection(),proposed.replaceFirst("(?i)^\\s*CREATE\\b","ALTER"));
+                else if(item.kind()==SchemaItem.Kind.VIEW||item.kind()==SchemaItem.Kind.EVENT)exec(session.connection(),proposed.replaceFirst("(?i)^\\s*CREATE\\b","CREATE OR REPLACE"));
                 else{
                     preflight(session.connection(),item,proposed);
                     if(!read(session,item).hash().equals(original.hash()))throw new SQLException("El objeto cambió durante la validación. Vuelve a abrirlo.");

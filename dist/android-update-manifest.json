@@ -1,8 +1,8 @@
 {
-    "version":  "0.18.8",
-    "versionCode":  1808,
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.8-android.apk",
-    "sha256":  "cf25aa4f36c7c3cf54ab1ef4a99c77b7ffc9aa999c2e1f4e87812b76362874fc",
-    "size":  7094211,
+    "version":  "0.18.9",
+    "versionCode":  1809,
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.9-android.apk",
+    "sha256":  "c67828453e3fa488470b3d898b0890d5cf4ad52c2210dc18af0f6bceb045a8b8",
+    "size":  7094215,
     "notes":  "AdisDB, producto de la suite AdisOne: icono de base de datos con una A pequena. Conserva conexiones, consultas, licencia, firma e identificador de la aplicacion."
 }
