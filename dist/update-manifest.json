@@ -1,12 +1,6 @@
-{
-  "version": "0.18.3",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.3-win64.zip",
-  "sha256": "12f69b9ff7eb70b88eb507d1b689bec3d24f290c8471582c5b30b50f3c864aba",
-  "notes": "AdisDB 0.18.3 integra Vicky como asistente SQL privado mediante Tailscale. Solo comparte el SQL, esquema y plan visibles, y nunca ejecuta automáticamente la propuesta.",
-  "platforms": {
-    "windows-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.3-win64.zip",
-      "sha256": "12f69b9ff7eb70b88eb507d1b689bec3d24f290c8471582c5b30b50f3c864aba"
-    }
-  }
+﻿{
+    "version":  "0.18.4",
+    "downloadUrl":  "",
+    "sha256":  "6988d2fd29cab9dc14b0870cc295de1d8da8babdaeb1408319e38e5e97cf9b16",
+    "notes":  "AdisDB 0.18.4: corrige el autocompletado SQL con clic, Enter y Tab sin duplicar el prefijo escrito. Esc cierra el cuadro y descarta sugerencias pendientes. Conserva licencias, conexiones y preferencias."
 }

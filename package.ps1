@@ -8,6 +8,13 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $projectRoot 'tools/CodeSigning.ps1')
+$javacCommand = Get-Command javac -ErrorAction Stop
+$jdkBin = Split-Path -Parent $javacCommand.Source
+$javaExe = Join-Path $jdkBin 'java.exe'
+$jpackageExe = Join-Path $jdkBin 'jpackage.exe'
+if (-not (Test-Path -LiteralPath $javaExe) -or -not (Test-Path -LiteralPath $jpackageExe)) {
+    throw 'El JDK usado para compilar no incluye java.exe y jpackage.exe.'
+}
 if ($RequireSigning -and -not $CertificateThumbprint) { throw 'La distribucion publica requiere un certificado de firma. Configura NEXODB_SIGN_CERT_THUMBPRINT.' }
 $signer = if ($CertificateThumbprint) { Get-NexoSigner $CertificateThumbprint } else { $null }
 $version = (Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'VERSION')).Trim()
@@ -30,7 +37,7 @@ $embeddedManifestUrl = if ($UpdateManifestUrl) {
 } elseif ($UpdateBaseUrl) {
     $UpdateBaseUrl.TrimEnd('/') + '/update-manifest.json'
 } else { '' }
-& java -cp (Join-Path $projectRoot 'build\classes') com.nexodb.tools.IconBuilder `
+& $javaExe -cp (Join-Path $projectRoot 'build\classes') com.nexodb.tools.IconBuilder `
     (Join-Path $projectRoot 'resources\com\nexodb\assets\adisdb-icon.png') `
     $iconPath
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo generar el icono de Windows.' }
@@ -43,7 +50,7 @@ if (Test-Path $packageRoot) {
 New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
 
-& jpackage `
+& $jpackageExe `
     --type app-image `
     --name 'AdisDB' `
     --app-version $version `

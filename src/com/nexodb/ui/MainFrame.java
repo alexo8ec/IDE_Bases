@@ -628,12 +628,48 @@ public final class MainFrame extends JFrame {
     }
 
     private void configureProfiles() {
+        JPopupMenu profileMenu = new JPopupMenu();
+        JMenuItem connectItem = UiLanguage.text(new JMenuItem(tr("Conectar"), IconFactory.of(IconFactory.Kind.CONNECT, 16)), UiLanguage.key("Conectar"));
+        JMenuItem editItem = UiLanguage.text(new JMenuItem(tr("Modificar"), IconFactory.of(IconFactory.Kind.EDIT, 16)), UiLanguage.key("Modificar"));
+        JMenuItem deleteItem = UiLanguage.text(new JMenuItem(tr("Eliminar"), IconFactory.of(IconFactory.Kind.DELETE, 16)), UiLanguage.key("Eliminar"));
+        connectItem.addActionListener(e -> connectSelected());
+        editItem.addActionListener(e -> editSelected());
+        deleteItem.addActionListener(e -> deleteSelected());
+        profileMenu.add(connectItem);
+        profileMenu.add(editItem);
+        profileMenu.addSeparator();
+        profileMenu.add(deleteItem);
+
         profileList.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2 && profileList.getSelectedValue() != null) connectSelected();
             }
+            @Override public void mousePressed(MouseEvent e) {
+                if (e.isPopupTrigger()) showProfileMenu(e);
+            }
+            @Override public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger()) showProfileMenu(e);
+            }
         });
         profileList.addListSelectionListener(e -> updateConnectionActions());
+    }
+
+    private void showProfileMenu(MouseEvent e) {
+        if (profileList.getSelectedValue() == null) return;
+        int index = profileList.locationToIndex(e.getPoint());
+        if (index >= 0) profileList.setSelectedIndex(index);
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem connectItem = UiLanguage.text(new JMenuItem(tr("Conectar"), IconFactory.of(IconFactory.Kind.CONNECT, 16)), UiLanguage.key("Conectar"));
+        JMenuItem editItem = UiLanguage.text(new JMenuItem(tr("Modificar"), IconFactory.of(IconFactory.Kind.EDIT, 16)), UiLanguage.key("Modificar"));
+        JMenuItem deleteItem = UiLanguage.text(new JMenuItem(tr("Eliminar"), IconFactory.of(IconFactory.Kind.DELETE, 16)), UiLanguage.key("Eliminar"));
+        connectItem.addActionListener(e2 -> connectSelected());
+        editItem.addActionListener(e2 -> editSelected());
+        deleteItem.addActionListener(e2 -> deleteSelected());
+        menu.add(connectItem);
+        menu.add(editItem);
+        menu.addSeparator();
+        menu.add(deleteItem);
+        menu.show(profileList, e.getX(), e.getY());
     }
 
     private void configureTree() {

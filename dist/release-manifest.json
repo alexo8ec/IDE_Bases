@@ -1,0 +1,16 @@
+﻿{
+    "product":  "AdisDB",
+    "version":  "0.18.4",
+    "publisher":  "Alex Mite Salazar",
+    "contact":  "alexo8ec@hotmail.com",
+    "installer":  {
+                      "file":  "AdisDB-0.18.4.exe",
+                      "url":  "",
+                      "sha256":  "8cad16bc269359b5ddf84f98975b05d56d0683019efd059a6141ee0b5383a3c4"
+                  },
+    "portable":  {
+                     "file":  "AdisDB-0.18.4-win64.zip",
+                     "url":  "",
+                     "sha256":  "6988d2fd29cab9dc14b0870cc295de1d8da8babdaeb1408319e38e5e97cf9b16"
+                 }
+}

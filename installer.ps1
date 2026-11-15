@@ -8,6 +8,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $projectRoot 'tools/CodeSigning.ps1')
+$javacCommand = Get-Command javac -ErrorAction Stop
+$jdkBin = Split-Path -Parent $javacCommand.Source
+$jpackageExe = Join-Path $jdkBin 'jpackage.exe'
+if (-not (Test-Path -LiteralPath $jpackageExe)) { throw 'El JDK usado para compilar no incluye jpackage.exe.' }
 if ($RequireSigning -and -not $CertificateThumbprint) { throw 'La distribucion publica requiere un certificado de firma. Configura NEXODB_SIGN_CERT_THUMBPRINT.' }
 $signer = if ($CertificateThumbprint) { Get-NexoSigner $CertificateThumbprint } else { $null }
 $version = (Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'VERSION')).Trim()
@@ -47,7 +51,7 @@ if (Test-Path -LiteralPath $existingInstaller) { Remove-Item -LiteralPath $exist
 $previousPath = $env:PATH
 try {
     $env:PATH = "$wixRoot;$previousPath"
-    & jpackage `
+    & $jpackageExe `
         --type exe `
         --name 'AdisDB' `
         --app-version $version `
