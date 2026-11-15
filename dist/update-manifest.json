@@ -1,6 +1,6 @@
 ﻿{
     "version":  "0.18.7",
     "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.7-win64.zip",
-    "sha256":  "accf12529ea989c20a41de6670b6b666008bc9d2c0936892b7829aa74c1a8bf6",
+    "sha256":  "cf1cc7473b4594d29cd9d615a9976ad18aea33058ea852193aa8832a04ec289e",
     "notes":  "AdisDB 0.18.7: permite editar resultados con JOIN eligiendo la tabla de destino y guarda automaticamente una fila modificada al pasar a otra. Valida claves primarias y conserva los cambios pendientes si el servidor rechaza la escritura."
 }
