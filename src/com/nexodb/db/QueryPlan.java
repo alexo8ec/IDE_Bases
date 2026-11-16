@@ -44,12 +44,20 @@ public final class QueryPlan {
                     catch(SQLException cleanup){try{session.connection().close();}catch(SQLException close){cleanup.addSuppressed(close);}throw new SQLException("No se pudo restaurar "+option+". Se cerró la conexión para evitar reutilizar una sesión alterada.",cleanup);}
                 }
             } else {
-                String prefix=switch(type){case MYSQL->actual?"EXPLAIN ANALYZE FORMAT=TREE ":"EXPLAIN FORMAT=JSON ";case MARIADB->actual?"ANALYZE FORMAT=JSON ":"EXPLAIN FORMAT=JSON ";case POSTGRESQL->actual?"EXPLAIN (ANALYZE TRUE, BUFFERS TRUE, FORMAT JSON) ":"EXPLAIN (FORMAT JSON) ";case SQLITE->"EXPLAIN QUERY PLAN ";case H2->actual?"EXPLAIN ANALYZE ":"EXPLAIN ";default->throw new IllegalArgumentException();};
-                raw=collect(session.connection(),prefix+sql,control,false);
+                raw=collect(session.connection(),explainSql(type,sql,actual),control,false);
             }
         }
         control.check();if(raw.isBlank())throw new SQLException("El servidor no devolvió un plan. Revisa permisos SHOWPLAN, versión del motor y SQL seleccionado.");
-        return parse(type,raw,actual,(System.nanoTime()-start)/1_000_000);
+        Result parsed=parse(type,raw,actual,(System.nanoTime()-start)/1_000_000);
+        if(parsed.suggestions().isEmpty()) {
+            List<String> candidates=IndexAdvisor.suggest(type,sql,parsed.root());
+            if(!candidates.isEmpty())parsed=new Result(parsed.root(),parsed.raw(),parsed.extension(),candidates,parsed.actual(),parsed.elapsedMillis());
+        }
+        return parsed;
+    }
+    static String explainSql(DatabaseType type,String sql,boolean actual) {
+        String prefix=switch(type){case MYSQL->actual?"EXPLAIN ANALYZE FORMAT=TREE ":"EXPLAIN FORMAT=JSON ";case MARIADB->actual?"ANALYZE FORMAT=JSON ":"EXPLAIN FORMAT=JSON ";case POSTGRESQL->actual?"EXPLAIN (ANALYZE TRUE, BUFFERS TRUE, FORMAT JSON) ":"EXPLAIN (FORMAT JSON) ";case SQLITE->"EXPLAIN QUERY PLAN ";case H2->actual?"EXPLAIN ANALYZE ":"EXPLAIN ";default->throw new IllegalArgumentException("Este motor no ofrece planes mediante esta interfaz.");};
+        return prefix+sql;
     }
     private static String collect(Connection connection,String sql,Control control,boolean xml)throws SQLException {
         StringBuilder text=new StringBuilder();
@@ -90,6 +98,7 @@ public final class QueryPlan {
         }else root=textTree(raw,type.toString());
         return new Result(PlanDiagnostics.enrich(type,root,actual),raw,extension,suggestions,actual,elapsed);
     }
+    public static String indexAdvice(DatabaseType type,String sql){return IndexAdvisor.emptyMessage(type,sql);}
     private static Document xml(String text)throws Exception {
         DocumentBuilderFactory factory=DocumentBuilderFactory.newInstance();factory.setNamespaceAware(true);factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl",true);factory.setFeature("http://xml.org/sax/features/external-general-entities",false);factory.setFeature("http://xml.org/sax/features/external-parameter-entities",false);factory.setXIncludeAware(false);factory.setExpandEntityReferences(false);factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD,"");factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA,"");
         var builder=factory.newDocumentBuilder();builder.setErrorHandler(new org.xml.sax.helpers.DefaultHandler(){@Override public void error(org.xml.sax.SAXParseException e)throws org.xml.sax.SAXException{throw e;}@Override public void fatalError(org.xml.sax.SAXParseException e)throws org.xml.sax.SAXException{throw e;}});return builder.parse(new InputSource(new StringReader(text)));

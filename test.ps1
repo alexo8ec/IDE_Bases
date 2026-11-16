@@ -16,6 +16,8 @@ if ($LASTEXITCODE -ne 0) { throw 'La compilacion de pruebas fallo.' }
 $testClasspath = "$testRoot;$mainClasspath"
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.PlanDiagnosticsTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diagnostico de planes fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.IndexAdvisorTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de sugerencias de indices por motor fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.SqlTextTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.util.SqlFormatterTest

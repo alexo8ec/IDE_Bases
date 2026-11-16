@@ -21,12 +21,12 @@ if ($updatedService -notmatch ('CURRENT_VERSION\s*=\s*"' + [regex]::Escape($desk
 
 $readmePath = Join-Path $root 'README.md'
 $readme = [IO.File]::ReadAllText($readmePath)
-$readmePattern = [regex]'La versión actual de escritorio es \*\*\d+\.\d+\.\d+\*\*\.(.*?)Android mantiene su versión independiente \*\*\d+\.\d+\.\d+\*\*\.'
-$readme = $readmePattern.Replace(
-    $readme,
-    ('La versión actual de escritorio es **' + $desktopVersion + '**.$1Android mantiene su versión independiente **' + $androidVersion + '**.'),
-    1
-)
+$readme = [regex]::Replace($readme, 'La versión actual de escritorio es \*\*\d+\.\d+\.\d+\*\*', ('La versión actual de escritorio es **' + $desktopVersion + '**'), 1)
+$readme = [regex]::Replace($readme, 'Android mantiene su versión independiente \*\*\d+\.\d+\.\d+\*\*', ('Android mantiene su versión independiente **' + $androidVersion + '**'), 1)
+if ($readme -notmatch ('versión actual de escritorio es \*\*' + [regex]::Escape($desktopVersion) + '\*\*') -or
+    $readme -notmatch ('Android mantiene su versión independiente \*\*' + [regex]::Escape($androidVersion) + '\*\*')) {
+    throw 'No se pudo sincronizar README.md con las versiones de escritorio y Android.'
+}
 [IO.File]::WriteAllText($readmePath, $readme, [Text.UTF8Encoding]::new($false))
 
 & (Join-Path $root 'installer.ps1') -DownloadBaseUrl $DownloadBaseUrl

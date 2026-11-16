@@ -99,7 +99,7 @@ public final class PlanDiagnostics {
             notes.add(a.containsKey(INDEX)?"Recorre el índice completo; usar un índice no implica una búsqueda selectiva.":"Escaneo completo sin búsqueda selectiva por índice.");
             if(read!=null&&read>=100_000){level=2;notes.add("Carga alta: "+format(read)+(measured?" filas leídas.":" filas estimadas por ejecución."));}
             else if(read==null)notes.add("El motor no reporta el volumen leído en este plan.");
-            notes.add("Revisar índices sobre filtros y JOIN, y el orden de columnas. Un escaneo puede ser óptimo si se devuelve gran parte de la tabla; no confirma un índice faltante.");
+            notes.add("Revisar índices sobre filtros y JOIN, y el orden de columnas. Un escaneo puede ser óptimo si se devuelve gran parte de la tabla; por sí solo no confirma un índice faltante.");
         }
         if(measured&&read!=null&&rows!=null&&read>=10_000&&read>=100*Math.max(1,rows)) {
             level=2;notes.add("Lectura excesiva frente al resultado: "+format(read)+" leídas / "+format(rows)+" devueltas. Revisar selectividad, predicados e índices.");

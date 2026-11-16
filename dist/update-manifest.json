@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "0.18.18",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.18-win64.zip",
-    "sha256":  "1ed2cf039ea7d0ab980315aa503461de6d6ba55cae14dfcc4988fb272782fb98",
-    "notes":  "AdisDB 0.18.18: permite editar resultados con JOIN eligiendo la tabla de destino y guarda automaticamente una fila modificada al pasar a otra. Valida claves primarias y conserva los cambios pendientes si el servidor rechaza la escritura."
+    "version":  "0.18.19",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.19-win64.zip",
+    "sha256":  "e7335c765142a1f39f239d2ba54beb3b57f071cf16a2635529d2c19f142494c1",
+    "notes":  "AdisDB 0.18.19: muestra sugerencias de indices adaptadas a SQL Server, MySQL, MariaDB, PostgreSQL y SQLite. Usa la sintaxis de plan correcta para cada motor y evita recomendar indices cuando la consulta no aporta columnas utiles."
 }
