@@ -1,0 +1,115 @@
+name: Compilar macOS firmado y notarizado
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adisdb-macos-signed
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CERTIFICATE_PATH: ${{ runner.temp }}/adisdb-developer-id.p12
+      KEYCHAIN_PATH: ${{ runner.temp }}/adisdb-signing.keychain-db
+      KEYCHAIN_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+      NOTARY_PROFILE: adisdb-notary-${{ github.run_id }}-${{ matrix.arch }}
+      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Comprobar secretos obligatorios
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for variable in APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
+            if [[ -z "${!variable:-}" ]]; then
+              printf '::error::Falta el secreto de GitHub %s\n' "$variable"
+              missing=1
+            fi
+          done
+          [[ "$missing" -eq 0 ]]
+
+      - name: Importar certificado en un llavero temporal
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, os
+          data = base64.b64decode(os.environ['APPLE_CERTIFICATE_BASE64'], validate=True)
+          with open(os.environ['CERTIFICATE_PATH'], 'wb') as output:
+              output.write(data)
+          PY
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -k "$KEYCHAIN_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Guardar credenciales de notarización en el llavero temporal
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --keychain "$KEYCHAIN_PATH" \
+            --validate
+
+      - name: Compilar, firmar y notarizar AdisDB
+        shell: bash
+        env:
+          NEXODB_MAC_SIGN_USER: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          NEXODB_MAC_SIGN_KEYCHAIN: ${{ runner.temp }}/adisdb-signing.keychain-db
+          NEXODB_NOTARY_PROFILE: adisdb-notary-${{ github.run_id }}-${{ matrix.arch }}
+          NEXODB_NOTARY_KEYCHAIN: ${{ runner.temp }}/adisdb-signing.keychain-db
+        run: bash tools/package-macos-signed.sh
+
+      - name: Publicar paquete firmado
+        uses: actions/upload-artifact@v4
+        with:
+          name: AdisDB-macOS-${{ matrix.arch }}-firmado
+          path: |
+            dist/AdisDB-*-macos-${{ matrix.arch }}.zip
+            dist/AdisDB-*-macos-${{ matrix.arch }}.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Eliminar certificado y llavero temporal
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$CERTIFICATE_PATH"
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true

@@ -37,7 +37,6 @@
 !/dist/installer/AdisDB-0.18.2.exe
 !/dist/installer/AdisDB-*.exe
 /.tools/
-/.github/
 *.log
 __pycache__/
 *.pfx

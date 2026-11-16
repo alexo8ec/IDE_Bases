@@ -33,7 +33,9 @@ jpackage "${options[@]}"
 app="$work/image/AdisDB.app"
 codesign --verify --deep --strict --verbose=2 "$app"
 ditto -c -k --keepParent "$app" "$work/notary-submit.zip"
-xcrun notarytool submit "$work/notary-submit.zip" --keychain-profile "$NEXODB_NOTARY_PROFILE" --wait --output-format json > "$work/notary-result.json"
+notary_options=(--keychain-profile "$NEXODB_NOTARY_PROFILE")
+if [[ -n "${NEXODB_NOTARY_KEYCHAIN:-}" ]]; then notary_options+=(--keychain "$NEXODB_NOTARY_KEYCHAIN"); fi
+xcrun notarytool submit "$work/notary-submit.zip" "${notary_options[@]}" --wait --output-format json > "$work/notary-result.json"
 python3 -c 'import json,sys; result=json.load(open(sys.argv[1])); sys.exit(0 if result.get("status")=="Accepted" else "Apple did not accept notarization; inspect the local result and notarytool log.")' "$work/notary-result.json"
 xcrun stapler staple "$app"
 xcrun stapler validate "$app"

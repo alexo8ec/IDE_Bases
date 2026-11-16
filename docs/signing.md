@@ -38,6 +38,32 @@ El script construye un lanzador nativo con `jpackage`, firma la aplicación y su
 
 El ZIP firmado contiene la aplicación para arrastrarla a Aplicaciones. No distribuye un instalador de Terminal ni elimina cuarentena o altera las políticas de seguridad. Los paquetes ensamblados desde Windows con `tools/package-platforms.py` permanecen sin firma; no sustituyen este proceso de publicación.
 
+### Compilar en un Mac remoto de GitHub
+
+El flujo manual `.github/workflows/macos-signed.yml` ejecuta el mismo proceso en dos equipos macOS remotos: Apple Silicon (`arm64`) e Intel (`x64`). No publica ni modifica el repositorio; entrega los ZIP firmados como artefactos de la ejecución y elimina el certificado y el llavero temporal al finalizar.
+
+Configura estos secretos en **GitHub → Settings → Secrets and variables → Actions**:
+
+| Secreto | Contenido |
+| --- | --- |
+| `APPLE_DEVELOPER_ID_P12_BASE64` | Certificado Developer ID Application con clave privada, exportado como `.p12` y codificado en Base64. |
+| `APPLE_DEVELOPER_ID_P12_PASSWORD` | Contraseña del archivo `.p12`. |
+| `APPLE_SIGNING_IDENTITY` | Texto posterior a `Developer ID Application:`, normalmente `Nombre o empresa (TEAMID)`. |
+| `APPLE_ID` | Correo de la cuenta Apple usada para notarización. |
+| `APPLE_TEAM_ID` | Identificador de equipo de Apple Developer. |
+| `APPLE_APP_PASSWORD` | Contraseña específica de aplicación creada en la cuenta Apple. |
+
+En Windows puedes obtener el Base64 sin imprimir el certificado en pantalla:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('DeveloperIDApplication.p12')) |
+  Set-Clipboard
+```
+
+Después abre **Actions → Compilar macOS firmado y notarizado → Run workflow**. La ejecución comprueba que existan todos los secretos antes de importar el certificado. Apple debe responder `Accepted`; de lo contrario no se publica ningún paquete como firmado. Descarga los dos artefactos, pruébalos y genera el manifiesto de actualización usando esos archivos finales.
+
+No guardes el `.p12`, su contraseña ni credenciales de Apple dentro del repositorio. El `.gitignore` excluye formatos habituales de claves y certificados.
+
 Referencias: [Developer ID](https://developer.apple.com/developer-id/), [notarización de Apple](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) y [firma de paquetes Java](https://docs.oracle.com/en/java/javase/17/jpackage/support-application-features.html).
 
 ## Publicación
