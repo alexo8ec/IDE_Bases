@@ -48,7 +48,38 @@ public final class StoredObjectService {
         case EVENT->"CREATE EVENT "+name+"\nON SCHEDULE EVERY 1 DAY\nDISABLE\nDO\nBEGIN\n    -- El evento se crea deshabilitado. Completa la acción antes de habilitarlo.\n    DO 1;\nEND";
         default->throw new IllegalArgumentException("Tipo de objeto no soportado.");};}
     public static String exportSql(Definition definition){String delimiter="__NEXO_"+UUID.randomUUID().toString().replace("-","")+"__";return "-- SQL_MODE original: "+definition.sqlMode().replace('\n',' ')+"\nDELIMITER "+delimiter+"\n"+definition.sql().stripTrailing()+"\n"+delimiter+"\nDELIMITER ;\n";}
-    public static String replacementNote(SchemaItem.Kind kind){return kind==SchemaItem.Kind.VIEW||kind==SchemaItem.Kind.EVENT?"Se aplicará ALTER conservando el nombre del objeto.":"MySQL requiere recrear este objeto para cambiar su cuerpo: DROP y CREATE no son atómicos. Revisa y exporta los permisos de rutina antes de continuar; pueden requerir reaplicación.";}
+    public static String replacementNote(SchemaItem.Kind kind){return replacementNote(DatabaseType.MYSQL,kind);}
+    public static String replacementNote(DatabaseType type,SchemaItem.Kind kind){
+        if(kind==SchemaItem.Kind.EVENT&&type!=DatabaseType.MYSQL&&type!=DatabaseType.MARIADB)return "Este motor no admite eventos mediante este editor.";
+        if(kind==SchemaItem.Kind.VIEW)return switch(type){
+            case MYSQL,MARIADB->"Se aplicará ALTER VIEW conservando ALGORITHM, DEFINER, SQL SECURITY y el nombre del objeto.";
+            case POSTGRESQL,ORACLE,H2->"Se aplicará CREATE OR REPLACE VIEW conservando el nombre del objeto.";
+            case SQLSERVER->"Se aplicará CREATE OR ALTER VIEW conservando el nombre del objeto.";
+            case SQLITE->"SQLite requiere recrear la vista dentro de una transacción; este editor no eliminará la vista automáticamente.";
+            default->"Este motor no permite reemplazar vistas de forma segura mediante este editor.";};
+        if(kind==SchemaItem.Kind.EVENT)return "Se aplicará ALTER EVENT conservando el nombre del objeto.";
+        return "MySQL requiere recrear este objeto para cambiar su cuerpo: DROP y CREATE no son atómicos. Revisa y exporta los permisos de rutina antes de continuar; pueden requerir reaplicación.";
+    }
+    public static String replacementDdl(DatabaseType type,SchemaItem.Kind kind,String proposed){
+        Objects.requireNonNull(type,"type");Objects.requireNonNull(kind,"kind");Objects.requireNonNull(proposed,"proposed");
+        if(kind==SchemaItem.Kind.EVENT){
+            if(type==DatabaseType.MYSQL||type==DatabaseType.MARIADB)return replaceCreatePrefix(proposed,"ALTER");
+            throw new IllegalArgumentException("El motor "+type+" no admite ALTER EVENT mediante este editor.");
+        }
+        if(kind!=SchemaItem.Kind.VIEW)throw new IllegalArgumentException("Solo las vistas y eventos admiten reemplazo directo.");
+        return switch(type){
+            case MYSQL,MARIADB->replaceCreatePrefix(proposed,"ALTER");
+            case POSTGRESQL,ORACLE,H2->replaceCreatePrefix(proposed,"CREATE OR REPLACE");
+            case SQLSERVER->replaceCreatePrefix(proposed,"CREATE OR ALTER");
+            case SQLITE->throw new IllegalArgumentException("SQLite no admite ALTER VIEW ni CREATE OR REPLACE VIEW; la vista debe recrearse dentro de una transacción explícita.");
+            case MONGODB,GENERIC->throw new IllegalArgumentException("El motor "+type+" no ofrece una sentencia segura para reemplazar vistas.");
+        };
+    }
+    private static String replaceCreatePrefix(String sql,String replacement){
+        String changed=sql.replaceFirst("(?is)^\\s*CREATE(?:\\s+OR\\s+(?:REPLACE|ALTER))?\\s+",replacement+" ");
+        if(changed.equals(sql))throw new IllegalArgumentException("La definición debe comenzar con CREATE.");
+        return changed;
+    }
     public static void save(JdbcSession session,SchemaItem item,String edited,Definition original)throws SQLException {
         requireEngine(session);Header header=header(edited,item.kind());if(!header.name().equals(item.name()))throw new IllegalArgumentException("Usa Renombrar para cambiar el nombre del objeto.");
         String proposed=withName(edited,item.kind(),qualified(item));
@@ -59,7 +90,7 @@ public final class StoredObjectService {
                 if(original!=null&&!read(session,item).hash().equals(original.hash()))throw new SQLException("El objeto cambió en el servidor. Vuelve a abrirlo para evitar sobrescribir cambios ajenos.");
                 if(original!=null&&item.kind()!=SchemaItem.Kind.VIEW)setMode(session.connection(),original.sqlMode());
                 if(original==null)exec(session.connection(),proposed);
-                else if(item.kind()==SchemaItem.Kind.VIEW||item.kind()==SchemaItem.Kind.EVENT)exec(session.connection(),proposed.replaceFirst("(?i)^\\s*CREATE\\b","CREATE OR REPLACE"));
+                else if(item.kind()==SchemaItem.Kind.VIEW||item.kind()==SchemaItem.Kind.EVENT)exec(session.connection(),replacementDdl(session.profile().type(),item.kind(),proposed));
                 else{
                     preflight(session.connection(),item,proposed);
                     if(!read(session,item).hash().equals(original.hash()))throw new SQLException("El objeto cambió durante la validación. Vuelve a abrirlo.");
