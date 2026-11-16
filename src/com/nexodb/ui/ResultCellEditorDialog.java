@@ -24,6 +24,11 @@ final class ResultCellEditorDialog {
 
     private ResultCellEditorDialog() {}
 
+
+    private static Component dialogOwner(Component parent) {
+        Window owner=parent instanceof Window window?window:SwingUtilities.getWindowAncestor(parent);
+        return owner==null?parent:owner;
+    }
     static Kind kind(int jdbcType,Object value) {
         return switch (jdbcType) {
             case Types.LONGVARCHAR,Types.LONGNVARCHAR,Types.CLOB,Types.NCLOB,Types.SQLXML -> Kind.TEXT;
@@ -57,7 +62,7 @@ final class ResultCellEditorDialog {
         save.addActionListener(e->chooseFile(parent,false,text));load.addActionListener(e->chooseFile(parent,true,text));load.setVisible(editable);
         JPanel tools=new JPanel(new FlowLayout(FlowLayout.LEFT,6,0));tools.add(setNull);tools.add(copy);tools.add(load);tools.add(save);tools.add(size);
         JPanel content=new JPanel(new BorderLayout(6,6));content.add(tools,BorderLayout.NORTH);content.add(scroll);
-        int answer=JOptionPane.showConfirmDialog(parent,content,(editable?tr("Editar contenido · "):tr("Ver contenido · "))+column,
+        int answer=JOptionPane.showConfirmDialog(dialogOwner(parent),content,(editable?tr("Editar contenido · "):tr("Ver contenido · "))+column,
                 JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
         if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
         return new Outcome(true,editable?(setNull.isSelected()?null:text.getText()):value);
@@ -78,7 +83,7 @@ final class ResultCellEditorDialog {
         setNull.addActionListener(e->picker.setEnabledDeep(editable&&!setNull.isSelected()));
         if(setNull.isSelected())picker.setEnabledDeep(false);
         JPanel content=new JPanel(new BorderLayout(6,6));content.add(setNull,BorderLayout.NORTH);content.add(picker);
-        int answer=JOptionPane.showConfirmDialog(parent,content,(editable?tr("Editar fecha y hora · "):tr("Ver fecha y hora · "))+column,
+        int answer=JOptionPane.showConfirmDialog(dialogOwner(parent),content,(editable?tr("Editar fecha y hora · "):tr("Ver fecha y hora · "))+column,
                 JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
         if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
         return new Outcome(true,editable?(setNull.isSelected()?null:picker.value()):value);

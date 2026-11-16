@@ -6,11 +6,11 @@
     "installer":  {
                       "file":  "AdisDB-0.18.25.exe",
                       "url":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/installer/AdisDB-0.18.25.exe",
-                      "sha256":  "baa9146fc960c8d4e9e5de0a140c5e250a4f86a949c3a5946a44afb1fe5eeaa5"
+                      "sha256":  "99c7780ffad28e31be470f4eb69d39abfd0dd6a4880c9bf945678f5bd32f69a4"
                   },
     "portable":  {
                      "file":  "AdisDB-0.18.25-win64.zip",
                      "url":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.25-win64.zip",
-                     "sha256":  "ce501bbabb1698c516642cd74c9bab9cd9c219400252491d85bc73a14e7d2e9f"
+                     "sha256":  "4e81df6ca511b63c50b6b2a37ff1a8a855500a92bbe829c8c93d1f29c4f1f5ac"
                  }
 }
