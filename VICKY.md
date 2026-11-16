@@ -120,3 +120,30 @@ Al terminar informa únicamente resultados reales:
 - artefactos generados y verificados, si se solicitaron;
 - comprobaciones visuales o de plataforma que sigan pendientes;
 - commit y push solamente si realmente se completaron.
+
+## Guías de trabajo por tarea
+
+Usa este archivo como fuente principal de las reglas de AdisDB.
+Antes de editar, carga las guías que correspondan al objetivo del usuario:
+
+- `.vicky/skills/ui/SKILL.md`: ventanas, diálogos, cuadrículas, editores SQL,
+  menús, atajos y cambios visuales.
+- `.vicky/skills/sql-debugger/SKILL.md`: procedimientos almacenados,
+  puntos de quiebre, variables, cancelación y resultados JDBC.
+- `.vicky/skills/release/SKILL.md`: preparar una entrega, incrementar versión,
+  generar instaladores o actualizar manifiestos y hashes.
+
+Si la tarea combina varios objetivos, carga todas las guías pertinentes.
+Por ejemplo, «centra los diálogos y genera la actualización» usa `ui` y
+`release`. «Corrige el diálogo y compila para probarlo» usa `ui` y la
+verificación normal del proyecto.
+
+Si el usuario dice «ese cambio», «continúa» o «prepara la entrega»,
+recupera el objetivo activo del mismo proyecto y conversación antes de actuar.
+
+Los comandos, las versiones y el orden de entrega se rigen por las secciones
+de este archivo y por los scripts vigentes del repositorio. Las guías detallan
+cómo ejecutar y verificar cada tipo de tarea.
+
+Si alguna guía no está disponible, aplica las reglas de este archivo y
+continúa con las operaciones que puedas verificar.
