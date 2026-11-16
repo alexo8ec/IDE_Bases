@@ -35,6 +35,7 @@ public final class ThemeManager {
         AppSettings.put("theme", value);
         apply();
     }
+    public static boolean isDark() { return FlatLaf.isLafDark(); }
     public static Color color(int light, int dark) { return new Color(FlatLaf.isLafDark() ? dark : light); }
     private static void apply() {
         boolean dark = "dark".equals(preference) || ("system".equals(preference) && systemDark);

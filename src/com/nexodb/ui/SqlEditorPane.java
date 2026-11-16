@@ -95,6 +95,27 @@ public final class SqlEditorPane extends JTextPane {
         getActionMap().put("format-sql",new AbstractAction(){public void actionPerformed(ActionEvent e){formatSql();}});
     }
 
+    private void updatePalette() {
+        boolean dark = ThemeManager.isDark();
+        Color bg = dark ? new Color(0x1E1E1E) : new Color(0xFFFFFF);
+        Color fg = dark ? new Color(0xE0E0E0) : new Color(0x172033);
+        Color kw = dark ? new Color(0x569CD6) : new Color(0x155EEF);
+        Color str = dark ? new Color(0x4EC9B0) : new Color(0x16803A);
+        Color com = dark ? new Color(0x6A9955) : new Color(0x7A8699);
+        Color num = dark ? new Color(0xB5CEA8) : new Color(0x8B3FD1);
+        Color id = dark ? new Color(0x9CDCFE) : new Color(0x087E8B);
+
+        StyleConstants.setForeground(defaultStyle, fg);
+        StyleConstants.setForeground(keywordStyle, kw);
+        StyleConstants.setForeground(stringStyle, str);
+        StyleConstants.setForeground(commentStyle, com);
+        StyleConstants.setForeground(numberStyle, num);
+        StyleConstants.setForeground(identifierStyle, id);
+        
+        // Actualizar fondo si es necesario (JTextPane usa setBackground)
+        setBackground(bg);
+    }
+
     /** Formats the selection when complete, otherwise the whole document, as one undoable edit. */
     public boolean formatSql(){
         if(!isEditable())return false;
@@ -124,17 +145,6 @@ public final class SqlEditorPane extends JTextPane {
     @Override public void updateUI() {
         super.updateUI();
         if (defaultStyle != null) updatePalette();
-    }
-
-    private void updatePalette() {
-        StyleConstants.setForeground(defaultStyle, ThemeManager.color(0x172033, 0xE2E8F0));
-        StyleConstants.setForeground(keywordStyle, ThemeManager.color(0x155EEF, 0x82AAFF));
-        StyleConstants.setForeground(stringStyle, ThemeManager.color(0x16803A, 0xA3D98B));
-        StyleConstants.setForeground(commentStyle, ThemeManager.color(0x7A8699, 0x9BA8BB));
-        StyleConstants.setForeground(numberStyle, ThemeManager.color(0x8B3FD1, 0xC4A7E7));
-        StyleConstants.setForeground(identifierStyle, ThemeManager.color(0x087E8B, 0x7DD3D8));
-        setCaretColor(UIManager.getColor("TextPane.caretForeground"));
-        if (highlightTimer != null) highlightTimer.restart();
     }
 
     public void append(String text) {
