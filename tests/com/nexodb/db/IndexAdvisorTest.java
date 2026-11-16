@@ -5,6 +5,9 @@ import java.util.*;
 
 public final class IndexAdvisorTest {
     public static void main(String[] args)throws Exception {
+        equal(DatabaseType.MARIADB,QueryPlan.effectiveType(DatabaseType.MYSQL,"MariaDB 10.11.7"));
+        equal(DatabaseType.MYSQL,QueryPlan.effectiveType(DatabaseType.MARIADB,"MySQL 8.4"));
+        equal(DatabaseType.POSTGRESQL,QueryPlan.effectiveType(DatabaseType.GENERIC,"PostgreSQL"));
         equal("EXPLAIN ANALYZE FORMAT=TREE SELECT 1",QueryPlan.explainSql(DatabaseType.MYSQL,"SELECT 1",true));
         equal("ANALYZE FORMAT=JSON SELECT 1",QueryPlan.explainSql(DatabaseType.MARIADB,"SELECT 1",true));
         equal("EXPLAIN (ANALYZE TRUE, BUFFERS TRUE, FORMAT JSON) SELECT 1",QueryPlan.explainSql(DatabaseType.POSTGRESQL,"SELECT 1",true));

@@ -30,7 +30,7 @@ public final class QueryPlan {
         if(actual&&type==DatabaseType.SQLITE)throw new IllegalArgumentException("SQLite ofrece EXPLAIN QUERY PLAN estimado; no ofrece tiempos reales por operador con esta interfaz.");
     }
     public static Result capture(JdbcSession session,String sql,boolean actual,Control control)throws Exception {
-        DatabaseType type=session.profile().type();validate(type,sql,actual);long start=System.nanoTime();String raw;
+        DatabaseType type=effectiveType(session.profile().type(),session.connection());validate(type,sql,actual);long start=System.nanoTime();String raw;
         synchronized(session.connection()) {
             control.check();
             if(type==DatabaseType.SQLSERVER) {
@@ -54,6 +54,22 @@ public final class QueryPlan {
             if(!candidates.isEmpty())parsed=new Result(parsed.root(),parsed.raw(),parsed.extension(),candidates,parsed.actual(),parsed.elapsedMillis());
         }
         return parsed;
+    }
+    static DatabaseType effectiveType(DatabaseType declared,Connection connection) {
+        try {
+            DatabaseMetaData metadata=connection.getMetaData();
+            return metadata==null?declared:effectiveType(declared,metadata.getDatabaseProductName());
+        } catch(SQLException|RuntimeException ignored) { return declared; }
+    }
+    static DatabaseType effectiveType(DatabaseType declared,String productName) {
+        String product=Objects.toString(productName,"").toLowerCase(Locale.ROOT);
+        if(product.contains("mariadb"))return DatabaseType.MARIADB;
+        if(product.contains("mysql"))return DatabaseType.MYSQL;
+        if(product.contains("postgresql"))return DatabaseType.POSTGRESQL;
+        if(product.contains("microsoft")&&product.contains("sql server"))return DatabaseType.SQLSERVER;
+        if(product.contains("sqlite"))return DatabaseType.SQLITE;
+        if(product.equals("h2")||product.startsWith("h2 "))return DatabaseType.H2;
+        return declared;
     }
     static String explainSql(DatabaseType type,String sql,boolean actual) {
         String prefix=switch(type){case MYSQL->actual?"EXPLAIN ANALYZE FORMAT=TREE ":"EXPLAIN FORMAT=JSON ";case MARIADB->actual?"ANALYZE FORMAT=JSON ":"EXPLAIN FORMAT=JSON ";case POSTGRESQL->actual?"EXPLAIN (ANALYZE TRUE, BUFFERS TRUE, FORMAT JSON) ":"EXPLAIN (FORMAT JSON) ";case SQLITE->"EXPLAIN QUERY PLAN ";case H2->actual?"EXPLAIN ANALYZE ":"EXPLAIN ";default->throw new IllegalArgumentException("Este motor no ofrece planes mediante esta interfaz.");};

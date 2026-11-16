@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "0.18.19",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.19-win64.zip",
-    "sha256":  "e7335c765142a1f39f239d2ba54beb3b57f071cf16a2635529d2c19f142494c1",
-    "notes":  "AdisDB 0.18.19: muestra sugerencias de indices adaptadas a SQL Server, MySQL, MariaDB, PostgreSQL y SQLite. Usa la sintaxis de plan correcta para cada motor y evita recomendar indices cuando la consulta no aporta columnas utiles."
+    "version":  "0.18.20",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.20-win64.zip",
+    "sha256":  "149bb76d665762860cc0995dd6b043b2e7230f09c70b128b248ba14e420d54f3",
+    "notes":  "AdisDB 0.18.20: detecta el motor real de la conexion antes de obtener el plan. Si un perfil MySQL apunta a MariaDB, usa ANALYZE FORMAT=JSON y evita la sintaxis FORMAT=TREE incompatible."
 }
