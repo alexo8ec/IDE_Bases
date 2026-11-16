@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "0.18.16",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.16-win64.zip",
-    "sha256":  "ad197ad6b70a8d01d39ce5fd488d4e790e11354f0dec57e2e93a1b022eea7e29",
-    "notes":  "AdisDB 0.18.16: al seleccionar o abrir una base u objeto, Consulta SQL activa automaticamente esa misma base. Los errores ahora explican en lenguaje claro que ocurrio, como resolverlo y dejan el detalle tecnico plegado para quien lo necesite."
+    "version":  "0.18.17",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.17-win64.zip",
+    "sha256":  "dfb5d3b4b7a4fb05a57b2f95e9225e353d2ecd5b674083ca0be19d12132c02f1",
+    "notes":  "AdisDB 0.18.17: permite editar resultados con JOIN eligiendo la tabla de destino y guarda automaticamente una fila modificada al pasar a otra. Valida claves primarias y conserva los cambios pendientes si el servidor rechaza la escritura."
 }
