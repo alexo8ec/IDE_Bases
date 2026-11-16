@@ -28,6 +28,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de credenciales JDBC fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de instrumentacion de procedimientos fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.StoredObjectServiceTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de reemplazo de vistas por motor fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.util.StoredObjectFormatStoreTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de formato persistente de objetos fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.JdbcMultipleResultsTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de multiples resultados JDBC fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ai.AiClientTest
