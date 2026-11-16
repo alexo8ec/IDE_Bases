@@ -88,6 +88,7 @@ public final class QueryPanel extends JPanel {
     private final Consumer<String> statusConsumer;
     private final Consumer<Boolean> busyConsumer;
     private Consumer<String> databaseChangeConsumer = name -> {};
+    private String requestedDatabase="";
     private JdbcSession session;
     private QueryResult currentResult;
     private SwingWorker<List<StatementOutcome>, Void> worker;
@@ -207,6 +208,7 @@ public final class QueryPanel extends JPanel {
         if (this.session != session) for (int i=0;i<outputTabs.getTabCount();i++)
             if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel && panel.isShowing()) panel.finishEditing();
         this.session = session;
+        requestedDatabase="";
         readOnly.setSelected(true);
         sqlKeywords=SqlVocabulary.base();for(SqlEditorPane pane:queryEditors){pane.setKeywords(sqlKeywords);pane.setDialect(session==null?com.nexodb.model.DatabaseType.GENERIC:session.profile().type());}
         completionGeneration++;completionCatalogGeneration++;
@@ -249,14 +251,23 @@ public final class QueryPanel extends JPanel {
 
     public void selectDatabase(String name) {
         if (name == null || name.isBlank() || session == null) return;
+        requestedDatabase=name;
+        selectRequestedDatabase();
+    }
+
+    private boolean selectRequestedDatabase(){
+        if(requestedDatabase.isBlank()||session==null||!database.isEnabled())return false;
         for (int i = 1; i < database.getItemCount(); i++) {
-            if (name.equalsIgnoreCase(database.getItemAt(i))) {
+            if (requestedDatabase.equalsIgnoreCase(database.getItemAt(i))) {
                 database.setSelectedIndex(i);
-                return;
+                requestedDatabase="";
+                return true;
             }
         }
-        database.addItem(name);
-        database.setSelectedItem(name);
+        database.addItem(requestedDatabase);
+        database.setSelectedItem(requestedDatabase);
+        requestedDatabase="";
+        return true;
     }
 
     public String activeDatabase() {
@@ -869,13 +880,13 @@ public final class QueryPanel extends JPanel {
                     for (int i = 1; i < database.getItemCount(); i++) completionWords.add(database.getItemAt(i));
                     boolean postgres = target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL;
                     boolean sqlite = target.profile().type() == com.nexodb.model.DatabaseType.SQLITE;
-                    database.setSelectedIndex(postgres || sqlite ? 1 : 0);
+                    if(requestedDatabase.isBlank())database.setSelectedIndex(postgres || sqlite ? 1 : 0);
                     if (!postgres && !sqlite) try { target.connection().setCatalog(null); } catch (SQLException ignored) {}
                     state.setText(session.profile().name());
                 } catch (Exception ignored) {
                 }
                 updateActions();
-                if (target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL || target.profile().type() == com.nexodb.model.DatabaseType.SQLITE) changeDatabase();
+                if(!selectRequestedDatabase()&&(target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL || target.profile().type() == com.nexodb.model.DatabaseType.SQLITE))changeDatabase();
             }
         }.execute();
     }

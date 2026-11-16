@@ -678,10 +678,11 @@ public final class MainFrame extends JFrame {
         objectTree.addTreeWillExpandListener(new TreeWillExpandListener() {
             @Override public void treeWillExpand(TreeExpansionEvent event) throws ExpandVetoException {
                 Object node = event.getPath().getLastPathComponent();
-                if (node instanceof LazyNode lazy) loadNode(lazy);
+                if (node instanceof LazyNode lazy){selectObjectDatabase(lazy.nodeSession(),lazy.item());loadNode(lazy);}
             }
             @Override public void treeWillCollapse(TreeExpansionEvent event) {}
         });
+        objectTree.addTreeSelectionListener(event->{Object selected=objectTree.getLastSelectedPathComponent();if(selected instanceof LazyNode node)selectObjectDatabase(node.nodeSession(),node.item());});
         objectTree.addMouseListener(new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e) { showTreeMenuIfNeeded(e); }
             @Override public void mouseReleased(MouseEvent e) { showTreeMenuIfNeeded(e); }
@@ -1386,7 +1387,7 @@ public final class MainFrame extends JFrame {
     private void storedObjectsChanged(JdbcSession target){if(target.isOpen()){refreshConnectionObjects(target);if(target==session)queryPanel.refreshCompletions();}}
     private void storedObjectDefinitionChanged(JdbcSession target){if(target.isOpen()&&target==session)queryPanel.refreshCompletions();}
     private void readStoredObject(JdbcSession target,SchemaItem item,java.util.function.Consumer<StoredObjectService.Definition> action){if(!LicenseGate.ensure(this)||!target.isOpen())return;setBusy(true);new SwingWorker<StoredObjectService.Definition,Void>(){protected StoredObjectService.Definition doInBackground()throws Exception{return StoredObjectService.read(target,item);}protected void done(){setBusy(false);try{action.accept(get());}catch(Exception error){showError(tr("No se pudo abrir la definición"),rootCause(error));}}}.execute();}
-    private void editStoredObject(JdbcSession target,SchemaItem item){String editorName="stored-object-editor:"+StoredObjectFormatStore.key(target.profile(),item);for(int i=0;i<workspaceTabs.getTabCount();i++)if(editorName.equals(workspaceTabs.getComponentAt(i).getName())){workspaceTabs.setSelectedIndex(i);return;}readStoredObject(target,item,definition->addToolTab(tr("Modificar objeto")+" · "+item.name(),new StoredObjectEditorPanel(target,item,definition,this::storedObjectDefinitionChanged)));}
+    private void editStoredObject(JdbcSession target,SchemaItem item){selectObjectDatabase(target,item);String editorName="stored-object-editor:"+StoredObjectFormatStore.key(target.profile(),item);for(int i=0;i<workspaceTabs.getTabCount();i++)if(editorName.equals(workspaceTabs.getComponentAt(i).getName())){workspaceTabs.setSelectedIndex(i);return;}readStoredObject(target,item,definition->addToolTab(tr("Modificar objeto")+" · "+item.name(),new StoredObjectEditorPanel(target,item,definition,this::storedObjectDefinitionChanged)));}
     private void runStoredDdl(JdbcSession target,String sql){if(!LicenseGate.ensure(this))return;try{StoredObjectService.requireWritable(target);}catch(Exception error){showError(tr("Modificar objeto"),error);return;}if(!Confirmations.ask(this,"Modificar objeto",target.profile().name()+"\n\n"+sql+"\n\n"+tr("Esta operación modifica la estructura y no se puede deshacer con Rollback. ¿Continuar?")))return;setBusy(true);new SwingWorker<Void,Void>(){protected Void doInBackground()throws Exception{StoredObjectService.apply(target,sql);return null;}protected void done(){setBusy(false);try{get();storedObjectsChanged(target);setStatus(tr("Objeto actualizado."));}catch(Exception error){showError(tr("No se pudo modificar el objeto"),rootCause(error));}}}.execute();}
     private void dropStoredObject(JdbcSession target,SchemaItem item){runStoredDdl(target,StoredObjectService.dropSql(item));}
     private void renameStoredObject(JdbcSession target,SchemaItem item){String name=JOptionPane.showInputDialog(this,tr("Nuevo nombre:"),item.name());if(name==null||name.equals(item.name()))return;try{runStoredDdl(target,StoredObjectService.renameSql(item,name));}catch(Exception error){showError(tr("Renombrar"),error);}}
@@ -1470,7 +1471,7 @@ public final class MainFrame extends JFrame {
 
     private TableWorkbenchPanel openTable(JdbcSession target, SchemaItem item, int section) {
         if (target == null || !target.isOpen()) return null;
-        activateSession(target);
+        selectObjectDatabase(target,item);
         for (int i = 1; i < workspaceTabs.getTabCount(); i++) {
             Component component = workspaceTabs.getComponentAt(i);
             if (component instanceof TableWorkbenchPanel panel && panel.session() == target && panel.item().equals(item)) {
@@ -1546,8 +1547,15 @@ public final class MainFrame extends JFrame {
         setStatus(new Object[]{UiLanguage.key("Base activa: "), database});
     }
 
+    private void selectObjectDatabase(JdbcSession target,SchemaItem item){
+        if(target==null||item==null||!target.isOpen())return;activateSession(target);
+        String database=item.kind()==SchemaItem.Kind.SCHEMA?item.name():(target.profile().type()==DatabaseType.MYSQL||target.profile().type()==DatabaseType.MARIADB)?item.catalog():item.schema()!=null&&!item.schema().isBlank()?item.schema():item.catalog();
+        if(database!=null&&!database.isBlank()){queryPanel.selectDatabase(database);setStatus(new Object[]{UiLanguage.key("Base activa: "),database});}
+    }
+
     private void openDefinition(JdbcSession target, SchemaItem item) {
         if (target == null || !target.isOpen()) return;
+        selectObjectDatabase(target,item);
         if(StoredObjectService.supported(target.profile().type())){editStoredObject(target,item);return;}
         activateSession(target);
         setStatus(new Object[]{UiLanguage.key("Leyendo definición de "), item.name(), "…"});
