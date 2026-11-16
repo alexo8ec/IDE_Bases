@@ -1,28 +1,6 @@
-{
-  "version": "0.18.21",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.21-win64.zip",
-  "sha256": "aa8d9b31dc6369a21e3d1f050d20622cc9ababba204e8a551bf9c9d31d1decf2",
-  "notes": "AdisDB: idiomas, temas y mejoras del actualizador HTTPS.",
-  "platforms": {
-    "windows-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.21-win64.zip",
-      "sha256": "aa8d9b31dc6369a21e3d1f050d20622cc9ababba204e8a551bf9c9d31d1decf2"
-    },
-    "linux-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.21-linux-x64.deb",
-      "sha256": "dcda1ce9db5b5e62ac0e73b5e4c7e777f15d1a252dbe8d165060ec739dbc19a2"
-    },
-    "linux-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.21-linux-arm64.deb",
-      "sha256": "d846c418257f4cb405547fc23df990f2102e5d7c3acde48e8c027c8bd2f060b8"
-    },
-    "macos-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.21-macos-x64.zip",
-      "sha256": "36411db5529cacfd775a9af3a3dd4fe8d9f4ef29cc8feba421d66ca3bd886e3b"
-    },
-    "macos-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.21-macos-arm64.zip",
-      "sha256": "fc3858c3f46e3a7c8ab3fcd4ec81f82b41f115d086bbe710caaa6d9c54dac066"
-    }
-  }
+﻿{
+    "version":  "0.18.22",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.22-win64.zip",
+    "sha256":  "c9cd06af82b18a6e3aafec10ced13f7e1b114f61660d1969cfcf84f1ba648772",
+    "notes":  "AdisDB 0.18.22: detecta el motor real de la conexion antes de obtener el plan. Si un perfil MySQL apunta a MariaDB, usa ANALYZE FORMAT=JSON y evita la sintaxis FORMAT=TREE incompatible."
 }
