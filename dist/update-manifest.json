@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "0.18.25",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.25-win64.zip",
-    "sha256":  "4e81df6ca511b63c50b6b2a37ff1a8a855500a92bbe829c8c93d1f29c4f1f5ac",
-    "notes":  "AdisDB 0.18.25: detecta el motor real de la conexion antes de obtener el plan. Si un perfil MySQL apunta a MariaDB, usa ANALYZE FORMAT=JSON y evita la sintaxis FORMAT=TREE incompatible."
+    "version":  "0.18.27",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.27-win64.zip",
+    "sha256":  "99c5c633a4d81c1e832917819ad4500cabc6c3c82be197f35f20fa14b704d21b",
+    "notes":  "AdisDB 0.18.27: detecta el motor real de la conexion antes de obtener el plan. Si un perfil MySQL apunta a MariaDB, usa ANALYZE FORMAT=JSON y evita la sintaxis FORMAT=TREE incompatible."
 }

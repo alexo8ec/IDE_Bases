@@ -28,8 +28,7 @@ final class ResultCellEditorDialog {
     private static Component dialogOwner(Component parent) {
         Window owner=parent instanceof Window window?window:SwingUtilities.getWindowAncestor(parent);
         return owner==null?parent:owner;
-    }
-    static Kind kind(int jdbcType,Object value) {
+    }    static Kind kind(int jdbcType,Object value) {
         return switch (jdbcType) {
             case Types.LONGVARCHAR,Types.LONGNVARCHAR,Types.CLOB,Types.NCLOB,Types.SQLXML -> Kind.TEXT;
             case Types.DATE -> Kind.DATE;
@@ -62,13 +61,19 @@ final class ResultCellEditorDialog {
         save.addActionListener(e->chooseFile(parent,false,text));load.addActionListener(e->chooseFile(parent,true,text));load.setVisible(editable);
         JPanel tools=new JPanel(new FlowLayout(FlowLayout.LEFT,6,0));tools.add(setNull);tools.add(copy);tools.add(load);tools.add(save);tools.add(size);
         JPanel content=new JPanel(new BorderLayout(6,6));content.add(tools,BorderLayout.NORTH);content.add(scroll);
-        int answer=JOptionPane.showConfirmDialog(dialogOwner(parent),content,(editable?tr("Editar contenido · "):tr("Ver contenido · "))+column,
-                JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
-        if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
+        Window owner = (Window) dialogOwner(parent);
+        content.setSize(content.getPreferredSize());
+        Point ownerLocation = owner.getLocationOnScreen();
+        Point center = new Point(
+            ownerLocation.x + (owner.getWidth() - content.getWidth()) / 2,
+            ownerLocation.y + (owner.getHeight() - content.getHeight()) / 2
+        );
+        content.setLocation(center);
+        int answer=JOptionPane.showConfirmDialog(owner,content,
+                (editable?tr("Editar contenido · "):tr("Ver contenido · "))+column,
+                JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);        if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
         return new Outcome(true,editable?(setNull.isSelected()?null:text.getText()):value);
-    }
-
-    private static void chooseFile(Component parent,boolean load,JTextArea text) {
+    }    private static void chooseFile(Component parent,boolean load,JTextArea text) {
         JFileChooser chooser=new JFileChooser();
         if(chooser.showDialog(parent,tr(load?"Cargar":"Guardar"))!=JFileChooser.APPROVE_OPTION)return;
         try {
@@ -83,13 +88,19 @@ final class ResultCellEditorDialog {
         setNull.addActionListener(e->picker.setEnabledDeep(editable&&!setNull.isSelected()));
         if(setNull.isSelected())picker.setEnabledDeep(false);
         JPanel content=new JPanel(new BorderLayout(6,6));content.add(setNull,BorderLayout.NORTH);content.add(picker);
-        int answer=JOptionPane.showConfirmDialog(dialogOwner(parent),content,(editable?tr("Editar fecha y hora · "):tr("Ver fecha y hora · "))+column,
-                JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
-        if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
+        Window owner = (Window) dialogOwner(parent);
+        content.setSize(content.getPreferredSize());
+        Point ownerLocation = owner.getLocationOnScreen();
+        Point center = new Point(
+            ownerLocation.x + (owner.getWidth() - content.getWidth()) / 2,
+            ownerLocation.y + (owner.getHeight() - content.getHeight()) / 2
+        );
+        content.setLocation(center);
+        int answer=JOptionPane.showConfirmDialog(owner,content,
+                (editable?tr("Editar fecha y hora · "):tr("Ver fecha y hora · "))+column,
+                JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);        if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
         return new Outcome(true,editable?(setNull.isSelected()?null:picker.value()):value);
-    }
-
-    static String normalizeTemporal(Kind kind,Object value) {
+    }    static String normalizeTemporal(Kind kind,Object value) {
         TemporalValue parsed=TemporalValue.parse(kind,value);
         return parsed.format(kind);
     }
