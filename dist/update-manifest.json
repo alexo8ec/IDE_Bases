@@ -1,6 +1,6 @@
-﻿{
+{
     "version":  "0.18.36",
     "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.36-win64.zip",
-    "sha256":  "89cb02bb79d563490ab232cdb8d5c8a116a920cd9c9eb16f98bd7710406528f5",
+    "sha256":  "3941043c991af4d1b5305308b67dfeda671d8b0aced5ac21a8c8b6ce3f2aa664",
     "notes":  "AdisDB 0.18.36: la impresion respeta la orientacion horizontal del reporte y crea paginas A4 apaisadas, incluida la salida de Microsoft Print to PDF."
 }

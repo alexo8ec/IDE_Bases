@@ -115,7 +115,8 @@ $manifest = [ordered]@{
     sha256 = $zipHash
     notes = "AdisDB ${version}: la impresion respeta la orientacion horizontal del reporte y crea paginas A4 apaisadas, incluida la salida de Microsoft Print to PDF."
 }
-$manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText((Join-Path $distRoot 'update-manifest.json'),($manifest | ConvertTo-Json),$utf8NoBom)
 Write-Host "Aplicacion portable lista: $appRoot\AdisDB.exe"
 Write-Host "Paquete para distribuir: $zipPath"
 Write-Host "Manifiesto de actualizacion: $distRoot\update-manifest.json"

@@ -102,7 +102,8 @@ $release = [ordered]@{
         sha256 = $portableHash
     }
 }
-$release | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $projectRoot 'dist\release-manifest.json') -Encoding utf8
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText((Join-Path $projectRoot 'dist\release-manifest.json'),($release | ConvertTo-Json -Depth 4),$utf8NoBom)
 @(
     "$installerHash  $($installer.Name)"
     "$portableHash  $(Split-Path -Leaf $portable)"
