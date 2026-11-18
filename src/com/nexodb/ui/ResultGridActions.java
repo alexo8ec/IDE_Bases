@@ -148,6 +148,7 @@ final class ResultGridActions {
         table.getActionMap().put("result-menu",new AbstractAction(){public void actionPerformed(ActionEvent event){showMenu(table);}});
     }
     private void item(JPopupMenu menu,String label,Runnable action){JMenuItem item=UiLanguage.text(new JMenuItem(),UiLanguage.key(label));item.addActionListener(event->action.run());menu.add(item);}
+    private void item(JPopupMenu menu,String label,Icon icon,Runnable action,boolean selected){JCheckBoxMenuItem item=new JCheckBoxMenuItem();UiLanguage.text(item,UiLanguage.key(label));item.setIcon(icon);item.setSelected(selected);item.addActionListener(event->action.run());menu.add(item);}
     private void action(JPopupMenu menu,String label,Runnable action,boolean enabled){item(menu,label,action);menu.getComponent(menu.getComponentCount()-1).setEnabled(enabled);}
     private void submenu(JPopupMenu menu,JMenu submenu,String label,Runnable action){JMenuItem item=UiLanguage.text(new JMenuItem(),UiLanguage.key(label));item.addActionListener(event->action.run());submenu.add(item);}
     void showMenu(Component anchor){JPopupMenu menu=menu(false);if(anchor==table){int row=table.getSelectedRow(),col=table.getSelectedColumn();Rectangle rect=row>=0&&col>=0?table.getCellRect(row,col,true):new Rectangle();menu.show(table,rect.x,rect.y+rect.height);}else menu.show(anchor,0,anchor.getHeight());}
@@ -217,6 +218,11 @@ final class ResultGridActions {
     private JPopupMenu columnFilterMenu(int column){
         JPopupMenu menu=new JPopupMenu();
         JTextField valueSearch=new JTextField(filterSeed(column),24);valueSearch.setName("column-filter-search");UiLanguage.placeholder(valueSearch,"Buscar valores…");
+        SortOrder current=sortOrder(column);
+        item(menu,"Orden ascendente",IconFactory.of(IconFactory.Kind.SORT_ASC,15),()->sort(column,SortOrder.ASCENDING),current==SortOrder.ASCENDING);
+        item(menu,"Orden descendente",IconFactory.of(IconFactory.Kind.SORT_DESC,15),()->sort(column,SortOrder.DESCENDING),current==SortOrder.DESCENDING);
+        action(menu,"Quitar ordenación",this::clearSort,current!=SortOrder.UNSORTED);
+        menu.addSeparator();
         JMenuItem custom=UiLanguage.text(new JMenuItem(tr("Filtro personalizado…"),IconFactory.of(IconFactory.Kind.FILTER,15)),UiLanguage.key("Filtro personalizado…"));
         custom.addActionListener(event->filterColumn(column,valueSearch.getText().trim()));menu.add(custom);
         action(menu,"Quitar filtro de esta columna",()->{filters.remove(column);applyFilter();},filters.containsKey(column));
@@ -269,7 +275,12 @@ final class ResultGridActions {
         if(actual instanceof Number)try{return new BigDecimal(actual.toString()).compareTo(new BigDecimal(expected.trim()));}catch(NumberFormatException ignored){}
         String left=display(actual),right=expected;return caseSensitive?left.compareTo(right):left.compareToIgnoreCase(right);
     }
-    private void sort(int column,SortOrder order){if(column>=0)table.getRowSorter().setSortKeys(List.of(new RowSorter.SortKey(column,order)));}
+    private SortOrder sortOrder(int column){
+        if(column<0||table.getRowSorter()==null)return SortOrder.UNSORTED;
+        return table.getRowSorter().getSortKeys().stream().filter(key->key.getColumn()==column).map(RowSorter.SortKey::getSortOrder).findFirst().orElse(SortOrder.UNSORTED);
+    }
+    private void clearSort(){if(table.getRowSorter()!=null)table.getRowSorter().setSortKeys(List.of());table.getTableHeader().repaint();}
+    private void sort(int column,SortOrder order){if(column>=0&&table.getRowSorter()!=null){table.getRowSorter().setSortKeys(List.of(new RowSorter.SortKey(column,order)));table.getTableHeader().repaint();}}
     private List<Integer> allColumns(){List<Integer> result=new ArrayList<>();for(int i=0;i<model.getColumnCount();i++)result.add(i);return result;}
     private void copySelection(){copy(selectedRows(),selectedColumns());}
     private void copy(List<Integer> rows,List<Integer> columns){if(rows.isEmpty()||columns.isEmpty())return;Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text(model,rows,columns)),null);copied.accept(tr("Datos copiados al portapapeles"));}

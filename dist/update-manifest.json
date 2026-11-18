@@ -1,6 +1,6 @@
 {
-  "version": "0.18.30",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.30-win64.zip",
-  "sha256": "60f2c5bc07cc607a8e4d6ef1da2466eda2937ad1958443cecc43188dba50c83b",
-  "notes": "AdisDB 0.18.30: filtro compacto por columna con buscador y valores, condiciones conservadas y formulario personalizado centrado en la ventana principal."
+  "version": "0.18.31",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.31-win64.zip",
+  "sha256": "49f9f55268f65195f25a9254a37eda0efe5af7355d217b8339993ee17c4b72c3",
+  "notes": "AdisDB 0.18.31: conexiones remotas con reintento breve y diagnóstico claro, consultas MySQL por bloques y metadatos reutilizados, y orden ascendente o descendente desde el filtro de cada columna."
 }

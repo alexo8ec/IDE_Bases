@@ -79,6 +79,8 @@ public final class QueryGridIntegrationTest {
                 snapshot(panel,"query-grid-checked-row.png");
                 ResultGridActions actions=field(panel,"grid",ResultGridActions.class);equal(List.of(2),actions.selectedRows());
                 JPopupMenu compact=invoke(actions,"columnFilterMenu",new Class[]{int.class},1);equal("Carol",find(compact,"column-filter-search",JTextField.class).getText());equal(true,find(compact,"column-filter-values",JList.class).getModel().getSize()>0);
+                menuItem(compact,"Orden descendente").doClick();equal(SortOrder.DESCENDING,table.getRowSorter().getSortKeys().get(0).getSortOrder());equal(1,table.getRowSorter().getSortKeys().get(0).getColumn());
+                JPopupMenu sorted=invoke(actions,"columnFilterMenu",new Class[]{int.class},1);equal(true,menuItem(sorted,"Orden descendente").isSelected());menuItem(sorted,"Quitar ordenación").doClick();equal(List.of(),table.getRowSorter().getSortKeys());
                 filter.setText("");table.getRowSorter().toggleSortOrder(0);table.getRowSorter().toggleSortOrder(0);
                 equal(List.of(2),actions.selectedRows());equal("Carol\ttwo",ResultGridActions.text(model,actions.selectedRows(),List.of(1,2)));
                 // Reordered display columns still map NULL to the correct database column.
@@ -140,7 +142,7 @@ public final class QueryGridIntegrationTest {
             await(()->field(p,"editor",SqlEditorPane.class).isFocusOwner());
             SwingUtilities.invokeAndWait(()->invoke(p,"showCompletions",new Class[]{boolean.class},true));
             await(()->field(p,"completionModel",DefaultListModel.class).contains("NAME"));
-            SwingUtilities.invokeAndWait(()->{JList<?> list=field(p,"completionList",JList.class);list.setSelectedValue("NAME",true);invoke(p,"acceptCompletion",new Class[]{});equal("SELECT p.NAME FROM people p",field(p,"editor",SqlEditorPane.class).getText());});
+            SwingUtilities.invokeAndWait(()->{JList<?> list=field(p,"completionList",JList.class);DefaultListModel<?> values=field(p,"completionModel",DefaultListModel.class);int index=values.indexOf("NAME");if(index<0)throw new AssertionError("NAME completion disappeared");list.setSelectedIndex(index);equal("NAME",list.getSelectedValue());invoke(p,"acceptCompletion",new Class[]{});equal("SELECT p.NAME FROM people p",field(p,"editor",SqlEditorPane.class).getText());});
         }finally{SwingUtilities.invokeAndWait(()->{field(p,"completionTimer",javax.swing.Timer.class).stop();window.get().dispose();});}
     }
     private static AbstractButton button(Container root,String name){return find(root,name,AbstractButton.class);}

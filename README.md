@@ -1,6 +1,12 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.30**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.31**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Conexiones resilientes y consultas más rápidas — 0.18.31
+
+- Una conexión remota que vence por tiempo realiza un segundo intento breve dentro del tiempo total que antes consumía un solo intento. Si tampoco responde, AdisDB indica el servidor y puerto y aclara que todavía no se validaron las credenciales, para distinguir red, VPN, firewall o puerto de un problema de usuario y contraseña.
+- MySQL y MariaDB leen los resultados por bloques de 500 filas; MySQL activa el cursor del controlador y reutiliza metadatos de resultados. La información de tabla, columnas y clave primaria necesaria para editar resultados queda en caché por conexión y se invalida automáticamente al cambiar la estructura.
+- El menú compacto de cada encabezado ofrece **Orden ascendente**, **Orden descendente** y **Quitar ordenación** con iconos y marca de la dirección activa. La flecha permanece visible junto al icono de filtro y el orden se aplica inmediatamente a las filas cargadas.
 
 ## Filtros compactos por columna — 0.18.30
 

@@ -18,7 +18,7 @@ public final class IconFactory {
         EDIT, DELETE, DATABASE, SCHEMA, TABLE, VIEW, COLUMN, SETTINGS, UPDATE,
         INFO, EXIT, SAVE, TEST, CANCEL, FOLDER, CONNECTIONS, OBJECTS,
         KEY, SQL, PROCEDURE, FUNCTION, TRIGGER, EVENT, COMPARE, USER, SEARCH,
-        UNDO, REDO, COPY, IMPORT, BACKUP, TOOLS, DIAGRAM, FILTER, HISTORY, FORMAT
+        UNDO, REDO, COPY, IMPORT, BACKUP, TOOLS, DIAGRAM, FILTER, SORT_ASC, SORT_DESC, HISTORY, FORMAT
     }
 
     public static final Color BLUE = new Color(0x2563EB);
@@ -138,6 +138,12 @@ public final class IconFactory {
                 case TOOLS -> {g.draw(new RoundRectangle2D.Double(2,6,14,10,2,2));g.draw(new RoundRectangle2D.Double(6,2,6,4,1,1));line(g,2,10,16,10);line(g,7,10,7,12);line(g,11,10,11,12);}
                 case DIAGRAM -> {g.draw(new RoundRectangle2D.Double(1.5,2.5,6,5,1,1));g.draw(new RoundRectangle2D.Double(10.5,10.5,6,5,1,1));line(g,4.5,7.5,4.5,13);line(g,4.5,13,10.5,13);line(g,1.5,4.5,7.5,4.5);line(g,10.5,12.5,16.5,12.5);}
                 case FILTER -> {Path2D p=new Path2D.Double();p.moveTo(2,3);p.lineTo(16,3);p.lineTo(11,9);p.lineTo(11,14);p.lineTo(7,16);p.lineTo(7,9);p.closePath();g.draw(p);}
+                case SORT_ASC, SORT_DESC -> {
+                    boolean ascending=kind==Kind.SORT_ASC;
+                    double tip=ascending?3:15,base=ascending?15:3;
+                    line(g,5,tip,5,base);line(g,2.5,tip+(ascending?3:-3),5,tip);line(g,7.5,tip+(ascending?3:-3),5,tip);
+                    line(g,10,4,15,4);line(g,10,9,14,9);line(g,10,14,12.5,14);
+                }
                 case HISTORY -> {g.draw(new Arc2D.Double(3,2.5,13,13,-25,295,Arc2D.OPEN));line(g,2,3,2,8);line(g,2,8,7,8);line(g,9.5,5,9.5,9.5);line(g,9.5,9.5,12.5,11);}
                 case FORMAT -> {line(g,3,4,15,4);line(g,3,9,12,9);line(g,3,14,15,14);line(g,13,2,13,6);line(g,11,4,13,4);line(g,13,4,15,4);}
                 case COMMIT -> { line(g, 3, 9, 7, 13); line(g, 7, 13, 15, 4); }

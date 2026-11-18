@@ -5,6 +5,8 @@ import com.nexodb.model.DatabaseType;
 import com.nexodb.model.AuthenticationMode;
 
 import java.util.Properties;
+import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 
 public final class JdbcSessionTest {
     public static void main(String[] args) {
@@ -20,6 +22,16 @@ public final class JdbcSessionTest {
         Properties exactProperties = JdbcSession.connectionProperties(exact, " clave ".toCharArray());
         assertProperty(exactProperties, "user", "  usuario con espacios  ");
         assertProperty(exactProperties, "password", " clave ");
+        assertProperty(exactProperties, "connectTimeout", "7000");
+        assertProperty(exactProperties, "defaultFetchSize", "500");
+        assertProperty(exactProperties, "useCursorFetch", "true");
+        assertProperty(exactProperties, "cacheResultSetMetadata", "true");
+        assertProperty(exactProperties, "maintainTimeStats", "false");
+
+        ConnectionProfile postgres = profile(DatabaseType.POSTGRESQL, "postgres");
+        assertProperty(JdbcSession.connectionProperties(postgres, new char[0]), "connectTimeout", "7");
+        if (!JdbcSession.isConnectTimeout(new SQLTransientConnectionException("Connect timed out", "08001"))) throw new AssertionError("Connect timeout was not detected");
+        if (JdbcSession.isConnectTimeout(new SQLException("Access denied", "28000"))) throw new AssertionError("Authentication error mistaken for timeout");
 
         ConnectionProfile windows = new ConnectionProfile("", "Windows", DatabaseType.MARIADB,
                 "localhost", 3306, "", "root", DatabaseType.MARIADB.buildUrl("localhost", 3306, ""),

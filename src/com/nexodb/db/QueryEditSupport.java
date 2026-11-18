@@ -27,7 +27,18 @@ public final class QueryEditSupport {
     private QueryEditSupport() {}
     private static Eligibility denied(String reason) { return new Eligibility(null,reason); }
 
+    /** Per-session bounded cache; cleared by JdbcSession after every schema-changing statement. */
+    public static final class MetadataCache {
+        private final LinkedHashMap<TableOrigin,TableShape> tables=new LinkedHashMap<>(32,.75f,true){protected boolean removeEldestEntry(Map.Entry<TableOrigin,TableShape> eldest){return size()>128;}};
+        synchronized TableShape get(TableOrigin origin){return tables.get(origin);}synchronized void put(TableOrigin origin,TableShape shape){tables.put(origin,shape);}public synchronized void clear(){tables.clear();}
+    }
+    private record TableShape(boolean baseTable,Map<String,String> columns,Set<String> generated,SortedMap<Integer,String> primary){}
+
     public static Eligibility describe(Connection connection, DatabaseType type, String sql, ResultSetMetaData result) {
+        return describe(connection,type,sql,result,new MetadataCache());
+    }
+
+    static Eligibility describe(Connection connection, DatabaseType type, String sql, ResultSetMetaData result,MetadataCache cache) {
         try {
             if (!editableSelect(sql)) return denied("La edición requiere un SELECT sin columnas calculadas, agrupaciones, subconsultas ni uniones de resultados.");
             int count=result.getColumnCount();
@@ -46,7 +57,7 @@ public final class QueryEditSupport {
             String quote=clean(metadata.getIdentifierQuoteString());
             List<Target> targets=new ArrayList<>();
             for(TableOrigin origin:origins.keySet()) {
-                Target target=target(metadata,result,type,origin,count,escape,quote);
+                Target target=target(metadata,result,type,origin,count,escape,quote,cache);
                 if(target!=null)targets.add(target);
             }
             if(targets.isEmpty())return denied(origins.size()>1
@@ -59,19 +70,9 @@ public final class QueryEditSupport {
     }
 
     private record TableOrigin(String catalog,String schema,String table) {}
-    private static Target target(DatabaseMetaData metadata,ResultSetMetaData result,DatabaseType type,TableOrigin origin,int count,String escape,String quote)throws SQLException {
-        boolean baseTable=false;
-        try(ResultSet tables=metadata.getTables(empty(origin.catalog()),empty(pattern(origin.schema(),escape)),pattern(origin.table(),escape),new String[]{"TABLE"})) {
-            while(tables.next())if(origin.table().equalsIgnoreCase(clean(tables.getString("TABLE_NAME"))))baseTable=true;
-        }
-        if(!baseTable)return null;
-        Map<String,String> actual=new TreeMap<>(String.CASE_INSENSITIVE_ORDER);Set<String> generated=new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        try(ResultSet columns=metadata.getColumns(empty(origin.catalog()),empty(pattern(origin.schema(),escape)),pattern(origin.table(),escape),"%")) {
-            while(columns.next()) {
-                String name=columns.getString("COLUMN_NAME");actual.put(name,name);
-                try{if("YES".equalsIgnoreCase(columns.getString("IS_GENERATEDCOLUMN")))generated.add(name);}catch(SQLException ignored){}
-            }
-        }
+    private static Target target(DatabaseMetaData metadata,ResultSetMetaData result,DatabaseType type,TableOrigin origin,int count,String escape,String quote,MetadataCache cache)throws SQLException {
+        TableShape shape=cache==null?null:cache.get(origin);if(shape==null)shape=readShape(metadata,origin,escape);if(cache!=null)cache.put(origin,shape);
+        if(!shape.baseTable())return null;Map<String,String> actual=shape.columns();Set<String> generated=shape.generated();
         List<Column> columns=new ArrayList<>();Map<String,Integer> indexes=new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         for(int i=1;i<=count;i++) {
             String source=clean(result.getColumnName(i));int jdbcType=result.getColumnType(i);
@@ -82,19 +83,33 @@ public final class QueryEditSupport {
             if(belongs&&real!=null&&indexes.put(real,i-1)!=null)return null;
             columns.add(new Column(quoted(real==null?source:real,quote),jdbcType,writable,real==null?source:real));
         }
-        SortedMap<Integer,String> primary=new TreeMap<>();
-        try(ResultSet keys=metadata.getPrimaryKeys(empty(origin.catalog()),empty(origin.schema()),origin.table())) {
-            while(keys.next())primary.put(keys.getInt("KEY_SEQ"),keys.getString("COLUMN_NAME"));
-        }
-        if(primary.isEmpty())return null;
+        if(shape.primary().isEmpty())return null;
         List<Integer> keys=new ArrayList<>();
-        for(String name:primary.values()) {Integer index=indexes.get(name);if(index==null||!supported(columns.get(index).type()))return null;keys.add(index);}
+        for(String name:shape.primary().values()) {Integer index=indexes.get(name);if(index==null||!supported(columns.get(index).type()))return null;keys.add(index);}
         List<String> parts=new ArrayList<>();
         if(type==DatabaseType.MYSQL||type==DatabaseType.MARIADB){if(!origin.catalog().isEmpty())parts.add(quoted(origin.catalog(),quote));}
         else if(type==DatabaseType.SQLSERVER){if(!origin.catalog().isEmpty())parts.add(quoted(origin.catalog(),quote));if(!origin.schema().isEmpty())parts.add(quoted(origin.schema(),quote));}
         else if(!origin.schema().isEmpty())parts.add(quoted(origin.schema(),quote));
         parts.add(quoted(origin.table(),quote));
         return new Target(String.join(".",parts),columns,keys,new SchemaItem(SchemaItem.Kind.TABLE,empty(origin.catalog()),empty(origin.schema()),origin.table(),""),type);
+    }
+    private static TableShape readShape(DatabaseMetaData metadata,TableOrigin origin,String escape)throws SQLException{
+        boolean baseTable=false;
+        try(ResultSet tables=metadata.getTables(empty(origin.catalog()),empty(pattern(origin.schema(),escape)),pattern(origin.table(),escape),new String[]{"TABLE"})) {
+            while(tables.next())if(origin.table().equalsIgnoreCase(clean(tables.getString("TABLE_NAME"))))baseTable=true;
+        }
+        Map<String,String> actual=new TreeMap<>(String.CASE_INSENSITIVE_ORDER);Set<String> generated=new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        try(ResultSet columns=metadata.getColumns(empty(origin.catalog()),empty(pattern(origin.schema(),escape)),pattern(origin.table(),escape),"%")) {
+            while(columns.next()) {
+                String name=columns.getString("COLUMN_NAME");actual.put(name,name);
+                try{if("YES".equalsIgnoreCase(columns.getString("IS_GENERATEDCOLUMN")))generated.add(name);}catch(SQLException ignored){}
+            }
+        }
+        SortedMap<Integer,String> primary=new TreeMap<>();
+        try(ResultSet keys=metadata.getPrimaryKeys(empty(origin.catalog()),empty(origin.schema()),origin.table())) {
+            while(keys.next())primary.put(keys.getInt("KEY_SEQ"),keys.getString("COLUMN_NAME"));
+        }
+        return new TableShape(baseTable,Collections.unmodifiableMap(actual),Collections.unmodifiableSet(generated),Collections.unmodifiableSortedMap(primary));
     }
     private static boolean namespaceMatches(String resolved,String reported){return reported.isEmpty()||resolved.equalsIgnoreCase(reported);}
 

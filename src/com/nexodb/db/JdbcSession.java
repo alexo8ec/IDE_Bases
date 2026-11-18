@@ -24,6 +24,7 @@ public final class JdbcSession implements AutoCloseable {
     private final ConnectionProfile profile;
     private final Connection connection;
     private final URLClassLoader driverLoader;
+    private final QueryEditSupport.MetadataCache editMetadata = new QueryEditSupport.MetadataCache();
     private volatile Statement activeStatement;
 
     private JdbcSession(ConnectionProfile profile, Connection connection, URLClassLoader driverLoader) {
@@ -44,12 +45,12 @@ public final class JdbcSession implements AutoCloseable {
         profile = PostgresSupport.initialProfile(profile);
         ensureKnownDriver(profile, driverProgress);
         try {
-            return openDirect(profile, password);
+            return openResilient(profile, password);
         } catch (Exception firstError) {
             if (PostgresSupport.needsDatabaseSelection(profile) && firstError instanceof SQLException sql
                     && ("3D000".equals(sql.getSQLState()) || "42501".equals(sql.getSQLState()))) {
                 try {
-                    return openDirect(PostgresSupport.alternateInitialProfile(profile), password);
+                    return openResilient(PostgresSupport.alternateInitialProfile(profile), password);
                 } catch (SQLException fallbackError) {
                     if (!"3D000".equals(fallbackError.getSQLState()) && !"42501".equals(fallbackError.getSQLState())) {
                         fallbackError.addSuppressed(firstError);
@@ -74,7 +75,7 @@ public final class JdbcSession implements AutoCloseable {
                     profile.username(), mariaDbFallbackUrl(profile),
                     DatabaseType.MARIADB.driverClass(), "", profile.authenticationMode(), profile.readOnly());
             try {
-                return openDirect(mariaDbProfile, password);
+                return openResilient(mariaDbProfile, password);
             } catch (Exception fallbackError) {
                 if (isAuthenticationError(fallbackError)) {
                     IllegalStateException friendly = manualAuthenticationError(profile, password);
@@ -86,6 +87,32 @@ public final class JdbcSession implements AutoCloseable {
                 throw fallbackError;
             }
         }
+    }
+
+    /** One quick retry handles short VPN/Wi-Fi route changes without exceeding the old total wait. */
+    private static JdbcSession openResilient(ConnectionProfile profile,char[] password)throws Exception{
+        try{return openDirect(profile,password);}
+        catch(Exception first){
+            if(!isConnectTimeout(first)||profile.host().isBlank())throw first;
+            try{Thread.sleep(250);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw first;}
+            try{return openDirect(profile,password);}
+            catch(Exception second){
+                if(!isConnectTimeout(second))throw second;
+                String endpoint=profile.host()+(profile.port()>0?":"+profile.port():"");
+                SQLTransientConnectionException friendly=new SQLTransientConnectionException(
+                        "No se pudo contactar " + endpoint + " después de dos intentos. No se llegó a validar el usuario ni la contraseña.\n\n"
+                                + "Comprueba que el servidor esté encendido, que el puerto sea correcto y esté abierto, y que la VPN o Tailscale esté conectada si esa dirección la requiere.","08001");
+                friendly.addSuppressed(first);friendly.addSuppressed(second);throw friendly;
+            }
+        }
+    }
+
+    static boolean isConnectTimeout(Throwable error){
+        for(Throwable current=error;current!=null;current=current.getCause()){
+            if(current instanceof java.net.SocketTimeoutException)return true;
+            String message=current.getMessage();if(message!=null){String value=message.toLowerCase(java.util.Locale.ROOT);if(value.contains("connect timed out")||value.contains("connection timed out")||value.contains("connect timeout"))return true;}
+        }
+        return false;
     }
 
     private static void ensureKnownDriver(ConnectionProfile profile, IntConsumer progress) throws Exception {
@@ -175,9 +202,17 @@ public final class JdbcSession implements AutoCloseable {
         }
         props.setProperty("user", profile.username());
         if (profile.type() == DatabaseType.MYSQL || profile.type() == DatabaseType.MARIADB || profile.type() == DatabaseType.POSTGRESQL) props.setProperty("tcpKeepAlive", "true");
-        if (profile.type() == DatabaseType.POSTGRESQL) props.setProperty("connectTimeout", "15");
-        if (profile.type() == DatabaseType.MYSQL || profile.type() == DatabaseType.MARIADB) props.setProperty("connectTimeout", "15000");
-        if (profile.type() == DatabaseType.MYSQL) props.setProperty("useInformationSchema", "true");
+        if (profile.type() == DatabaseType.POSTGRESQL) props.setProperty("connectTimeout", "7");
+        if (profile.type() == DatabaseType.MYSQL || profile.type() == DatabaseType.MARIADB) {
+            props.setProperty("connectTimeout", "7000");
+            props.setProperty("defaultFetchSize", "500");
+        }
+        if (profile.type() == DatabaseType.MYSQL) {
+            props.setProperty("useInformationSchema", "true");
+            props.setProperty("useCursorFetch", "true");
+            props.setProperty("cacheResultSetMetadata", "true");
+            props.setProperty("maintainTimeStats", "false");
+        }
         if (profile.authenticationMode() == AuthenticationMode.DATABASE) {
             props.setProperty("password", password == null ? "" : new String(password));
         }
@@ -333,7 +368,7 @@ public final class JdbcSession implements AutoCloseable {
             try(ResultSet rows=statement.getResultSet()) {
                 long skipped=0;while(skipped<offset&&rows.next()){skipped++;if(Thread.currentThread().isInterrupted())throw new SQLException("Paginación cancelada.");}
                 QueryResult result=QueryResult.from(rows,pageSize);
-                return result.withEditing(QueryEditSupport.describe(connection,profile.type(),sql,rows.getMetaData())).withElapsed(elapsedMillis(started));
+                return result.withEditing(QueryEditSupport.describe(connection,profile.type(),sql,rows.getMetaData(),editMetadata)).withElapsed(elapsedMillis(started));
             }
         }finally{activeStatement=null;}
       }
@@ -355,12 +390,13 @@ public final class JdbcSession implements AutoCloseable {
         try (Statement statement = connection.createStatement()) {
             activeStatement = statement;
             configureRowLimit(statement,maxRows);
+            if(invalidatesMetadata(sql))editMetadata.clear();
             boolean hasResult = statement.execute(sql);
             do {
                 if (hasResult) {
                     try (ResultSet resultSet = statement.getResultSet()) {
                         QueryResult result = QueryResult.from(resultSet, maxRows);
-                        var eligibility = QueryEditSupport.describe(connection, profile.type(), sql, resultSet.getMetaData());
+                        var eligibility = QueryEditSupport.describe(connection, profile.type(), sql, resultSet.getMetaData(),editMetadata);
                         results.add(result.withEditing(eligibility).withElapsed(elapsedMillis(started)));
                     }
                 } else {
@@ -390,8 +426,11 @@ public final class JdbcSession implements AutoCloseable {
     static void configureRowLimit(Statement statement,int maxRows)throws SQLException {
         // JDBC uses zero for unlimited. Integer.MAX_VALUE exceeds limits in MariaDB/MySQL drivers.
         statement.setMaxRows(maxRows==Integer.MAX_VALUE?0:Math.addExact(maxRows,1));
+        try{statement.setFetchDirection(ResultSet.FETCH_FORWARD);}catch(SQLFeatureNotSupportedException|AbstractMethodError ignored){}
         statement.setFetchSize(Math.min(maxRows,500));
     }
+
+    private static boolean invalidatesMetadata(String sql){return sql!=null&&sql.stripLeading().matches("(?is)^(?:CREATE|ALTER|DROP|RENAME|TRUNCATE)\\b.*");}
 
     public void setAutoCommit(boolean autoCommit) throws SQLException { connection.setAutoCommit(autoCommit); }
     public boolean getAutoCommit() throws SQLException { return connection.getAutoCommit(); }
