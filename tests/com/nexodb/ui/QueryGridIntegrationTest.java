@@ -20,6 +20,10 @@ public final class QueryGridIntegrationTest {
     public static void main(String[] args)throws Exception {
         FlatLightLaf.setup();
         com.nexodb.util.I18n.initialize("es");
+        var numeric=new ResultGridActions.Filter(new ResultGridActions.Condition(ResultGridActions.Operator.GREATER,"10"),ResultGridActions.Junction.AND,new ResultGridActions.Condition(ResultGridActions.Operator.LESS_OR_EQUAL,"20"),false);
+        equal(true,ResultGridActions.matches(15,numeric));equal(false,ResultGridActions.matches(25,numeric));
+        var textFilter=new ResultGridActions.Filter(new ResultGridActions.Condition(ResultGridActions.Operator.STARTS_WITH,"car"),ResultGridActions.Junction.OR,new ResultGridActions.Condition(ResultGridActions.Operator.IS_NULL,null),false);
+        equal(true,ResultGridActions.matches("Carol",textFilter));equal(true,ResultGridActions.matches(null,textFilter));equal(false,ResultGridActions.matches("Alice",textFilter));
         ResultTableModel copied=new ResultTableModel();copied.setResult(new QueryResult(List.of("id","text","note"),List.of(Arrays.asList(1,"a\t\"b\n",null)),-1,0,false));
         equal("1\t\"a\t\"\"b\n\"\t(NULL)",ResultGridActions.text(copied,List.of(0),List.of(0,1,2)));
         Path driver=Path.of(System.getProperty("nexodb.test.h2Jar","build/h2-test.jar")).toAbsolutePath();

@@ -26,6 +26,7 @@ public final class UserAdministrationTest {
             if(admin.dropSql(account).contains("CASCADE"))throw new AssertionError("Cascading deletion");
         }
         if(UserAdministration.detect("PostgreSQL")!=DatabaseType.POSTGRESQL || UserAdministration.detect("SQLite")!=DatabaseType.SQLITE)throw new AssertionError("JDBC detection");
+        testMysqlPrivilegeEditor();
         Path driver=Path.of("build/h2-test.jar").toAbsolutePath();
         if(java.nio.file.Files.exists(driver)) {
             ConnectionProfile profile=new ConnectionProfile("users-test","Users test",DatabaseType.H2,"",0,"mem:users","sa","jdbc:h2:mem:users;DB_CLOSE_DELAY=-1","org.h2.Driver",driver.toString(),false);
@@ -56,7 +57,27 @@ public final class UserAdministrationTest {
                 }
             }
         }
-        System.out.println("UserAdministrationTest: OK (six dialects, quoting, privilege whitelist, H2 account lifecycle and login, transaction guard)");
+        System.out.println("UserAdministrationTest: OK (six dialects, quoting, current MySQL grants, exact GRANT/REVOKE reconciliation, H2 lifecycle and transaction guard)");
+    }
+    private static void testMysqlPrivilegeEditor()throws Exception{
+        Connection c=mysqlMock(List.of(
+                "GRANT SELECT, INSERT ON `medical`.* TO `operator`@`%`",
+                "GRANT CREATE USER ON *.* TO `operator`@`%` WITH GRANT OPTION"));
+        UserAdministration admin=new UserAdministration(c,DatabaseType.MYSQL);UserAdministration.Account account=new UserAdministration.Account("operator","%","");
+        UserAdministration.PermissionSnapshot snapshot=admin.permissionSnapshot(account);
+        UserAdministration.PrivilegeScope database=snapshot.scopes().stream().filter(s->s.name().equals("medical")).findFirst().orElseThrow();
+        UserAdministration.PrivilegeScope global=snapshot.scopes().stream().filter(UserAdministration.PrivilegeScope::global).findFirst().orElseThrow();
+        UserAdministration.PrivilegeState state=snapshot.states().get(database);
+        if(!state.direct().equals(new LinkedHashSet<>(List.of("SELECT","INSERT")))||!state.inheritedGrantOption())throw new AssertionError(state);
+        if(!snapshot.capabilities().managesAccounts()||!snapshot.capabilities().delegatesGlobally()||snapshot.capabilities().allGlobal())throw new AssertionError(snapshot.capabilities());
+        List<String> databaseSql=admin.updatePrivilegeSql(account,database,List.of("SELECT","UPDATE"),false,state);
+        if(!databaseSql.equals(List.of("REVOKE INSERT ON `medical`.* FROM 'operator'@'%'", "GRANT UPDATE ON `medical`.* TO 'operator'@'%'")))throw new AssertionError(databaseSql);
+        List<String> globalSql=admin.updatePrivilegeSql(account,global,List.of(),false,snapshot.states().get(global));
+        if(!globalSql.equals(List.of("REVOKE CREATE USER ON *.* FROM 'operator'@'%'", "REVOKE GRANT OPTION ON *.* FROM 'operator'@'%'")))throw new AssertionError(globalSql);
+        UserAdministration.PermissionSnapshot patterned=new UserAdministration(mysqlMock(List.of("GRANT ALL PRIVILEGES ON `%`.* TO `operator`@`%`")),DatabaseType.MARIADB).permissionSnapshot(account);
+        UserAdministration.PrivilegeScope pattern=patterned.scopes().stream().filter(s->s.name().equals("%")).findFirst().orElseThrow();
+        UserAdministration.PrivilegeState inherited=patterned.states().get(patterned.scopes().stream().filter(s->s.name().equals("medical")).findFirst().orElseThrow());
+        if(!patterned.capabilities().databasePatterns().contains("`%`.*")||!inherited.inherited().contains("SELECT")||!patterned.states().get(pattern).direct().contains("TRIGGER"))throw new AssertionError(patterned);
     }
     private static void execute(Connection c,String sql)throws SQLException {try(Statement s=c.createStatement()){s.execute(sql);}}
     private static Connection mock(String mode) {
@@ -66,5 +87,18 @@ public final class UserAdministrationTest {
             case "createStatement" -> Proxy.newProxyInstance(UserAdministrationTest.class.getClassLoader(),new Class[]{Statement.class},(p2,m2,a2)->m2.getName().equals("executeQuery")?Proxy.newProxyInstance(UserAdministrationTest.class.getClassLoader(),new Class[]{ResultSet.class},(p3,m3,a3)->switch(m3.getName()){case "next"->true;case "getString"->mode;default->null;}):null);
             default -> null;
         });
+    }
+    private static Connection mysqlMock(List<String> grants){
+        return (Connection)Proxy.newProxyInstance(UserAdministrationTest.class.getClassLoader(),new Class[]{Connection.class},(p,m,a)->switch(m.getName()){
+            case "getCatalog"->"medical";
+            case "getMetaData"->Proxy.newProxyInstance(UserAdministrationTest.class.getClassLoader(),new Class[]{DatabaseMetaData.class},(p2,m2,a2)->switch(m2.getName()){
+                case "getDatabaseProductName"->"MySQL";case "getCatalogs"->rows(List.of("medical"));default->null;});
+            case "createStatement"->Proxy.newProxyInstance(UserAdministrationTest.class.getClassLoader(),new Class[]{Statement.class},(p2,m2,a2)->m2.getName().equals("executeQuery")?rows(String.valueOf(a2[0]).startsWith("SELECT @@SESSION.sql_mode")?List.of(""):grants):null);
+            default->null;
+        });
+    }
+    private static ResultSet rows(List<String> values){
+        int[] index={-1};return (ResultSet)Proxy.newProxyInstance(UserAdministrationTest.class.getClassLoader(),new Class[]{ResultSet.class},(p,m,a)->switch(m.getName()){
+            case "next"->++index[0]<values.size();case "getString"->values.get(index[0]);case "close"->null;default->null;});
     }
 }

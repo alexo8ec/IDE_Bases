@@ -20,6 +20,10 @@ Abre **Herramientas avanzadas → Administrar usuarios…** con una conexión ac
 
 **Nuevo usuario** y **Cambiar contraseña** permiten generar una contraseña local de 20 caracteres por defecto, elegir una longitud entre 12 y 64 y activar símbolos. También puedes escribirla, confirmarla, mostrarla y copiarla. La contraseña no se guarda en el perfil ni en el historial; cópiala antes de aplicar. La política del servidor puede exigir condiciones adicionales. Cada cambio remoto explica su efecto y requiere confirmar **Sí**; las lecturas no piden confirmación. Si cambias la contraseña de la cuenta con la que estás conectado, actualiza sus credenciales de conexión antes de reconectar.
 
+En MySQL y MariaDB, **Permisos** lee primero `SHOW GRANTS` y marca los privilegios actuales. Puedes activar o desactivar casillas; al aceptar, AdisDB genera únicamente los `GRANT` y `REVOKE` necesarios. El selector separa cada base de **Todo el servidor (`*.*`) · avanzado** y también muestra patrones existentes como `` `%`.* ``. Los permisos heredados aparecen marcados y deshabilitados dentro de una base: se retiran desde el ámbito global o patrón que los concede, no fingiendo una revocación local que el servidor seguiría anulando. `CREATE USER` permite crear, modificar y eliminar cuentas; `GRANT OPTION` permite delegar los permisos que la cuenta ya posee.
+
+`GRANT ALL PRIVILEGES ON *.*` concede permisos globales sobre todas las bases, por lo que una cuenta con esa sentencia es administradora aunque también tenga otro `GRANT` por base. Poder abrir la ventana no demuestra que una operación esté autorizada: el servidor decide cada cambio. **Ver permisos** conserva el texto del servidor y el editor muestra por separado si la cuenta tiene administración global, `CREATE USER` o capacidad global de delegación.
+
 Las cuentas nuevas de Oracle y H2 se crean en mayúsculas, siguiendo su convención de nombres. La confirmación muestra ese nombre definitivo; al cambiar o eliminar una cuenta existente se conserva exactamente su nombre original.
 
 | Motor | Administración disponible | Ámbito de los permisos ofrecidos |

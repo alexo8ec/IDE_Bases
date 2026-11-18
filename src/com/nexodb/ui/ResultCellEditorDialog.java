@@ -6,6 +6,8 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.sql.Types;
@@ -15,6 +17,17 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import org.w3c.dom.Node;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXParseException;
+import org.xml.sax.helpers.DefaultHandler;
 import static com.nexodb.util.I18n.tr;
 
 /** Large text and calendar editors used by editable query results. */
@@ -49,17 +62,19 @@ final class ResultCellEditorDialog {
     }
 
     private static Outcome showText(Component parent,String column,Object value,boolean editable) {
-        JTextArea text=new JTextArea(value==null?"":String.valueOf(value),24,90);
+        String original=value==null?"":String.valueOf(value);AtomicBoolean changed=new AtomicBoolean();
+        JTextArea text=new JTextArea(original,24,90);
         text.setName("result-long-text");text.setEditable(editable);text.setLineWrap(false);text.setTabSize(4);text.setCaretPosition(0);
         JScrollPane scroll=new JScrollPane(text);scroll.setPreferredSize(new Dimension(850,500));
         JCheckBox setNull=new JCheckBox(tr("Establecer NULL"),value==null);setNull.setEnabled(editable);
         JLabel size=new JLabel();Runnable update=()->size.setText(tr("Tamaño: ")+text.getText().length()+tr(" caracteres"));update.run();
-        text.getDocument().addDocumentListener(new DocumentListener(){public void insertUpdate(DocumentEvent e){update.run();}public void removeUpdate(DocumentEvent e){update.run();}public void changedUpdate(DocumentEvent e){update.run();}});
+        text.getDocument().addDocumentListener(new DocumentListener(){private void updateState(){changed.set(true);update.run();}public void insertUpdate(DocumentEvent e){updateState();}public void removeUpdate(DocumentEvent e){updateState();}public void changedUpdate(DocumentEvent e){updateState();}});
         setNull.addActionListener(e->text.setEnabled(!setNull.isSelected()));if(setNull.isSelected())text.setEnabled(false);
-        JButton copy=UiLanguage.button("Copiar todo"),save=UiLanguage.button("Guardar en archivo…"),load=UiLanguage.button("Cargar desde archivo…");
+        JButton copy=UiLanguage.button("Copiar todo"),save=UiLanguage.button("Guardar en archivo…"),load=UiLanguage.button("Cargar desde archivo…"),format=UiLanguage.button("Formatear XML");
         copy.addActionListener(e->Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text.getText()),null));
         save.addActionListener(e->chooseFile(parent,false,text));load.addActionListener(e->chooseFile(parent,true,text));load.setVisible(editable);
-        JPanel tools=new JPanel(new FlowLayout(FlowLayout.LEFT,6,0));tools.add(setNull);tools.add(copy);tools.add(load);tools.add(save);tools.add(size);
+        format.setVisible(looksLikeXml(original));format.addActionListener(e->{try{text.setText(formatXml(text.getText()));text.setCaretPosition(0);}catch(Exception error){JOptionPane.showMessageDialog(parent,tr("El contenido no es un XML válido.")+"\n"+error.getMessage(),tr("No se pudo formatear XML"),JOptionPane.WARNING_MESSAGE);}});
+        JPanel tools=new JPanel(new FlowLayout(FlowLayout.LEFT,6,0));tools.add(setNull);tools.add(copy);tools.add(load);tools.add(save);tools.add(format);tools.add(size);
         JPanel content=new JPanel(new BorderLayout(6,6));content.add(tools,BorderLayout.NORTH);content.add(scroll);
         Window owner = (Window) dialogOwner(parent);
         content.setSize(content.getPreferredSize());
@@ -72,7 +87,7 @@ final class ResultCellEditorDialog {
         int answer=JOptionPane.showConfirmDialog(owner,content,
                 (editable?tr("Editar contenido · "):tr("Ver contenido · "))+column,
                 JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);        if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
-        return new Outcome(true,editable?(setNull.isSelected()?null:text.getText()):value);
+        return new Outcome(true,editable?(setNull.isSelected()?null:editedText(value,text.getText(),changed.get())):value);
     }    private static void chooseFile(Component parent,boolean load,JTextArea text) {
         JFileChooser chooser=new JFileChooser();
         if(chooser.showDialog(parent,tr(load?"Cargar":"Guardar"))!=JFileChooser.APPROVE_OPTION)return;
@@ -80,6 +95,32 @@ final class ResultCellEditorDialog {
             if(load)text.setText(Files.readString(chooser.getSelectedFile().toPath(),StandardCharsets.UTF_8));
             else Files.writeString(chooser.getSelectedFile().toPath(),text.getText(),StandardCharsets.UTF_8);
         }catch(IOException error){JOptionPane.showMessageDialog(parent,error.getMessage(),tr("No se pudo abrir el archivo"),JOptionPane.ERROR_MESSAGE);}
+    }
+
+    static Object editedText(Object original,String editorText,boolean changed) {
+        if(!changed)return original;
+        String source=original==null?"":String.valueOf(original);
+        if(source.contains("\r\n"))return editorText.replace("\r\n","\n").replace("\n","\r\n");
+        if(source.indexOf('\r')>=0&&source.indexOf('\n')<0)return editorText.replace("\r\n","\n").replace('\r','\n').replace('\n','\r');
+        return editorText;
+    }
+
+    static boolean looksLikeXml(String text){String value=text==null?"":text.strip();return value.startsWith("<")&&value.endsWith(">");}
+
+    static String formatXml(String xml)throws Exception{
+        DocumentBuilderFactory parser=DocumentBuilderFactory.newInstance();parser.setNamespaceAware(true);parser.setXIncludeAware(false);parser.setExpandEntityReferences(false);
+        parser.setFeature("http://apache.org/xml/features/disallow-doctype-decl",true);parser.setFeature("http://xml.org/sax/features/external-general-entities",false);parser.setFeature("http://xml.org/sax/features/external-parameter-entities",false);
+        parser.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD,"");parser.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA,"");
+        var builder=parser.newDocumentBuilder();builder.setErrorHandler(new DefaultHandler(){@Override public void error(SAXParseException e)throws SAXParseException{throw e;}@Override public void fatalError(SAXParseException e)throws SAXParseException{throw e;}});
+        var document=builder.parse(new InputSource(new StringReader(xml)));removeFormattingWhitespace(document);
+        TransformerFactory factory=TransformerFactory.newInstance();factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD,"");factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET,"");
+        var transformer=factory.newTransformer();transformer.setOutputProperty(OutputKeys.INDENT,"yes");transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount","2");
+        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION,xml.stripLeading().startsWith("<?xml")?"no":"yes");
+        StringWriter output=new StringWriter();transformer.transform(new DOMSource(document),new StreamResult(output));return output.toString().stripTrailing();
+    }
+
+    private static void removeFormattingWhitespace(Node node){
+        for(Node child=node.getFirstChild();child!=null;){Node next=child.getNextSibling();if(child.getNodeType()==Node.TEXT_NODE&&child.getTextContent().isBlank())node.removeChild(child);else removeFormattingWhitespace(child);child=next;}
     }
 
     private static Outcome showTemporal(Component parent,String column,Object value,Kind kind,boolean editable) {

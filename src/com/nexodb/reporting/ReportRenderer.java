@@ -2,7 +2,10 @@ package com.nexodb.reporting;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.print.PageFormat;
+import java.awt.print.Printable;
 import java.math.BigDecimal;
+import java.awt.geom.Rectangle2D;
 import java.util.List;
 
 /** One painter for the designer, paginated preview, printing and PDF. */
@@ -11,6 +14,25 @@ public final class ReportRenderer {
     public static BufferedImage image(ReportLayout layout,int page,double scale) {
         ReportDesign d=layout.plan().design();BufferedImage image=new BufferedImage((int)Math.ceil(d.pageWidth()*scale),(int)Math.ceil(d.pageHeight()*scale),BufferedImage.TYPE_INT_RGB);
         Graphics2D g=image.createGraphics();try{g.scale(scale,scale);paint(g,layout,page);}finally{g.dispose();}return image;
+    }
+    /**
+     * Printable backed by the already paginated preview. Printers are allowed to
+     * ask for the same page more than once, so this deliberately paints the
+     * immutable layout instead of rebuilding the report for every callback.
+     */
+    public static Printable printable(ReportLayout layout) {
+        return (graphics,pageFormat,pageIndex)->{
+            if(pageIndex<0||pageIndex>=layout.pages().size())return Printable.NO_SUCH_PAGE;
+            ReportDesign design=layout.plan().design();Graphics2D g=(Graphics2D)graphics.create();
+            try {
+                double scale=Math.min(pageFormat.getImageableWidth()/design.pageWidth(),pageFormat.getImageableHeight()/design.pageHeight());
+                double x=pageFormat.getImageableX()+(pageFormat.getImageableWidth()-design.pageWidth()*scale)/2d;
+                double y=pageFormat.getImageableY()+(pageFormat.getImageableHeight()-design.pageHeight()*scale)/2d;
+                g.translate(x,y);g.clip(new Rectangle2D.Double(0,0,design.pageWidth()*scale,design.pageHeight()*scale));g.scale(scale,scale);
+                paint(g,layout,pageIndex);
+            }finally{g.dispose();}
+            return Printable.PAGE_EXISTS;
+        };
     }
     public static void paint(Graphics2D g,ReportLayout layout,int pageIndex) {
         var plan=layout.plan();var d=plan.design();var page=layout.pages().get(pageIndex);int width=d.pageWidth(),height=d.pageHeight(),tableWidth=width-64;

@@ -24,10 +24,12 @@ public final class ReportDesignerTest {
             if(!field(panel,"design",ReportDesign.class).blocks().get(0).text().equals("Título gerencial editado"))throw new AssertionError("Title edit missing");
             JTable columns=field(panel,"columns",JTable.class);columns.getModel().setValueAt(ReportDesign.Aggregate.SUM,1,3);
             if(field(panel,"design",ReportDesign.class).columns().get(1).aggregate()!=ReportDesign.Aggregate.SUM)throw new AssertionError("Column aggregate edit missing");
+            JCheckBox landscape=field(panel,"landscape",JCheckBox.class);landscape.doClick();
+            if(!field(panel,"design",ReportDesign.class).landscape())throw new AssertionError("Orientation must apply immediately without an extra button");
         });
         await(panel);
         SwingUtilities.invokeAndWait(()->{try{JComponent canvas=field(panel,"canvas",JComponent.class);var image=new java.awt.image.BufferedImage(canvas.getWidth(),canvas.getHeight(),java.awt.image.BufferedImage.TYPE_INT_RGB);Graphics2D g=image.createGraphics();try{canvas.paint(g);}finally{g.dispose();}javax.imageio.ImageIO.write(image,"png",java.nio.file.Path.of("build/report-qa/designer.png").toFile());panel.dispose();}catch(Exception error){throw new RuntimeException(error);}});
-        System.out.println("ReportDesignerTest: OK (real canvas mouse drag, atomic undo/redo, title edit, total configuration, async preview and rendering)");
+        System.out.println("ReportDesignerTest: OK (real canvas mouse drag, atomic undo/redo, title edit, totals, immediate orientation, async preview and rendering)");
     }
     private static void mouse(JComponent canvas,int id,int x,int y){canvas.dispatchEvent(new MouseEvent(canvas,id,System.currentTimeMillis(),0,16+(int)(x*.8),16+(int)(y*.8),1,false,MouseEvent.BUTTON1));}
     private static void await(ReportDesignerPanel panel)throws Exception{long end=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(15);while(System.nanoTime()<end){boolean[] ready={false};SwingUtilities.invokeAndWait(()->{var layout=field(panel,"layout",ReportLayout.class);ready[0]=layout!=null&&layout.plan().design()==field(panel,"design",ReportDesign.class);});if(ready[0])return;Thread.sleep(30);}throw new AssertionError("Preview timed out");}

@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.27**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.28**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Permisos, filtros, contenido XML e impresión de reportes — 0.18.28
+
+La administración de usuarios MySQL/MariaDB lee los `GRANT` efectivos y presenta marcados los permisos actuales por base, patrones como `` `%`.* `` y ámbito global `*.*`. Distingue permisos explícitos de heredados, administración de cuentas mediante `CREATE USER` y delegación mediante `GRANT OPTION`; al aceptar genera únicamente los `GRANT` y `REVOKE` necesarios.
+
+Cada columna de resultados incorpora un filtro desplegable con valores distintos, `NULL`, `No NULL` y dos condiciones personalizadas combinables con `AND`/`OR`. Los filtros de distintas columnas se combinan entre sí sin modificar ni volver a ejecutar la consulta.
+
+El editor de textos largos conserva exactamente el contenido y los saltos de línea originales. El XML solo cambia de formato cuando se pulsa **Formatear XML**. En Reportería, la orientación se aplica al instante, la impresión usa exactamente el diseño paginado mostrado, lo adapta proporcionalmente al área imprimible y reutiliza el cálculo existente para responder más rápido sin bloquear la ventana.
 
 ## Edición segura de consultas JOIN y guardado por fila — 0.18.6
 
@@ -10,7 +18,7 @@ Al terminar una edición y pasar a otra fila, la fila anterior se guarda automá
 
 ## Editores completos de valores y espacio de trabajo compacto — 0.18.5
 
-Al hacer doble clic sobre una columna `TEXT`, `LONGTEXT`, `CLOB`, XML, JSON o un texto largo se abre una ventana amplia con todo el contenido, contador de caracteres, copia completa y carga/guardado UTF-8. En modo de edición el valor queda como cambio pendiente y solo se envía a la base al pulsar **Guardar**; en solo lectura el diálogo permite inspeccionar y copiar sin modificar datos. Los CLOB ya no se recortan a 10.000 caracteres.
+Al hacer doble clic sobre una columna `TEXT`, `LONGTEXT`, `CLOB`, XML, JSON o un texto largo se abre una ventana amplia con todo el contenido, contador de caracteres, copia completa y carga/guardado UTF-8. Abrir y aceptar sin editar conserva exactamente el valor y sus saltos de línea originales. Los XML muestran **Formatear XML** como acción explícita y segura; nunca se compactan ni reformatean automáticamente. En modo de edición el valor queda como cambio pendiente y solo se envía a la base al pulsar **Guardar**; en solo lectura el diálogo permite inspeccionar y copiar sin modificar datos. Los CLOB ya no se recortan a 10.000 caracteres.
 
 Las columnas `DATE`, `TIME`, `DATETIME` y `TIMESTAMP` abren un selector con calendario, hora hasta segundos, acción **Ahora** y opción para establecer `NULL`. Los tipos JDBC se conservan desde el resultado para que los editores funcionen también al visualizar datos sin habilitar cambios.
 
@@ -75,6 +83,8 @@ Pruebas reales aisladas: `tools/test-stored-programs.ps1 -WithUi` valida los cin
 ## Reportería, IA y análisis de consultas (escritorio 0.15.0)
 
 **Reportería → Diseñador de reportes** y el botón **Reporte…** del resultado abren el módulo independiente `com.nexodb.reporting`. Permite mover y redimensionar objetos en el encabezado, editar títulos, colores y tamaños, agregar indicadores y gráficos de barras, elegir/reordenar columnas, configurar hasta cinco niveles de agrupación y calcular conteo, suma, promedio, mínimo y máximo. Ofrece deshacer/rehacer, vista previa paginada, orientación vertical/horizontal, encabezados de detalle repetidos, continuación de grupos y pie con origen/número de página. Los gráficos muestran hasta ocho categorías principales, sin inventar un total para promedios o mínimos.
+
+La orientación cambia inmediatamente al marcar **Horizontal**, sin depender de **Aplicar página**. La impresión reutiliza el mismo diseño ya paginado de la vista previa, lo centra dentro del área imprimible y conserva su proporción; no vuelve a calcular el reporte por cada página solicitada por Windows. El envío a la impresora se ejecuta en segundo plano y muestra su estado, por lo que la ventana no queda bloqueada. La exportación PDF también reutiliza la paginación visible cuando está actualizada.
 
 Las plantillas **.nxreport** guardan el diseño y sus campos, sin SQL, contraseñas ni filas. Se reutilizan con resultados que tengan las mismas columnas en el mismo orden. **HTML y PDF** conservan el diseño visual; **CSV y Excel (.xlsx)** exportan los datos con encabezados de grupo, subtotales y total general en columnas. El PDF se renderiza a 144 dpi para conservar fuentes y Unicode; su texto es una imagen, no texto seleccionable. El módulo usa una copia de las filas cargadas de un resultado, incluida su página/límite actual, y sigue funcionando después de desconectar. Para un reporte completo, carga primero todas las filas necesarias desde el editor.
 
@@ -167,7 +177,7 @@ Para publicar con identidad verificable, consulta la [guía de firma Windows y n
 
 La versión **0.11.3** convierte los resultados de consultas en una cuadrícula con barra de acciones: **Editar, Guardar, Descartar, NULL y Recargar**. Las celdas modificadas se resaltan y se guardan juntas al pulsar Guardar; respeta el modo Auto-commit y las transacciones manuales. La edición requiere un SELECT de una tabla física con todas las columnas de su clave primaria. Un cambio concurrente provoca la reversión del lote, conservando los cambios pendientes para corregirlos o descartarlos.
 
-Las casillas iniciales permiten marcar filas; las cabeceras seleccionan columnas completas. El menú contextual ofrece copia de filas/columnas, filtros por valor o por columna, ordenación y acceso al editor para agregar/eliminar campos de la tabla. Estos cambios de estructura se revisan en su formulario y la eliminación solicita confirmación. Las filas marcadas conservan su identidad al ordenar o filtrar.
+Las casillas iniciales permiten marcar filas; las cabeceras seleccionan columnas completas y muestran una flecha de filtro en cada campo. La flecha ofrece los valores distintos cargados, `NULL`, `No NULL`, limpieza y un filtro personalizado con dos condiciones combinables mediante `AND`/`OR`: igualdad, diferencia, contiene, empieza/termina con, comparaciones, vacío y `NULL`, con opción de distinguir mayúsculas. Los filtros de distintas columnas se combinan con `AND` y actúan sobre la página ya cargada, sin reescribir ni ejecutar otra vez el SQL original. El menú contextual también ofrece copia, ordenación y acceso al editor para agregar/eliminar campos de la tabla. Estos cambios de estructura se revisan en su formulario y la eliminación solicita confirmación. Las filas marcadas conservan su identidad al ordenar o filtrar.
 
 El autocompletado SQL incluye las columnas de las tablas utilizadas en SELECT, WHERE, UPDATE/SET e INSERT. Reconoce `tabla.` y `alias.`, carga los metadatos en segundo plano y conserva una caché breve por conexión y base. **Actualizar objetos** y los cambios de estructura invalidan la caché. Mantiene Ctrl+Espacio y la aceptación con clic, Enter o Tab.
 

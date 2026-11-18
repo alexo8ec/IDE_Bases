@@ -16,12 +16,19 @@ public final class ReportExporter {
     private ReportExporter() {}
     /** Atomic replacement: failures never destroy an existing report. */
     public static void write(ReportPlan plan,Path target,Format format,TabularWriter tabular) throws IOException {
+        write(plan,null,target,format,tabular);
+    }
+    /** Reuses the exact paginated preview for PDF instead of laying it out again. */
+    public static void write(ReportLayout layout,Path target,Format format,TabularWriter tabular) throws IOException {
+        Objects.requireNonNull(layout);write(layout.plan(),layout,target,format,tabular);
+    }
+    private static void write(ReportPlan plan,ReportLayout layout,Path target,Format format,TabularWriter tabular) throws IOException {
         target=target.toAbsolutePath();Files.createDirectories(target.getParent());Path temp=Files.createTempFile(target.getParent(),".nxreport-",".tmp");
         try {
             switch(format) {
                 case CSV,XLSX -> tabular.write(plan.tabular(),temp,format);
                 case HTML -> html(plan,temp);
-                case PDF -> ReportPdfWriter.write(ReportLayout.build(plan),temp);
+                case PDF -> ReportPdfWriter.write(layout==null?ReportLayout.build(plan):layout,temp);
             }
             try{Files.move(temp,target,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}catch(AtomicMoveNotSupportedException error){Files.move(temp,target,StandardCopyOption.REPLACE_EXISTING);}
         }finally{Files.deleteIfExists(temp);}

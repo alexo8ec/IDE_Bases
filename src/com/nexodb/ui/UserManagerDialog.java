@@ -5,6 +5,10 @@ import com.nexodb.db.JdbcSession;
 import com.nexodb.db.ManagedConnection;
 import com.nexodb.db.UserAdministration;
 import com.nexodb.db.UserAdministration.Account;
+import com.nexodb.db.UserAdministration.AccountCapabilities;
+import com.nexodb.db.UserAdministration.PermissionSnapshot;
+import com.nexodb.db.UserAdministration.PrivilegeScope;
+import com.nexodb.db.UserAdministration.PrivilegeState;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
@@ -136,6 +140,67 @@ public final class UserManagerDialog extends JDialog {
     }
     private void grantPrivileges() {
         Account a = selected(); if (a == null || busy) return;
+        if (admin.usesHost()) {
+            run(tr("Leyendo permisos…"), () -> { synchronized (session.connection()) { return admin.permissionSnapshot(a); } }, snapshot -> editMysqlPrivileges(a, snapshot));
+            return;
+        }
+        grantPrivilegesLegacy(a);
+    }
+    private void editMysqlPrivileges(Account account, PermissionSnapshot snapshot) {
+        if (snapshot.scopes().isEmpty()) { JOptionPane.showMessageDialog(this, tr("No hay ámbitos disponibles para asignar permisos.")); return; }
+        JComboBox<PrivilegeScope> scope = new JComboBox<>(snapshot.scopes().toArray(PrivilegeScope[]::new));
+        JPanel form = new JPanel(new BorderLayout(8, 12));
+        JPanel choices = new JPanel(); List<JCheckBox> checks = new ArrayList<>();
+        JCheckBox grantOption = UiLanguage.text(new JCheckBox(), UiLanguage.key("Permitir delegar permisos (GRANT OPTION)"));
+        JLabel capability = new JLabel(capabilityText(snapshot.capabilities()));
+        capability.setBorder(new EmptyBorder(2, 2, 5, 2));
+        JTextArea help = new JTextArea(4, 70); help.setEditable(false); help.setLineWrap(true); help.setWrapStyleWord(true); help.setOpaque(false);
+        Runnable loadScope = () -> {
+            PrivilegeScope selectedScope = (PrivilegeScope) scope.getSelectedItem(); if (selectedScope == null) return;
+            PrivilegeState state = snapshot.states().get(selectedScope);
+            choices.removeAll(); checks.clear(); choices.setLayout(new GridLayout(0, 2, 12, 8));
+            for (String privilege : admin.privileges(selectedScope)) {
+                JCheckBox check = new JCheckBox(privilege, state.direct().contains(privilege) || state.inherited().contains(privilege));
+                if (state.inherited().contains(privilege)) {
+                    check.setEnabled(false); check.setToolTipText(tr("Heredado de *.* o de un patrón de bases; edita el ámbito que lo concede."));
+                }
+                checks.add(check); choices.add(check);
+            }
+            grantOption.setSelected(state.grantOption() || state.inheritedGrantOption());
+            grantOption.setEnabled(!state.inheritedGrantOption());
+            grantOption.setToolTipText(state.inheritedGrantOption() ? tr("Heredado de GRANT OPTION en *.* o en un patrón de bases; edita ese ámbito.") : null);
+            help.setText(selectedScope.global()
+                    ? tr("Este ámbito afecta a todas las bases del servidor. CREATE USER permite crear, modificar y eliminar cuentas. GRANT OPTION permite conceder o revocar los permisos que la cuenta posea.")
+                    : tr("Las casillas deshabilitadas se heredan de *.* o de un patrón como `%`.*. Para retirarlas debes editar el ámbito que las concede."));
+            choices.revalidate(); choices.repaint(); form.revalidate(); form.repaint();
+        };
+        scope.addActionListener(e -> loadScope.run());
+        JPanel top = new JPanel(new BorderLayout(8, 8)); top.add(capability, BorderLayout.NORTH); top.add(scope, BorderLayout.SOUTH);
+        form.add(top, BorderLayout.NORTH); form.add(choices);
+        JPanel footer = new JPanel(new BorderLayout(8, 8)); footer.add(help); footer.add(grantOption, BorderLayout.SOUTH); form.add(footer, BorderLayout.SOUTH);
+        loadScope.run();
+        if (JOptionPane.showConfirmDialog(this, form, tr("Editar permisos de ") + admin.display(account), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
+        PrivilegeScope selectedScope = (PrivilegeScope) scope.getSelectedItem(); if (selectedScope == null) return;
+        PrivilegeState before = snapshot.states().get(selectedScope);
+        Set<String> selected = new LinkedHashSet<>(); for (JCheckBox check : checks) if (check.isSelected()) selected.add(check.getText());
+        boolean delegate = grantOption.isEnabled() ? grantOption.isSelected() : before.grantOption();
+        List<String> sql;
+        try { sql = admin.updatePrivilegeSql(account, selectedScope, selected, delegate, before); }
+        catch (Exception error) { JOptionPane.showMessageDialog(this, error.getMessage(), tr("Revisa los datos"), JOptionPane.WARNING_MESSAGE); return; }
+        if (sql.isEmpty()) { JOptionPane.showMessageDialog(this, tr("No hay cambios de permisos para aplicar.")); return; }
+        String detail = tr("Editar permisos de ") + admin.display(account) + "\n" + selectedScope.label() + "\n"
+                + tr("El programa aplicará únicamente los GRANT y REVOKE necesarios.");
+        change(detail, false, () -> sql, () -> {});
+    }
+    private String capabilityText(AccountCapabilities capabilities) {
+        String level = capabilities.allGlobal() ? tr("Administrador global: ALL PRIVILEGES ON *.*")
+                : capabilities.managesAccounts() ? tr("Puede administrar cuentas: CREATE USER")
+                : tr("No tiene permiso global para administrar cuentas");
+        String delegation = capabilities.delegatesGlobally() ? tr("Puede delegar permisos globalmente") : tr("No puede delegar permisos globalmente");
+        String patterns = capabilities.databasePatterns().isEmpty() ? "" : " · " + tr("Acceso por patrón: ") + String.join(", ", capabilities.databasePatterns());
+        return "<html><b>" + escape(level) + "</b> · " + escape(delegation + patterns) + "</html>";
+    }
+    private void grantPrivilegesLegacy(Account a) {
         run(tr("Leyendo permisos…"), () -> { synchronized (session.connection()) { return admin.scopes(); } }, scopes -> {
             JComboBox<String> scope = new JComboBox<>(scopes.toArray(String[]::new));
             JPanel form = new JPanel(new BorderLayout(8, 12)), choices = new JPanel(new GridLayout(0, 2, 12, 8)); List<JCheckBox> checks = new ArrayList<>();

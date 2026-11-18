@@ -8,6 +8,27 @@ import java.util.*;
 /** Engine-specific account SQL. Does not fetch password hashes or grant admin by default. */
 public final class UserAdministration {
     public record Account(String name, String scope, String detail) {}
+    public record PrivilegeScope(String name, String label, boolean global) {
+        @Override public String toString() { return label; }
+    }
+    public record PrivilegeState(Set<String> direct, Set<String> inherited, boolean grantOption, boolean inheritedGrantOption) {
+        public PrivilegeState {
+            direct = Collections.unmodifiableSet(new LinkedHashSet<>(direct));
+            inherited = Collections.unmodifiableSet(new LinkedHashSet<>(inherited));
+        }
+    }
+    public record AccountCapabilities(boolean allGlobal, boolean managesAccounts, boolean delegatesGlobally, Set<String> globalPrivileges, Set<String> databasePatterns) {
+        public AccountCapabilities {
+            globalPrivileges = Collections.unmodifiableSet(new LinkedHashSet<>(globalPrivileges));
+            databasePatterns = Collections.unmodifiableSet(new LinkedHashSet<>(databasePatterns));
+        }
+    }
+    public record PermissionSnapshot(List<PrivilegeScope> scopes, Map<PrivilegeScope, PrivilegeState> states, AccountCapabilities capabilities) {
+        public PermissionSnapshot {
+            scopes = List.copyOf(scopes);
+            states = Collections.unmodifiableMap(new LinkedHashMap<>(states));
+        }
+    }
     private final Connection connection;
     private final DatabaseType type;
     public UserAdministration(Connection connection, DatabaseType declared) throws SQLException {
@@ -96,9 +117,15 @@ public final class UserAdministration {
         if (current != null && result.remove(current)) result.add(0,current);
         return result;
     }
+    public List<PrivilegeScope> privilegeScopes() throws SQLException {
+        List<PrivilegeScope> result = new ArrayList<>();
+        for (String scope : scopes()) result.add(new PrivilegeScope(scope, scope, false));
+        if (usesHost()) result.add(new PrivilegeScope("*.*", tr("Todo el servidor (*.*) · avanzado"), true));
+        return result;
+    }
     public List<String> privileges() {
         return switch (type) {
-            case MYSQL, MARIADB -> List.of("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "INDEX", "EXECUTE", "SHOW VIEW");
+            case MYSQL, MARIADB -> List.of("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "REFERENCES", "INDEX", "ALTER", "CREATE TEMPORARY TABLES", "LOCK TABLES", "EXECUTE", "CREATE VIEW", "SHOW VIEW", "CREATE ROUTINE", "ALTER ROUTINE", "EVENT", "TRIGGER");
             case POSTGRESQL -> List.of("USAGE", "CREATE", "SELECT", "INSERT", "UPDATE", "DELETE", "REFERENCES", "TRIGGER");
             case SQLSERVER -> List.of("db_datareader", "db_datawriter", "db_ddladmin");
             case ORACLE -> List.of("CREATE SESSION", "CREATE TABLE", "CREATE VIEW", "CREATE SEQUENCE", "CREATE PROCEDURE");
@@ -106,6 +133,121 @@ public final class UserAdministration {
             default -> List.of();
         };
     }
+    public List<String> privileges(PrivilegeScope scope) {
+        List<String> result = new ArrayList<>(privileges());
+        if (usesHost() && scope.global()) result.add("CREATE USER");
+        return result;
+    }
+
+    /** Reads the account's direct grants once and derives every selectable MySQL/MariaDB scope. */
+    public PermissionSnapshot permissionSnapshot(Account account) throws SQLException {
+        if (!usesHost()) throw new IllegalStateException(tr("La edición visual de permisos existentes está disponible para MySQL y MariaDB."));
+        List<String> grants = mysqlGrantLines(account);
+        List<PrivilegeScope> scopes = new ArrayList<>(privilegeScopes());
+        Set<String> known = new HashSet<>(); for (PrivilegeScope scope : scopes) known.add(scope.name().toLowerCase(Locale.ROOT));
+        for (String line : grants) {
+            ParsedGrant parsed = parseMysqlGrant(line); String pattern = parsed == null ? null : mysqlDatabaseTarget(parsed.target());
+            if (pattern != null && hasMysqlWildcard(pattern) && known.add(pattern.toLowerCase(Locale.ROOT)))
+                scopes.add(scopes.size() - 1, new PrivilegeScope(pattern, tr("Patrón de bases: ") + parsed.target(), false));
+        }
+        Map<PrivilegeScope, PrivilegeState> states = new LinkedHashMap<>();
+        for (PrivilegeScope scope : scopes) states.put(scope, mysqlPrivilegeState(scope, grants));
+        return new PermissionSnapshot(scopes, states, mysqlCapabilities(grants));
+    }
+
+    /** Produces only the GRANT/REVOKE statements needed to reach the selected direct state. */
+    public List<String> updatePrivilegeSql(Account account, PrivilegeScope scope, Collection<String> selected, boolean grantOption, PrivilegeState before) throws SQLException {
+        if (!usesHost()) throw new IllegalStateException(tr("La edición visual de permisos existentes está disponible para MySQL y MariaDB."));
+        Set<String> allowed = new LinkedHashSet<>(privileges(scope));
+        Set<String> desired = normalizePrivileges(selected);
+        if (!allowed.containsAll(desired)) throw new IllegalArgumentException(tr("Se seleccionó un permiso no válido."));
+        desired.removeAll(before.inherited());
+        Set<String> added = new LinkedHashSet<>(desired); added.removeAll(before.direct());
+        Set<String> removed = new LinkedHashSet<>(before.direct()); removed.removeAll(desired); removed.retainAll(allowed);
+        String target = scope.global() ? "*.*" : identifier(scope.name()) + ".*";
+        String who = principal(account);
+        List<String> sql = new ArrayList<>();
+        if (!removed.isEmpty()) sql.add("REVOKE " + String.join(", ", removed) + " ON " + target + " FROM " + who);
+        if (!added.isEmpty()) sql.add("GRANT " + String.join(", ", added) + " ON " + target + " TO " + who);
+        if (before.grantOption() != grantOption) {
+            sql.add(grantOption ? "GRANT USAGE ON " + target + " TO " + who + " WITH GRANT OPTION"
+                    : "REVOKE GRANT OPTION ON " + target + " FROM " + who);
+        }
+        return sql;
+    }
+
+    private List<String> mysqlGrantLines(Account account) throws SQLException {
+        List<String> result = new ArrayList<>();
+        try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery("SHOW GRANTS FOR " + principal(account))) {
+            while (rows.next()) result.add(Objects.toString(rows.getString(1), ""));
+        }
+        return result;
+    }
+
+    private PrivilegeState mysqlPrivilegeState(PrivilegeScope scope, List<String> grants) {
+        Set<String> allowed = new LinkedHashSet<>(privileges(scope));
+        Set<String> direct = new LinkedHashSet<>(), inherited = new LinkedHashSet<>();
+        boolean directGrant = false, inheritedGrant = false;
+        String expected = scope.global() ? "*.*" : mysqlTarget(scope.name());
+        for (String line : grants) {
+            ParsedGrant parsed = parseMysqlGrant(line);
+            if (parsed == null) continue;
+            boolean exact = parsed.target().equalsIgnoreCase(expected);
+            boolean globalParent = !scope.global() && parsed.target().equals("*.*");
+            String pattern = mysqlDatabaseTarget(parsed.target());
+            boolean patternParent = !scope.global() && !exact && pattern != null && hasMysqlWildcard(pattern) && mysqlPatternMatches(pattern, scope.name());
+            if (!exact && !globalParent && !patternParent) continue;
+            Set<String> destination = exact ? direct : inherited;
+            if (parsed.all()) destination.addAll(allowed);
+            else for (String privilege : parsed.privileges()) if (allowed.contains(privilege)) destination.add(privilege);
+            if (exact && parsed.grantOption()) directGrant = true;
+            if ((globalParent || patternParent) && parsed.grantOption()) inheritedGrant = true;
+        }
+        inherited.removeAll(direct);
+        return new PrivilegeState(direct, inherited, directGrant, inheritedGrant);
+    }
+
+    private AccountCapabilities mysqlCapabilities(List<String> grants) {
+        Set<String> global = new LinkedHashSet<>(), patterns = new LinkedHashSet<>(); boolean all = false, delegate = false;
+        for (String line : grants) {
+            ParsedGrant parsed = parseMysqlGrant(line);
+            if (parsed == null) continue;
+            String pattern = mysqlDatabaseTarget(parsed.target()); if (pattern != null && hasMysqlWildcard(pattern)) patterns.add(parsed.target());
+            if (parsed.target().equals("*.*")) { all |= parsed.all(); delegate |= parsed.grantOption(); global.addAll(parsed.privileges()); }
+        }
+        return new AccountCapabilities(all, all || global.contains("CREATE USER"), delegate, global, patterns);
+    }
+
+    private ParsedGrant parseMysqlGrant(String sql) {
+        String upper = sql.toUpperCase(Locale.ROOT); int start = upper.indexOf("GRANT "), on = upper.indexOf(" ON "), to = upper.indexOf(" TO ", on + 4);
+        if (start != 0 || on < 0 || to < 0) return null; // Role grants do not contain ON and are intentionally ignored here.
+        String privilegeText = upper.substring(6, on).trim();
+        Set<String> parsed = normalizePrivileges(Arrays.asList(privilegeText.split("\\s*,\\s*")));
+        boolean all = parsed.remove("ALL PRIVILEGES") | parsed.remove("ALL");
+        parsed.remove("USAGE"); parsed.remove("GRANT OPTION");
+        return new ParsedGrant(sql.substring(on + 4, to).trim(), parsed, all, upper.contains(" WITH GRANT OPTION"));
+    }
+
+    private static Set<String> normalizePrivileges(Collection<String> values) {
+        Set<String> result = new LinkedHashSet<>();
+        for (String value : values) if (value != null && !value.isBlank()) result.add(value.trim().toUpperCase(Locale.ROOT));
+        return result;
+    }
+
+    private static String mysqlTarget(String database) { return "`" + database.replace("`", "``") + "`.*"; }
+    private static String mysqlDatabaseTarget(String target) {
+        if (!target.startsWith("`") || !target.endsWith("`.*")) return null;
+        return target.substring(1, target.length() - 3).replace("``", "`");
+    }
+    private static boolean hasMysqlWildcard(String value) {
+        boolean escaped = false; for (int i=0;i<value.length();i++) { char c=value.charAt(i); if (!escaped && (c=='%' || c=='_')) return true; escaped=!escaped&&c=='\\'; if(c!='\\')escaped=false; } return false;
+    }
+    private static boolean mysqlPatternMatches(String pattern, String value) {
+        StringBuilder regex=new StringBuilder("(?is)^"); boolean escaped=false;
+        for(int i=0;i<pattern.length();i++){char c=pattern.charAt(i);if(escaped){regex.append(java.util.regex.Pattern.quote(String.valueOf(c)));escaped=false;}else if(c=='\\')escaped=true;else if(c=='%')regex.append(".*");else if(c=='_')regex.append('.');else regex.append(java.util.regex.Pattern.quote(String.valueOf(c)));}
+        if(escaped)regex.append("\\\\");return value.matches(regex.append('$').toString());
+    }
+    private record ParsedGrant(String target, Set<String> privileges, boolean all, boolean grantOption) {}
     public List<String> grantSql(Account a, String scope, List<String> chosen) throws SQLException {
         requireSupported();
         if (chosen.isEmpty() || !privileges().containsAll(chosen)) throw new IllegalArgumentException(tr("Selecciona al menos un permiso válido."));

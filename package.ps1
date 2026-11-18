@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: detecta el motor real de la conexion antes de obtener el plan. Si un perfil MySQL apunta a MariaDB, usa ANALYZE FORMAT=JSON y evita la sintaxis FORMAT=TREE incompatible."
+    notes = "AdisDB ${version}: permisos MySQL/MariaDB efectivos y editables, filtros avanzados por columna, XML sin cambios de formato involuntarios e impresion de reportes fiel a la vista previa y su orientacion."
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\AdisDB.exe"

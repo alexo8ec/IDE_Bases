@@ -6,6 +6,7 @@ import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.datatransfer.StringSelection;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.List;
 import java.util.function.Consumer;
@@ -18,7 +19,16 @@ final class ResultGridActions {
     record EditingActions(Runnable edit,Runnable insert,Runnable delete,Runnable save,Runnable discard,Consumer<Object> setValue,
                           Runnable duplicate,Runnable export,BooleanSupplier canEdit,BooleanSupplier hasChanges,
                           BooleanSupplier canSetValue,BooleanSupplier canDefault,BooleanSupplier canExport) {}
-    private record Filter(String text,Object value,boolean exact) {}
+    enum Operator {
+        NONE("Sin segunda condición",false), EXACT("Igual al valor seleccionado",true), EQUALS("Igual a",true), NOT_EQUALS("No igual a",true),
+        CONTAINS("Contiene",true), NOT_CONTAINS("No contiene",true), STARTS_WITH("Empieza con",true), ENDS_WITH("Termina con",true),
+        GREATER("Mayor que",true), GREATER_OR_EQUAL("Mayor o igual que",true), LESS("Menor que",true), LESS_OR_EQUAL("Menor o igual que",true),
+        IS_NULL("Es NULL",false), IS_NOT_NULL("No es NULL",false), IS_EMPTY("Está vacío",false), IS_NOT_EMPTY("No está vacío",false);
+        final String label;final boolean needsValue;Operator(String label,boolean needsValue){this.label=label;this.needsValue=needsValue;}@Override public String toString(){return tr(label);}
+    }
+    enum Junction { AND, OR }
+    record Condition(Operator operator,Object value) {}
+    record Filter(Condition first,Junction junction,Condition second,boolean caseSensitive) {}
     private final JTable table;
     private final ResultTableModel model;
     private final JTextField search;
@@ -69,10 +79,7 @@ final class ResultGridActions {
             public boolean include(Entry<? extends TableModel,? extends Integer> entry){
                 if(model.isNewRow(entry.getIdentifier()))return true;
                 if(!global.isBlank()){boolean found=false;for(int i=0;i<entry.getValueCount();i++)if(display(entry.getValue(i)).toLowerCase(Locale.ROOT).contains(global)){found=true;break;}if(!found)return false;}
-                for(var item:filters.entrySet()){
-                    Object value=entry.getValue(item.getKey());Filter filter=item.getValue();
-                    if(filter.exact()?!Objects.equals(value,filter.value()):!display(value).toLowerCase(Locale.ROOT).contains(filter.text().toLowerCase(Locale.ROOT)))return false;
-                }
+                for(var item:filters.entrySet())if(!matches(entry.getValue(item.getKey()),item.getValue()))return false;
                 return true;
             }
         });
@@ -100,15 +107,19 @@ final class ResultGridActions {
     private void installHeaders(){
         JTableHeader header=new JTableHeader(table.getColumnModel()){
             protected void processMouseEvent(MouseEvent event){
-                if(event.getID()==MouseEvent.MOUSE_CLICKED&&SwingUtilities.isLeftMouseButton(event)&&event.getClickCount()==1){selectColumn(columnAtPoint(event.getPoint()));return;}
+                if(event.getID()==MouseEvent.MOUSE_CLICKED&&SwingUtilities.isLeftMouseButton(event)&&event.getClickCount()==1){
+                    int column=columnAtPoint(event.getPoint());if(column<0)return;Rectangle cell=getHeaderRect(column);selectColumn(column);
+                    if(event.getX()>=cell.x+cell.width-28){columnFilterMenu(table.convertColumnIndexToModel(column)).show(this,cell.x,cell.y+cell.height);}
+                    return;
+                }
                 super.processMouseEvent(event);
             }
         };
         header.setPreferredSize(new Dimension(0,30));table.setTableHeader(header);
         TableCellRenderer normal=header.getDefaultRenderer();header.setDefaultRenderer((grid,value,selected,focus,row,column)->{
-            int index=table.convertColumnIndexToModel(column);return normal.getTableCellRendererComponent(grid,(filters.containsKey(index)?"⏷ ":"")+value,selected,focus,row,column);
+            int index=table.convertColumnIndexToModel(column);return normal.getTableCellRendererComponent(grid,value+(filters.containsKey(index)?"  ●▾":"  ▾"),selected,focus,row,column);
         });
-        UiLanguage.tooltip(header,UiLanguage.key("Clic para seleccionar la columna. Clic derecho para copiar, ordenar o filtrar."));
+        UiLanguage.tooltip(header,UiLanguage.key("Clic para seleccionar la columna. Pulsa ▾ para filtrar; clic derecho muestra más acciones."));
         header.addMouseListener(new MouseAdapter(){private void popup(MouseEvent event){if(event.isPopupTrigger()){selectColumn(header.columnAtPoint(event.getPoint()));menu(true).show(header,event.getX(),event.getY());}}public void mousePressed(MouseEvent e){popup(e);}public void mouseReleased(MouseEvent e){popup(e);}});
     }
     private void selectColumn(int column){if(column<0)return;table.setColumnSelectionInterval(column,column);if(table.getRowCount()>0)table.setRowSelectionInterval(0,table.getRowCount()-1);}
@@ -161,18 +172,71 @@ final class ResultGridActions {
         if(!heading){item(menu,"Copiar selección",this::copySelection);item(menu,"Copiar filas completas",()->copy(selectedRows(),allColumns()));}
         item(menu,"Copiar columna completa",()->{if(column>=0)copy(visibleRows(),List.of(column));});
         menu.addSeparator();item(menu,"Filtrar esta columna…",()->filterColumn(column));
-        if(!heading)item(menu,"Filtrar por este valor",()->{int row=table.getSelectedRow();if(column>=0&&row>=0){filters.put(column,new Filter("",model.getValueAt(table.convertRowIndexToModel(row),column),true));applyFilter();}});
+        if(!heading)item(menu,"Filtrar por este valor",()->{int row=table.getSelectedRow();if(column>=0&&row>=0){filters.put(column,exactFilter(model.getValueAt(table.convertRowIndexToModel(row),column)));applyFilter();}});
         item(menu,"Quitar filtro de esta columna",()->{filters.remove(column);applyFilter();});
         item(menu,"Limpiar todos los filtros",()->{filters.clear();search.setText("");applyFilter();});
         menu.addSeparator();item(menu,"Ordenar ascendente",()->sort(column,SortOrder.ASCENDING));item(menu,"Ordenar descendente",()->sort(column,SortOrder.DESCENDING));
-        }else item(menu,"Filtrar por este valor",()->{int row=table.getSelectedRow();if(column>=0&&row>=0){filters.put(column,new Filter("",model.getValueAt(table.convertRowIndexToModel(row),column),true));applyFilter();}});
+        }else item(menu,"Filtrar por este valor",()->{int row=table.getSelectedRow();if(column>=0&&row>=0){filters.put(column,exactFilter(model.getValueAt(table.convertRowIndexToModel(row),column)));applyFilter();}});
         if(columnEditor!=null){menu.addSeparator();item(menu,"Agregar columna a la tabla…",()->columnEditor.open(column,false));item(menu,"Eliminar columna de la tabla…",()->columnEditor.open(column,true));}
         return menu;
     }
     private void filterColumn(int column){
         if(column<0)return;Filter previous=filters.get(column);
-        String text=JOptionPane.showInputDialog(table,tr("Texto para filtrar la columna %s (vacío para quitar el filtro):",model.getColumnName(column)),previous==null?"":previous.text());
-        if(text==null)return;if(text.isEmpty())filters.remove(column);else filters.put(column,new Filter(text,null,false));applyFilter();
+        JComboBox<Operator> firstOperator=operators(previous==null?Operator.CONTAINS:previous.first().operator());JTextField firstValue=new JTextField(conditionText(previous==null?null:previous.first()),24);
+        JComboBox<Junction> junction=new JComboBox<>(Junction.values());if(previous!=null)junction.setSelectedItem(previous.junction());
+        JComboBox<Operator> secondOperator=operators(previous==null||previous.second()==null?Operator.NONE:previous.second().operator());JTextField secondValue=new JTextField(conditionText(previous==null?null:previous.second()),24);
+        JCheckBox caseSensitive=UiLanguage.text(new JCheckBox(),UiLanguage.key("Distinguir mayúsculas y minúsculas"));caseSensitive.setSelected(previous!=null&&previous.caseSensitive());
+        Runnable enabled=()->{firstValue.setEnabled(((Operator)firstOperator.getSelectedItem()).needsValue);secondValue.setEnabled(((Operator)secondOperator.getSelectedItem()).needsValue);};
+        firstOperator.addActionListener(e->enabled.run());secondOperator.addActionListener(e->enabled.run());enabled.run();
+        JPanel form=new JPanel(new GridBagLayout());GridBagConstraints gc=new GridBagConstraints();gc.insets=new Insets(4,4,4,4);gc.fill=GridBagConstraints.HORIZONTAL;gc.weightx=1;
+        gc.gridx=0;gc.gridy=0;gc.gridwidth=2;form.add(new JLabel(tr("Columna: ")+model.getColumnName(column)),gc);
+        gc.gridy++;gc.gridwidth=1;form.add(firstOperator,gc);gc.gridx=1;form.add(firstValue,gc);
+        gc.gridx=0;gc.gridy++;form.add(junction,gc);gc.gridx=1;form.add(new JLabel(tr("Combina las dos condiciones; los filtros de distintas columnas siempre se combinan con AND.")),gc);
+        gc.gridx=0;gc.gridy++;form.add(secondOperator,gc);gc.gridx=1;form.add(secondValue,gc);
+        gc.gridx=0;gc.gridy++;gc.gridwidth=2;form.add(caseSensitive,gc);
+        if(JOptionPane.showConfirmDialog(table,form,tr("Filtro personalizado · ")+model.getColumnName(column),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE)!=JOptionPane.OK_OPTION)return;
+        Condition first=condition((Operator)firstOperator.getSelectedItem(),firstValue.getText()),second=condition((Operator)secondOperator.getSelectedItem(),secondValue.getText());
+        if(first==null){filters.remove(column);applyFilter();return;}filters.put(column,new Filter(first,(Junction)junction.getSelectedItem(),second,caseSensitive.isSelected()));applyFilter();
+    }
+    private JPopupMenu columnFilterMenu(int column){
+        JPopupMenu menu=new JPopupMenu();
+        item(menu,"Filtro personalizado…",()->filterColumn(column));
+        action(menu,"Quitar filtro de esta columna",()->{filters.remove(column);applyFilter();},filters.containsKey(column));
+        menu.addSeparator();item(menu,"(NULL)",()->{filters.put(column,exactFilter(null));applyFilter();});
+        item(menu,"(No NULL)",()->{filters.put(column,new Filter(new Condition(Operator.IS_NOT_NULL,null),Junction.AND,null,false));applyFilter();});
+        menu.addSeparator();
+        LinkedHashMap<String,Object> values=new LinkedHashMap<>();
+        for(int row=0;row<model.getRowCount();row++){Object value=model.getValueAt(row,column);if(value!=null)values.putIfAbsent(display(value),value);}
+        values.entrySet().stream().sorted(Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER)).limit(40).forEach(entry->{String label=entry.getKey().replace('\r',' ').replace('\n',' ');if(label.length()>70)label=label.substring(0,67)+"…";Object value=entry.getValue();item(menu,label,()->{filters.put(column,exactFilter(value));applyFilter();});});
+        if(values.size()>40){menu.addSeparator();JMenuItem more=new JMenuItem(tr("Más valores disponibles; usa Filtro personalizado…"));more.setEnabled(false);menu.add(more);}
+        return menu;
+    }
+    private static Filter exactFilter(Object value){return new Filter(new Condition(value==null?Operator.IS_NULL:Operator.EXACT,value),Junction.AND,null,true);}
+    private static JComboBox<Operator> operators(Operator selected){
+        JComboBox<Operator> combo=new JComboBox<>(Arrays.stream(Operator.values()).filter(value->value!=Operator.EXACT).toArray(Operator[]::new));
+        combo.setSelectedItem(selected==Operator.EXACT?Operator.EQUALS:selected);return combo;
+    }
+    private static String conditionText(Condition condition){return condition==null||condition.value()==null?"":String.valueOf(condition.value());}
+    private static Condition condition(Operator operator,String value){return operator==null||operator==Operator.NONE?null:new Condition(operator,operator.needsValue?value:null);}
+
+    static boolean matches(Object actual,Filter filter){
+        boolean first=matches(actual,filter.first(),filter.caseSensitive());if(filter.second()==null)return first;
+        boolean second=matches(actual,filter.second(),filter.caseSensitive());return filter.junction()==Junction.AND?first&&second:first||second;
+    }
+    private static boolean matches(Object actual,Condition condition,boolean caseSensitive){
+        Operator operator=condition.operator();Object expected=condition.value();
+        if(operator==Operator.NONE)return true;if(operator==Operator.IS_NULL)return actual==null;if(operator==Operator.IS_NOT_NULL)return actual!=null;
+        if(operator==Operator.EXACT)return Objects.equals(actual,expected);if(actual==null)return false;
+        String left=display(actual),right=expected==null?"":String.valueOf(expected);String a=caseSensitive?left:left.toLowerCase(Locale.ROOT),b=caseSensitive?right:right.toLowerCase(Locale.ROOT);
+        return switch(operator){
+            case EQUALS->a.equals(b);case NOT_EQUALS->!a.equals(b);case CONTAINS->a.contains(b);case NOT_CONTAINS->!a.contains(b);case STARTS_WITH->a.startsWith(b);case ENDS_WITH->a.endsWith(b);
+            case GREATER->compare(actual,right,caseSensitive)>0;case GREATER_OR_EQUAL->compare(actual,right,caseSensitive)>=0;case LESS->compare(actual,right,caseSensitive)<0;case LESS_OR_EQUAL->compare(actual,right,caseSensitive)<=0;
+            case IS_EMPTY->left.isEmpty();case IS_NOT_EMPTY->!left.isEmpty();default->true;
+        };
+    }
+    private static int compare(Object actual,String expected,boolean caseSensitive){
+        if(actual instanceof Number)try{return new BigDecimal(actual.toString()).compareTo(new BigDecimal(expected.trim()));}catch(NumberFormatException ignored){}
+        String left=display(actual),right=expected;return caseSensitive?left.compareTo(right):left.compareToIgnoreCase(right);
     }
     private void sort(int column,SortOrder order){if(column>=0)table.getRowSorter().setSortKeys(List.of(new RowSorter.SortKey(column,order)));}
     private List<Integer> allColumns(){List<Integer> result=new ArrayList<>();for(int i=0;i<model.getColumnCount();i++)result.add(i);return result;}

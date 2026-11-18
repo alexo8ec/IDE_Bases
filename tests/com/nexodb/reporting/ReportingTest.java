@@ -6,6 +6,8 @@ import java.math.BigDecimal;
 import java.nio.file.*;
 import java.util.*;
 import javax.imageio.ImageIO;
+import java.awt.print.*;
+import java.awt.image.BufferedImage;
 import static com.nexodb.reporting.ReportDesign.*;
 
 public final class ReportingTest {
@@ -40,6 +42,12 @@ public final class ReportingTest {
         String csv=Files.readString(folder.resolve("ventas.csv"));if(!csv.contains("Total general")||!csv.contains("31.00"))throw new AssertionError("CSV totals missing");
         try(var zip=new java.util.zip.ZipFile(folder.resolve("ventas.xlsx").toFile())){String xml=new String(zip.getInputStream(zip.getEntry("xl/worksheets/sheet1.xml")).readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);if(!xml.contains("Subtotal")||!xml.contains("31.00"))throw new AssertionError("Excel report totals missing");}
         var layout=ReportLayout.build(plan);ImageIO.write(ReportRenderer.image(layout,0,1.3),"png",folder.resolve("ventas.png").toFile());
+        var pageFormat=new PageFormat();var paper=new Paper();paper.setSize(612,792);paper.setImageableArea(36,36,540,720);pageFormat.setPaper(paper);pageFormat.setOrientation(PageFormat.PORTRAIT);
+        var printed=new BufferedImage(612,792,BufferedImage.TYPE_INT_RGB);var printedGraphics=printed.createGraphics();
+        try{equal(Printable.PAGE_EXISTS,ReportRenderer.printable(layout).print(printedGraphics,pageFormat,0));equal(Printable.NO_SUCH_PAGE,ReportRenderer.printable(layout).print(printedGraphics,pageFormat,layout.pages().size()));}finally{printedGraphics.dispose();}
+        var landscapeDesign=new ReportDesign(design.title(),true,design.headerHeight(),design.footer(),design.accent(),design.sourceColumns(),design.columns(),design.groups(),design.blocks());var landscapeLayout=ReportLayout.build(ReportPlan.build(landscapeDesign,data));
+        if(ReportRenderer.image(layout,0,1).getHeight()<=ReportRenderer.image(layout,0,1).getWidth())throw new AssertionError("Portrait preview lost its orientation");
+        if(ReportRenderer.image(landscapeLayout,0,1).getWidth()<=ReportRenderer.image(landscapeLayout,0,1).getHeight())throw new AssertionError("Landscape preview lost its orientation");
         String longText="Detalle largo con espacios y números 1234567890. ".repeat(250);
         var longData=new ReportData("Texto largo",List.of("Descripción"),List.of(List.of(longText)),false);var longPlan=ReportPlan.build(ReportDesign.create(longData),longData);var longLayout=ReportLayout.build(longPlan);
         if(longLayout.pages().size()<2)throw new AssertionError("Long cells must paginate");

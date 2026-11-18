@@ -23,7 +23,7 @@ public final class ReportDesignerPanel extends JPanel {
     private ReportDesign design;
     private ReportLayout layout;
     private Path template;
-    private boolean dirty,updating,exporting;
+    private boolean dirty,updating,exporting,printing;
     private String selected;
     private int page;
     private final Deque<ReportDesign> undo=new ArrayDeque<>(),redo=new ArrayDeque<>();
@@ -42,7 +42,7 @@ public final class ReportDesignerPanel extends JPanel {
     private final JCheckBox bold=new JCheckBox("Negrita"),landscape=new JCheckBox("Horizontal");
     private final JComboBox<Aggregate> aggregate=new JComboBox<>(Aggregate.values());
     private int blockColor=0x176B65;
-    private final JButton export=new JButton("Exportar…"),undoButton=new JButton("Deshacer"),redoButton=new JButton("Rehacer");
+    private final JButton export=new JButton("Exportar…"),print=new JButton("Imprimir…"),undoButton=new JButton("Deshacer"),redoButton=new JButton("Rehacer");
     private final javax.swing.Timer previewTimer;
     private SwingWorker<ReportLayout,Void> previewWorker;
     private long previewGeneration;
@@ -71,7 +71,7 @@ public final class ReportDesignerPanel extends JPanel {
         button(actions,"Abrir plantilla…",this::open);button(actions,"Guardar plantilla…",()->save(false));button(actions,"Guardar como…",()->save(true));
         undoButton.addActionListener(e->undo());redoButton.addActionListener(e->redo());actions.add(undoButton);actions.add(redoButton);
         button(actions,"+ Texto",()->addBlock(Kind.TEXT));button(actions,"+ Indicador",()->addBlock(Kind.METRIC));button(actions,"+ Gráfico",()->addBlock(Kind.BAR_CHART));
-        export.addActionListener(e->export());actions.add(export);button(actions,"Imprimir…",this::print);top.add(actions);
+        export.addActionListener(e->export());actions.add(export);print.addActionListener(e->print());actions.add(print);top.add(actions);
         JPanel dataBar=new JPanel(new WrapLayout());dataBar.add(new JLabel("Resultado de origen:"));source.setPreferredSize(new Dimension(300,28));dataBar.add(source);
         button(dataBar,"Actualizar lista",this::reloadSources);button(dataBar,"Usar resultado",()->{var next=selectedSource();if(next!=null)useData(next);});
         JLabel hint=new JLabel("Arrastra objetos o el inicio del detalle. Doble clic para editar texto.");hint.setForeground(new Color(0x607080));dataBar.add(hint);top.add(dataBar,BorderLayout.SOUTH);return top;
@@ -101,7 +101,7 @@ public final class ReportDesignerPanel extends JPanel {
     }
     private JComponent pageSettings() {
         JPanel panel=new JPanel(new BorderLayout());JPanel form=new JPanel(new GridBagLayout());form.setBorder(new EmptyBorder(8,8,8,8));
-        int row=field(form,0,"Nombre del reporte",reportTitle);row=field(form,row,"Orientación",landscape);row=field(form,row,"Inicio del detalle",band);row=field(form,row,"Pie de página",footer);
+        int row=field(form,0,"Nombre del reporte",reportTitle);landscape.addActionListener(e->{if(!updating)applyOrientation();});row=field(form,row,"Orientación",landscape);row=field(form,row,"Inicio del detalle",band);row=field(form,row,"Pie de página",footer);
         JButton color=new JButton("Color de encabezados…");color.addActionListener(e->{Color value=JColorChooser.showDialog(this,"Color de encabezados",new Color(design.accent()));if(value!=null)attempt(()->change(new ReportDesign(design.title(),design.landscape(),design.headerHeight(),design.footer(),value.getRGB()&0xffffff,design.sourceColumns(),design.columns(),design.groups(),design.blocks())));});row=field(form,row,"",color);
         JButton apply=new JButton("Aplicar página");apply.addActionListener(e->attempt(()->change(new ReportDesign(reportTitle.getText(),landscape.isSelected(),(Integer)band.getValue(),footer.getText(),design.accent(),design.sourceColumns(),design.columns(),design.groups(),design.blocks()))));field(form,row,"",apply);
         panel.add(form,BorderLayout.NORTH);JTextArea help=new JTextArea("El encabezado contiene los objetos que puedes ubicar libremente. El detalle repite las columnas y los encabezados de grupo, calcula subtotales y continúa en las páginas siguientes. El pie incluye origen y número de página.\n\nCSV y Excel conservan columnas, agrupaciones y totales como datos. HTML y PDF conservan el diseño visual.");help.setEditable(false);help.setLineWrap(true);help.setWrapStyleWord(true);help.setOpaque(false);help.setBorder(new EmptyBorder(12,12,12,12));panel.add(help);return panel;
@@ -111,6 +111,7 @@ public final class ReportDesignerPanel extends JPanel {
     private static void button(JComponent parent,String label,Runnable action){JButton button=new JButton(label);button.addActionListener(e->action.run());parent.add(button);}
     private static <T> List<T> append(List<T> list,T value){var result=new ArrayList<>(list);result.add(value);return result;}
     private void attempt(Runnable action){try{action.run();}catch(RuntimeException error){error(error);}}
+    private void applyOrientation(){try{change(new ReportDesign(design.title(),landscape.isSelected(),design.headerHeight(),design.footer(),design.accent(),design.sourceColumns(),design.columns(),design.groups(),design.blocks()));}catch(RuntimeException error){landscape.setSelected(design.landscape());error(error);}}
     private void error(Throwable error){JOptionPane.showMessageDialog(this,error.getMessage(),"Reportería",JOptionPane.ERROR_MESSAGE);}
     private void change(ReportDesign next){if(next.equals(design))return;undo.push(design);while(undo.size()>80)undo.removeLast();redo.clear();design=next;dirty=true;page=0;sync();previewTimer.restart();}
     private void undo(){if(!undo.isEmpty()){redo.push(design);design=undo.pop();dirty=true;sync();previewTimer.restart();}}
@@ -122,7 +123,7 @@ public final class ReportDesignerPanel extends JPanel {
             for(int i=0;i<blockModel.size();i++)if(blockModel.get(i).id().equals(selected))blocks.setSelectedIndex(i);
             groupModel.clear();design.groups().forEach(groupModel::addElement);groupField.removeAllItems();blockField.removeAllItems();blockField.addItem("Todas las filas");for(String field:design.sourceColumns()){groupField.addItem(field);blockField.addItem(field);}
             reportTitle.setText(design.title());footer.setText(design.footer());landscape.setSelected(design.landscape());band.setValue(design.headerHeight());syncBlock();
-            undoButton.setEnabled(!undo.isEmpty());redoButton.setEnabled(!redo.isEmpty());export.setEnabled(!exporting&&!data.columns().isEmpty());
+            undoButton.setEnabled(!undo.isEmpty());redoButton.setEnabled(!redo.isEmpty());export.setEnabled(!exporting&&!printing&&!data.columns().isEmpty());print.setEnabled(!exporting&&!printing&&layout!=null&&layout.plan().design()==design);
             canvas.revalidate();canvas.repaint();state.setText((dirty?"Diseño modificado · ":"")+data+" · "+(layout==null?"calculando…":layout.pages().size()+" páginas"));
         }finally{updating=false;}
     }
@@ -187,16 +188,20 @@ public final class ReportDesignerPanel extends JPanel {
         chooser.addPropertyChangeListener(JFileChooser.FILE_FILTER_CHANGED_PROPERTY,e->{var format=formats.get(chooser.getFileFilter());if(format!=null){String name=chooser.getSelectedFile()==null?"reporte":chooser.getSelectedFile().getName();int dot=name.lastIndexOf('.');if(dot>0)name=name.substring(0,dot);chooser.setSelectedFile(new java.io.File(name+"."+format.extension()));}});
         if(chooser.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return;var format=formats.get(chooser.getFileFilter());Path target=extension(chooser.getSelectedFile().toPath(),format.extension());
         if(Files.exists(target)&&JOptionPane.showConfirmDialog(this,"¿Reemplazar el archivo existente?","Exportar reporte",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
-        ReportDesign snapshot=design;ReportData input=data;exporting=true;sync();state.setText("Exportando "+format+"…");
+        ReportDesign snapshot=design;ReportData input=data;ReportLayout preview=layout!=null&&layout.plan().design()==snapshot?layout:null;exporting=true;sync();state.setText("Exportando "+format+"…");
         new SwingWorker<Void,Void>() {
-            protected Void doInBackground()throws Exception{ReportExporter.write(ReportPlan.build(snapshot,input),target,format,tabular);return null;}
+            protected Void doInBackground()throws Exception{if(preview!=null)ReportExporter.write(preview,target,format,tabular);else ReportExporter.write(ReportPlan.build(snapshot,input),target,format,tabular);return null;}
             protected void done(){exporting=false;sync();try{get();status.accept("Reporte exportado: "+target.getFileName());state.setText("Reporte guardado: "+target);}catch(Exception error){error(root(error));}}
         }.execute();
     }
     private void print() {
-        if(layout==null||layout.plan().design()!=design){state.setText("Espera a que termine de actualizar la vista previa.");return;}ReportLayout snapshot=layout;PrinterJob job=PrinterJob.getPrinterJob();PageFormat format=job.defaultPage();format.setOrientation(design.landscape()?PageFormat.LANDSCAPE:PageFormat.PORTRAIT);
-        job.setJobName(design.title());job.setPrintable((graphics,pf,index)->{if(index>=snapshot.pages().size())return Printable.NO_SUCH_PAGE;Graphics2D g=(Graphics2D)graphics.create();try{g.translate(pf.getImageableX(),pf.getImageableY());double scale=Math.min(pf.getImageableWidth()/snapshot.plan().design().pageWidth(),pf.getImageableHeight()/snapshot.plan().design().pageHeight());g.scale(scale,scale);ReportRenderer.paint(g,snapshot,index);}finally{g.dispose();}return Printable.PAGE_EXISTS;},format);
-        if(job.printDialog())new SwingWorker<Void,Void>(){protected Void doInBackground()throws Exception{job.print();return null;}protected void done(){try{get();}catch(Exception error){error(root(error));}}}.execute();
+        if(layout==null||layout.plan().design()!=design){state.setText("Espera a que termine de actualizar la vista previa.");return;}
+        ReportLayout snapshot=layout;PrinterJob job=PrinterJob.getPrinterJob();PageFormat format=job.defaultPage();format.setOrientation(design.landscape()?PageFormat.LANDSCAPE:PageFormat.PORTRAIT);format=job.validatePage(format);format.setOrientation(design.landscape()?PageFormat.LANDSCAPE:PageFormat.PORTRAIT);
+        job.setJobName(design.title());job.setPrintable(ReportRenderer.printable(snapshot),format);
+        if(job.printDialog()) {
+            printing=true;sync();state.setText("Imprimiendo "+snapshot.pages().size()+" página"+(snapshot.pages().size()==1?"":"s")+"…");
+            new SwingWorker<Void,Void>(){protected Void doInBackground()throws Exception{job.print();return null;}protected void done(){printing=false;sync();try{get();status.accept("Reporte enviado a la impresora.");state.setText("Impresión terminada.");}catch(Exception error){error(root(error));}}}.execute();
+        }
     }
     private final class ColumnModel extends AbstractTableModel {
         private final String[] names={"Ver","Título","Ancho","Total"};
