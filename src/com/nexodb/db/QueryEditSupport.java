@@ -70,6 +70,33 @@ public final class QueryEditSupport {
     }
 
     private record TableOrigin(String catalog,String schema,String table) {}
+    record Enrichment(String sql,int hiddenColumns) {}
+    static Enrichment enrichMissingPrimaryKeys(Connection connection,DatabaseType type,String sql,ResultSetMetaData result,MetadataCache cache)throws SQLException{
+        if(!simpleSelect(sql)||result.getColumnCount()==0)return null;
+        String table=clean(result.getTableName(1));if(table.isEmpty())return null;
+        String catalog=clean(result.getCatalogName(1)),schema=clean(result.getSchemaName(1));
+        if(catalog.isEmpty())catalog=clean(connection.getCatalog());
+        if(schema.isEmpty()&&type!=DatabaseType.MYSQL&&type!=DatabaseType.MARIADB&&type!=DatabaseType.SQLITE)schema=clean(connection.getSchema());
+        TableOrigin origin=new TableOrigin(catalog,schema,table);
+        Set<String> selected=new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for(int column=1;column<=result.getColumnCount();column++){
+            if(!table.equalsIgnoreCase(clean(result.getTableName(column))))return null;
+            selected.add(clean(result.getColumnName(column)));
+        }
+        DatabaseMetaData metadata=connection.getMetaData();String escape=clean(metadata.getSearchStringEscape()),quote=clean(metadata.getIdentifierQuoteString());
+        TableShape shape=cache==null?null:cache.get(origin);if(shape==null)shape=readShape(metadata,origin,escape);if(cache!=null)cache.put(origin,shape);
+        if(!shape.baseTable()||shape.primary().isEmpty())return null;
+        List<String> missing=shape.primary().values().stream().filter(name->!selected.contains(name)).toList();if(missing.isEmpty())return null;
+        List<Token> tokens=tokenize(sql);int from=-1;for(int i=0;i<tokens.size();i++)if(tokens.get(i).keyword("FROM")){from=i;break;}if(from<0)return null;
+        int source=from+1,index=source;if(index>=tokens.size()||!tokens.get(index).name())return null;int last=index++;
+        while(index+1<tokens.size()&&tokens.get(index).value().equals(".")&&tokens.get(index+1).name()){last=index+1;index+=2;}
+        String qualifier=sql.substring(tokens.get(source).start(),tokens.get(last).end());
+        if(index<tokens.size()&&tokens.get(index).keyword("AS")){if(++index>=tokens.size()||!tokens.get(index).name())return null;qualifier=sql.substring(tokens.get(index).start(),tokens.get(index).end());}
+        else if(index<tokens.size()&&tokens.get(index).name()&&!clause(tokens.get(index)))qualifier=sql.substring(tokens.get(index).start(),tokens.get(index).end());
+        String prefix=qualifier+".";String additions=String.join(", ",missing.stream().map(name->prefix+quoted(name,quote)).toList());
+        String rewritten=sql.substring(0,tokens.get(from).start()).stripTrailing()+", "+additions+" "+sql.substring(tokens.get(from).start());
+        return new Enrichment(rewritten,missing.size());
+    }
     private static Target target(DatabaseMetaData metadata,ResultSetMetaData result,DatabaseType type,TableOrigin origin,int count,String escape,String quote,MetadataCache cache)throws SQLException {
         TableShape shape=cache==null?null:cache.get(origin);if(shape==null)shape=readShape(metadata,origin,escape);if(cache!=null)cache.put(origin,shape);
         if(!shape.baseTable())return null;Map<String,String> actual=shape.columns();Set<String> generated=shape.generated();

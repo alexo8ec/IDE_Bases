@@ -107,7 +107,7 @@ final class QueryResultPanel extends JPanel {
         grid=new ResultGridActions(table,model,scroll,filter,this::updateCount,changed);
         grid.exportAction(format->ResultExports.write(this,model.snapshot(),target==null?"resultado":target.qualifiedTable(),format,changed));
         toolbar.add(ResultExports.button(this,model::snapshot,target==null?"resultado":target.qualifiedTable(),changed));
-        grid.editingActions(new ResultGridActions.EditingActions(this::editSelectedCell,()->insertRow(false),this::deleteRows,this::save,this::requestDiscard,this::setSelectionValue,()->insertRow(true),()->{if(exportAction!=null)exportAction.run();},this::canWrite,this::hasChanges,this::canEditSelectedCell,()->origin.profile().type()!=com.nexodb.model.DatabaseType.SQLITE,()->exportAction!=null));
+        grid.editingActions(new ResultGridActions.EditingActions(this::editSelectedCell,()->insertRow(false),this::deleteRows,this::save,this::requestDiscard,this::setSelectionValue,this::pasteSelectionValue,()->insertRow(true),()->{if(exportAction!=null)exportAction.run();},this::canWrite,this::hasChanges,this::canEditSelectedCell,()->origin.profile().type()!=com.nexodb.model.DatabaseType.SQLITE,()->exportAction!=null));
         grid.referenceAction(()->openReference(table.getSelectedRow(),table.getSelectedColumn()),()->table.getSelectedColumn()>=0&&hasReference(table.convertColumnIndexToModel(table.getSelectedColumn())));
         referenceButton.setName("query-reference");referenceButton.setIcon(IconFactory.of(IconFactory.Kind.KEY,16));referenceButton.addActionListener(e->openReference(table.getSelectedRow(),table.getSelectedColumn()));toolbar.add(referenceButton);
         TableCellRenderer normalHeader=table.getTableHeader().getDefaultRenderer();table.getTableHeader().setDefaultRenderer((t,v,s,f,r,c)->{Component component=normalHeader.getTableCellRendererComponent(t,v,s,f,r,c);if(component instanceof JLabel label){int index=table.convertColumnIndexToModel(c);Icon base=label.getIcon();if(base instanceof ReferenceHeaderIcon composed)base=composed.base();label.setIcon(hasReference(index)?new ReferenceHeaderIcon(base,IconFactory.of(IconFactory.Kind.KEY,14)):base);label.setToolTipText(references.stream().filter(ref->ref.contains(index)).map(ref->ref.label()+" · "+String.join(", ",ref.parts().stream().map(p->p.local()+" → "+p.referenced()).toList())).collect(java.util.stream.Collectors.joining("; ")));}return component;});
@@ -286,6 +286,12 @@ final class QueryResultPanel extends JPanel {
         if(table.editCellAt(row,column,event)){Component editor=table.getEditorComponent();JTextField field=editor instanceof JTextField text?text:editor instanceof JPanel panel&&panel.getComponentCount()>0&&panel.getComponent(0) instanceof JTextField text?text:null;if(field!=null){field.requestFocusInWindow();field.selectAll();}}
     }
     private void setSelectionValue(Object value){if(!canEditSelectedCell()||!finishEditing()||!enableEditing())return;if(!confirm.test("Cambiar valores seleccionados",target.qualifiedTable()+"\n"+tr("Se asignará %s a las celdas seleccionadas. La fila se guardará al cambiar de fila o al pulsar Guardar. ¿Continuar?",value==null?"NULL":value==QueryEditSupport.DefaultValue.INSTANCE?"DEFAULT":value.toString().isEmpty()?tr("cadena vacía"):value.toString())))return;model.setValues(grid.selectedRows(),grid.selectedColumns(),value);}
+    private void pasteSelectionValue(String value){
+        if(!canEditSelectedCell()||!finishEditing())return;
+        int row=table.getSelectedRow(),column=table.getSelectedColumn();if(row<0||column<0)return;
+        model.setValueAt(value,table.convertRowIndexToModel(row),table.convertColumnIndexToModel(column));
+        changed.accept(tr("Valor pegado en la celda. Pulsa Guardar o cambia de fila para aplicarlo."));
+    }
     private void requestDiscard(){if(!hasChanges()||confirm.test("Descartar cambios",tr("Se perderán %s cambios pendientes del resultado. Los datos de la base no se modificarán. ¿Descartar?",model.changeCount())))discardChanges();}
     private void discardChanges(){cancelEditing();grid.clearChecked();model.discard();setHint(model.definition());}
     private void insertRow(boolean duplicate){
@@ -306,7 +312,7 @@ final class QueryResultPanel extends JPanel {
         boolean refresh=changes.stream().anyMatch(row->row.kind()!=QueryEditSupport.ChangeKind.UPDATE||row.values().containsValue(QueryEditSupport.DefaultValue.INSTANCE));
         start();UiLanguage.text(status,UiLanguage.key("Guardando cambios…"));
         new SwingWorker<SaveOutcome,Void>() {
-            protected SaveOutcome doInBackground()throws Exception{var saved=QueryEditSupport.saveChanges(origin.connection(),target,changes);if(refresh)try{String qualified=QueryEditSupport.qualifiedSelect(sql,target);return new SaveOutcome(saved,pagingRequested?origin.executePage(qualified,pageSize,pageOffset):origin.execute(qualified,rowLimit.getAsInt()),null);}catch(Exception error){return new SaveOutcome(saved,null,error);}return new SaveOutcome(saved,null,null);}
+            protected SaveOutcome doInBackground()throws Exception{var saved=QueryEditSupport.saveChanges(origin.connection(),target,changes);if(refresh)try{String qualified=QueryEditSupport.qualifiedSelect(sql,target);return new SaveOutcome(saved,pagingRequested?origin.executePage(qualified,pageSize,pageOffset):origin.executeEditable(qualified,rowLimit.getAsInt()),null);}catch(Exception error){return new SaveOutcome(saved,null,error);}return new SaveOutcome(saved,null,null);}
             protected void done(){
                 try {
                     SaveOutcome outcome=get();QueryEditSupport.BatchSaved saved=outcome.saved();pendingCommit|=saved.pendingCommit();

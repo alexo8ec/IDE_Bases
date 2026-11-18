@@ -27,7 +27,11 @@ public final class QueryEditIntegrationTest {
             equal(false,saved.pendingCommit());equal("O'Reilly'; DROP TABLE people; --",value(session,1,"name"));equal(true,db.getAutoCommit());
             QueryResult aliases=session.execute("SELECT id AS identity_column,name AS caption FROM people WHERE id=1",100);requireTarget(aliases);
             QueryEditSupport.save(db,aliases.editing().target(),aliases.rows().get(0),1,"Alias works");equal("Alias works",value(session,1,"name"));
-            for(String sql:List.of("SELECT name FROM people","SELECT * FROM no_key","SELECT * FROM people_view","SELECT DISTINCT id FROM people","SELECT count(*),id FROM people GROUP BY id","SELECT id+0 AS id,name FROM people"))
+            equal(null,session.execute("SELECT name,amount FROM people ORDER BY id",100).editing().target());
+            QueryResult partial=session.executeEditable("SELECT name,amount FROM people ORDER BY id",100);requireTarget(partial);equal(1,partial.hiddenColumns());equal(3,partial.rows().get(0).size());
+            QueryEditSupport.save(db,partial.editing().target(),partial.rows().get(0),0,"Partial works");equal("Partial works",value(session,1,"name"));
+            com.nexodb.ui.ResultTableModel partialModel=new com.nexodb.ui.ResultTableModel();partialModel.setResult(partial);equal(2,partialModel.getColumnCount());equal(2,partialModel.snapshot().columns().size());equal(2,partialModel.snapshot().rows().get(0).size());
+            for(String sql:List.of("SELECT * FROM no_key","SELECT * FROM people_view","SELECT DISTINCT id FROM people","SELECT count(*),id FROM people GROUP BY id","SELECT id+0 AS id,name FROM people"))
                 if(session.execute(sql,100).editing().target()!=null)throw new AssertionError("Should be read only: "+sql);
             QueryResult joined=session.execute("SELECT p.* FROM people p JOIN pairs x ON p.id=x.a",100);requireTarget(joined);equal(1,joined.editing().targets().size());
             QueryResult composite=session.execute("SELECT * FROM pairs ORDER BY b",100);requireTarget(composite);

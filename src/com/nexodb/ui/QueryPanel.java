@@ -559,7 +559,7 @@ public final class QueryPanel extends JPanel {
                     String statement = statements.get(i);
                     long started=System.nanoTime();
                     try {
-                        List<QueryResult> results=executingSession.executeAll(statement,limit);
+                        List<QueryResult> results=executingSession.executeAllEditable(statement,limit);
                         for (QueryResult result : results) outcomes.add(new StatementOutcome(i+1,statement,result,null));
                         recordHistory(executingSession,executionDatabase,statement,(System.nanoTime()-started)/1_000_000,
                                 results.stream().mapToLong(result->result.hasRows()?result.rows().size():Math.max(0,result.updateCount())).sum(),"");

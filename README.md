@@ -1,6 +1,11 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.31**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.32**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Portapapeles y edición de consultas parciales — 0.18.32
+
+- `Ctrl+C` copia el valor exacto de una celda o la selección tabular, y `Ctrl+V` pega directamente en la celda activa solamente cuando el resultado está en modo de edición y la columna admite cambios. El menú contextual también ofrece **Pegar en la celda**.
+- En un `SELECT precio, extendido FROM tabla`, AdisDB obtiene internamente la clave primaria que falte, la mantiene oculta y habilita la edición sin agregar columnas visibles. La clave se usa para actualizar exactamente la fila seleccionada y no se aplica esta ampliación a consultas internas ni a formas ambiguas, vistas o tablas sin clave primaria.
 
 ## Conexiones resilientes y consultas más rápidas — 0.18.31
 

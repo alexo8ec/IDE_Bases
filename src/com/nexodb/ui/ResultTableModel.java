@@ -38,13 +38,13 @@ public final class ResultTableModel extends AbstractTableModel {
     public void accept(List<QueryEditSupport.RowChange> saved){
         List<List<Object>> originals=new ArrayList<>(result.rows());
         for(var row:saved){if(row.kind()!=UPDATE)throw new IllegalArgumentException("Row mutations require a refreshed result");List<Object> original=new ArrayList<>(originals.get(row.row()));for(var cell:row.values().entrySet()){rows.get(row.row()).set(cell.getKey(),cell.getValue());original.set(cell.getKey(),cell.getValue());}originals.set(row.row(),original);pending.remove(row.row());deleted.remove(row.row());}
-        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes());fireTableDataChanged();changed.run();
+        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes(),result.hiddenColumns());fireTableDataChanged();changed.run();
     }
     public int insertRow(Integer duplicate){
         if(!editable||target==null)return -1;
-        int row=rows.size();List<Object> values=new ArrayList<>(Collections.nCopies(getColumnCount(),INSTANCE));
+        int row=rows.size();List<Object> values=new ArrayList<>(Collections.nCopies(target.columns().size(),INSTANCE));
         if(duplicate!=null)for(int column=0;column<getColumnCount();column++)if(target.columns().get(column).writable()&&!target.keys().contains(column))values.set(column,rows.get(duplicate).get(column));
-        rows.add(values);for(int column=0;column<getColumnCount();column++)if(values.get(column)!=INSTANCE)pending.computeIfAbsent(row,key->new LinkedHashMap<>()).put(column,values.get(column));
+        rows.add(values);for(int column=0;column<values.size();column++)if(values.get(column)!=INSTANCE)pending.computeIfAbsent(row,key->new LinkedHashMap<>()).put(column,values.get(column));
         fireTableRowsInserted(row,row);changed.run();return row;
     }
     public void deleteRows(List<Integer> selection){
@@ -57,13 +57,13 @@ public final class ResultTableModel extends AbstractTableModel {
         fireTableDataChanged();changed.run();
     }
     public void discard(){rows.clear();for(var row:result.rows())rows.add(new ArrayList<>(row));pending.clear();deleted.clear();fireTableDataChanged();changed.run();}
-    public QueryResult snapshot(){List<List<Object>> copy=rows.stream().map(row->(List<Object>)new ArrayList<>(row)).toList();return new QueryResult(result.columns(),copy,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes());}
+    public QueryResult snapshot(){int visible=getColumnCount();List<List<Object>> copy=rows.stream().map(row->Collections.unmodifiableList(new ArrayList<>(row.subList(0,visible)))).toList();List<QueryResult.Origin> origins=result.origins().size()>=visible?result.origins().subList(0,visible):List.of();return new QueryResult(result.columns().subList(0,visible),copy,result.updateCount(),result.elapsedMillis(),result.truncated(),null,origins,result.jdbcTypes().subList(0,visible));}
     public int jdbcType(int column){return column>=0&&column<result.jdbcTypes().size()?result.jdbcTypes().get(column):java.sql.Types.OTHER;}
     public void setReference(int row,Map<Integer,Object> values){
         if(values.isEmpty()||values.keySet().stream().anyMatch(column->column<0||column>=getColumnCount()||!isCellEditable(row,column)))throw new IllegalStateException(tr("La referencia completa no se puede editar en este resultado."));
         values.forEach((column,value)->stage(value,row,column));fireTableRowsUpdated(row,row);changed.run();
     }
-    public int getRowCount(){return rows.size();}public int getColumnCount(){return result.columns().size();}public String getColumnName(int column){return result.columns().get(column);}
+    public int getRowCount(){return rows.size();}public int getColumnCount(){return result.visibleColumnCount();}public String getColumnName(int column){return result.columns().get(column);}
     public Object getValueAt(int row,int column){return rows.get(row).get(column);}
     public boolean isCellEditable(int row,int column){return editable&&!deleted.contains(row)&&target!=null&&target.columns().get(column).writable();}
     public void setValueAt(Object value,int row,int column){if(isCellEditable(row,column)&&!Objects.equals(value,rows.get(row).get(column))){stage(value,row,column);fireTableCellUpdated(row,column);changed.run();}}

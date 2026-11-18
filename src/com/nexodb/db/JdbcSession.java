@@ -350,13 +350,17 @@ public final class JdbcSession implements AutoCloseable {
     }
 
     public QueryResult execute(String sql, int maxRows) throws SQLException {
-        return executeResults(sql, maxRows, false).get(0);
+        return executeResults(sql, maxRows, false,false).get(0);
     }
+
+    /** User-facing SELECT execution may append hidden primary-key columns for safe editing. */
+    public QueryResult executeEditable(String sql,int maxRows)throws SQLException{return executeResults(sql,maxRows,false,true).get(0);}
 
     /** All result sets and update counts produced by a statement, including CALL/EXEC. */
     public List<QueryResult> executeAll(String sql, int maxRows) throws SQLException {
-        return executeResults(sql, maxRows, true);
+        return executeResults(sql, maxRows, true,false);
     }
+    public List<QueryResult> executeAllEditable(String sql,int maxRows)throws SQLException{return executeResults(sql,maxRows,true,true);}
 
     /** Forward-only JDBC fallback keeps SQL dialect, explicit LIMIT/TOP and scope intact. */
     public QueryResult executePage(String sql,int pageSize,long offset)throws SQLException {
@@ -365,13 +369,30 @@ public final class JdbcSession implements AutoCloseable {
         try(Statement statement=connection.createStatement()) {
             activeStatement=statement;long needed=offset+pageSize+1L;statement.setMaxRows(needed>0&&needed<=5_000_000?(int)needed:0);statement.setFetchSize(Math.min(pageSize,500));
             if(!statement.execute(sql))throw new SQLException("La consulta no devolvió una tabla paginable.");
+            QueryEditSupport.Enrichment enrichment;
             try(ResultSet rows=statement.getResultSet()) {
-                long skipped=0;while(skipped<offset&&rows.next()){skipped++;if(Thread.currentThread().isInterrupted())throw new SQLException("Paginación cancelada.");}
-                QueryResult result=QueryResult.from(rows,pageSize);
-                return result.withEditing(QueryEditSupport.describe(connection,profile.type(),sql,rows.getMetaData(),editMetadata)).withElapsed(elapsedMillis(started));
+                enrichment=QueryEditSupport.enrichMissingPrimaryKeys(connection,profile.type(),sql,rows.getMetaData(),editMetadata);
+                if(enrichment==null){
+                    long skipped=0;while(skipped<offset&&rows.next()){skipped++;if(Thread.currentThread().isInterrupted())throw new SQLException("Paginación cancelada.");}
+                    QueryResult result=QueryResult.from(rows,pageSize);
+                    return result.withEditing(QueryEditSupport.describe(connection,profile.type(),sql,rows.getMetaData(),editMetadata)).withElapsed(elapsedMillis(started));
+                }
             }
+            return executeEnrichedPage(statement,enrichment,pageSize,offset,started);
         }finally{activeStatement=null;}
       }
+    }
+
+    private QueryResult executeEnrichedPage(Statement owner,QueryEditSupport.Enrichment enrichment,int pageSize,long offset,long started)throws SQLException{
+        try(Statement statement=connection.createStatement()){
+            activeStatement=statement;long needed=offset+pageSize+1L;statement.setMaxRows(needed>0&&needed<=5_000_000?(int)needed:0);statement.setFetchSize(Math.min(pageSize,500));
+            if(!statement.execute(enrichment.sql()))throw new SQLException("La consulta no devolvió una tabla paginable.");
+            try(ResultSet rows=statement.getResultSet()){
+                long skipped=0;while(skipped<offset&&rows.next()){skipped++;if(Thread.currentThread().isInterrupted())throw new SQLException("Paginación cancelada.");}
+                QueryResult result=QueryResult.from(rows,pageSize).withHiddenColumns(enrichment.hiddenColumns());
+                return result.withEditing(QueryEditSupport.describe(connection,profile.type(),enrichment.sql(),rows.getMetaData(),editMetadata)).withElapsed(elapsedMillis(started));
+            }
+        }finally{activeStatement=owner;}
     }
 
     public static final class ExecutionException extends SQLException {
@@ -383,7 +404,7 @@ public final class JdbcSession implements AutoCloseable {
         public List<QueryResult> results() { return results; }
     }
 
-    private List<QueryResult> executeResults(String sql, int maxRows, boolean all) throws SQLException {
+    private List<QueryResult> executeResults(String sql, int maxRows, boolean all,boolean enrichKeys) throws SQLException {
       synchronized(connection) {
         long started = System.nanoTime();
         List<QueryResult> results = new ArrayList<>();
@@ -394,11 +415,15 @@ public final class JdbcSession implements AutoCloseable {
             boolean hasResult = statement.execute(sql);
             do {
                 if (hasResult) {
+                    QueryEditSupport.Enrichment enrichment;
+                    QueryResult result;QueryEditSupport.Eligibility eligibility;
                     try (ResultSet resultSet = statement.getResultSet()) {
-                        QueryResult result = QueryResult.from(resultSet, maxRows);
-                        var eligibility = QueryEditSupport.describe(connection, profile.type(), sql, resultSet.getMetaData(),editMetadata);
-                        results.add(result.withEditing(eligibility).withElapsed(elapsedMillis(started)));
+                        result = QueryResult.from(resultSet, maxRows);
+                        eligibility = QueryEditSupport.describe(connection, profile.type(), sql, resultSet.getMetaData(),editMetadata);
+                        enrichment=enrichKeys&&eligibility.target()==null?QueryEditSupport.enrichMissingPrimaryKeys(connection,profile.type(),sql,resultSet.getMetaData(),editMetadata):null;
                     }
+                    if(enrichment!=null)results.add(executeEnriched(statement,enrichment,maxRows,started));
+                    else results.add(result.withEditing(eligibility).withElapsed(elapsedMillis(started)));
                 } else {
                     int count = statement.getUpdateCount();
                     if (count == -1) break;
@@ -416,6 +441,17 @@ public final class JdbcSession implements AutoCloseable {
             activeStatement = null;
         }
       }
+    }
+
+    private QueryResult executeEnriched(Statement owner,QueryEditSupport.Enrichment enrichment,int maxRows,long started)throws SQLException{
+        try(Statement statement=connection.createStatement()){
+            activeStatement=statement;configureRowLimit(statement,maxRows);
+            if(!statement.execute(enrichment.sql()))throw new SQLException("La consulta no devolvió un resultado editable.");
+            try(ResultSet rows=statement.getResultSet()){
+                QueryResult result=QueryResult.from(rows,maxRows).withHiddenColumns(enrichment.hiddenColumns());
+                return result.withEditing(QueryEditSupport.describe(connection,profile.type(),enrichment.sql(),rows.getMetaData(),editMetadata)).withElapsed(elapsedMillis(started));
+            }
+        }finally{activeStatement=owner;}
     }
 
     public void cancel() throws SQLException {

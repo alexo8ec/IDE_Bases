@@ -9,13 +9,16 @@ import java.util.Collections;
 import java.util.List;
 
 public record QueryResult(List<String> columns, List<List<Object>> rows, int updateCount, long elapsedMillis, boolean truncated,
-                          QueryEditSupport.Eligibility editing, List<Origin> origins, List<Integer> jdbcTypes) {
+                          QueryEditSupport.Eligibility editing, List<Origin> origins, List<Integer> jdbcTypes, int hiddenColumns) {
     public record Origin(String catalog,String schema,String table,String column) {}
     public QueryResult {
         origins=origins==null?List.of():List.copyOf(origins);
         jdbcTypes=jdbcTypes==null||jdbcTypes.size()!=columns.size()
                 ?Collections.nCopies(columns.size(),Types.OTHER):List.copyOf(jdbcTypes);
+        if(hiddenColumns<0||hiddenColumns>columns.size())throw new IllegalArgumentException("Invalid hidden column count");
     }
+    public QueryResult(List<String> columns,List<List<Object>> rows,int updateCount,long elapsedMillis,boolean truncated,
+                       QueryEditSupport.Eligibility editing,List<Origin> origins,List<Integer> jdbcTypes){this(columns,rows,updateCount,elapsedMillis,truncated,editing,origins,jdbcTypes,0);}
     public QueryResult(List<String> columns,List<List<Object>> rows,int updateCount,long elapsedMillis,boolean truncated,
                        QueryEditSupport.Eligibility editing,List<Origin> origins){this(columns,rows,updateCount,elapsedMillis,truncated,editing,origins,List.of());}
     public QueryResult(List<String> columns,List<List<Object>> rows,int updateCount,long elapsedMillis,boolean truncated,QueryEditSupport.Eligibility editing){this(columns,rows,updateCount,elapsedMillis,truncated,editing,List.of(),List.of());}
@@ -46,7 +49,7 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
             for (int i = 1; i <= columnCount; i++) row.add(displayValue(readValue(resultSet, metadata, i)));
             rows.add(row);
         }
-        return new QueryResult(List.copyOf(columns), List.copyOf(rows), -1, 0, truncated,null,origins,jdbcTypes);
+        return new QueryResult(List.copyOf(columns), List.copyOf(rows), -1, 0, truncated,null,origins,jdbcTypes,0);
     }
 
     public static QueryResult update(int count, long elapsed) {
@@ -54,12 +57,15 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
     }
 
     public QueryResult withElapsed(long elapsed) {
-        return new QueryResult(columns, rows, updateCount, elapsed, truncated, editing,origins,jdbcTypes);
+        return new QueryResult(columns, rows, updateCount, elapsed, truncated, editing,origins,jdbcTypes,hiddenColumns);
     }
 
     public QueryResult withEditing(QueryEditSupport.Eligibility eligibility) {
-        return new QueryResult(columns, rows, updateCount, elapsedMillis, truncated, eligibility,origins,jdbcTypes);
+        return new QueryResult(columns, rows, updateCount, elapsedMillis, truncated, eligibility,origins,jdbcTypes,hiddenColumns);
     }
+
+    public QueryResult withHiddenColumns(int count){return new QueryResult(columns,rows,updateCount,elapsedMillis,truncated,editing,origins,jdbcTypes,count);}
+    public int visibleColumnCount(){return columns.size()-hiddenColumns;}
 
     public boolean hasRows() { return !columns.isEmpty(); }
     private static String base(ResultSetMetaData metadata,String method,int column,String fallback){

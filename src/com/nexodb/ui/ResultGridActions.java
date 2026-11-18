@@ -5,6 +5,7 @@ import javax.swing.event.*;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.math.BigDecimal;
 import java.util.*;
@@ -16,7 +17,7 @@ import static com.nexodb.util.I18n.tr;
 /** View-only grid operations. Row selections always retain model indexes across sorting/filtering. */
 final class ResultGridActions {
     interface ColumnEditor { void open(int column,boolean delete); }
-    record EditingActions(Runnable edit,Runnable insert,Runnable delete,Runnable save,Runnable discard,Consumer<Object> setValue,
+    record EditingActions(Runnable edit,Runnable insert,Runnable delete,Runnable save,Runnable discard,Consumer<Object> setValue,Consumer<String> paste,
                           Runnable duplicate,Runnable export,BooleanSupplier canEdit,BooleanSupplier hasChanges,
                           BooleanSupplier canSetValue,BooleanSupplier canDefault,BooleanSupplier canExport) {}
     enum Operator {
@@ -53,6 +54,8 @@ final class ResultGridActions {
         table.addPropertyChangeListener("rowSorter",event->{listenSorter();applyFilter();});listenSorter();
         for(String key:List.of("control C","meta C"))table.getInputMap().put(KeyStroke.getKeyStroke(key),"copy-grid");
         table.getActionMap().put("copy-grid",new AbstractAction(){public void actionPerformed(ActionEvent event){copySelection();}});
+        for(String key:List.of("control V","meta V"))table.getInputMap().put(KeyStroke.getKeyStroke(key),"paste-grid");
+        table.getActionMap().put("paste-grid",new AbstractAction(){public void actionPerformed(ActionEvent event){pasteClipboard();}});
     }
     int checkedCount(){return checked.size();}
     boolean isMarked(int row){return checked.contains(row);}
@@ -165,7 +168,7 @@ final class ResultGridActions {
         if(!heading&&reference!=null&&hasReference.getAsBoolean()){action(menu,"Ver registro relacionado…",reference,true);menu.addSeparator();}
         if(!heading&&editing!=null){
             boolean writable=editing.canEdit().getAsBoolean(),cell=editing.canSetValue().getAsBoolean();
-            action(menu,"Editar celda",editing.edit(),cell);action(menu,"Insertar nueva fila",editing.insert(),writable);
+            action(menu,"Editar celda",editing.edit(),cell);action(menu,"Pegar en la celda",this::pasteClipboard,cell);action(menu,"Insertar nueva fila",editing.insert(),writable);
             action(menu,"Guardar cambios",editing.save(),writable&&editing.hasChanges().getAsBoolean());
             action(menu,"Eliminar filas seleccionadas",editing.delete(),writable&&!selectedRows().isEmpty());
             action(menu,"Cancelar cambios",editing.discard(),writable&&editing.hasChanges().getAsBoolean());
@@ -282,7 +285,17 @@ final class ResultGridActions {
     private void clearSort(){if(table.getRowSorter()!=null)table.getRowSorter().setSortKeys(List.of());table.getTableHeader().repaint();}
     private void sort(int column,SortOrder order){if(column>=0&&table.getRowSorter()!=null){table.getRowSorter().setSortKeys(List.of(new RowSorter.SortKey(column,order)));table.getTableHeader().repaint();}}
     private List<Integer> allColumns(){List<Integer> result=new ArrayList<>();for(int i=0;i<model.getColumnCount();i++)result.add(i);return result;}
-    private void copySelection(){copy(selectedRows(),selectedColumns());}
+    private void copySelection(){
+        List<Integer> rows=selectedRows(),columns=selectedColumns();if(rows.isEmpty()||columns.isEmpty())return;
+        String value=rows.size()==1&&columns.size()==1?clipboardCell(model.getValueAt(rows.get(0),columns.get(0))):text(model,rows,columns);
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(value),null);copied.accept(tr("Datos copiados al portapapeles"));
+    }
+    private void pasteClipboard(){
+        if(editing==null||!editing.canSetValue().getAsBoolean())return;
+        try{Object value=Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);if(value!=null)editing.paste().accept(String.valueOf(value));}
+        catch(Exception unavailable){Toolkit.getDefaultToolkit().beep();copied.accept(tr("No se pudo leer el portapapeles."));}
+    }
+    static String clipboardCell(Object value){return value==null?"":String.valueOf(value);}
     private void copy(List<Integer> rows,List<Integer> columns){if(rows.isEmpty()||columns.isEmpty())return;Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text(model,rows,columns)),null);copied.accept(tr("Datos copiados al portapapeles"));}
     static String text(ResultTableModel model,List<Integer> rows,List<Integer> columns){
         StringBuilder text=new StringBuilder();for(int row:rows){if(text.length()>0)text.append('\n');for(int i=0;i<columns.size();i++){if(i>0)text.append('\t');String value=display(model.getValueAt(row,columns.get(i)));if(value.indexOf('\t')>=0||value.indexOf('\n')>=0||value.indexOf('\r')>=0||value.indexOf('"')>=0)text.append('"').append(value.replace("\"","\"\"")).append('"');else text.append(value);}}return text.toString();

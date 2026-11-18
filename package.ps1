@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: conexiones remotas con reintento breve y diagnóstico claro, consultas MySQL por bloques y metadatos reutilizados, y orden ascendente o descendente desde el filtro de cada columna."
+    notes = "AdisDB ${version}: copiar y pegar valores con Ctrl+C/Ctrl+V en celdas editables y edición segura de consultas parciales mediante claves primarias internas ocultas."
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\AdisDB.exe"

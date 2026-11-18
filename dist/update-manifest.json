@@ -1,6 +1,6 @@
 {
-  "version": "0.18.31",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.31-win64.zip",
-  "sha256": "49f9f55268f65195f25a9254a37eda0efe5af7355d217b8339993ee17c4b72c3",
-  "notes": "AdisDB 0.18.31: conexiones remotas con reintento breve y diagnóstico claro, consultas MySQL por bloques y metadatos reutilizados, y orden ascendente o descendente desde el filtro de cada columna."
+  "version": "0.18.32",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.32-win64.zip",
+  "sha256": "75ccf16b5b3882080af5809cfc939505082a69dc87e5e9927855916b20cc4e9e",
+  "notes": "AdisDB 0.18.32: copiar y pegar valores con Ctrl+C/Ctrl+V en celdas editables y edición segura de consultas parciales mediante claves primarias internas ocultas."
 }

@@ -7,6 +7,8 @@ import com.nexodb.model.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseEvent;
+import java.awt.event.ActionEvent;
+import java.awt.datatransfer.StringSelection;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.*;
 import java.nio.file.*;
@@ -41,9 +43,12 @@ public final class QueryGridIntegrationTest {
                 try{Field confirm=QueryResultPanel.class.getDeclaredField("confirm");confirm.setAccessible(true);confirm.set(panel,(java.util.function.BiPredicate<String,String>)(title,text)->true);}catch(Exception error){throw new RuntimeException(error);}
                 JFrame window=new JFrame();frame.set(window);window.setContentPane(panel);window.setSize(1100,420);window.setVisible(true);window.validate();
                 Rectangle cell=table.getCellRect(0,1,true);table.dispatchEvent(new MouseEvent(table,MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,cell.x+12,cell.y+12,2,false,MouseEvent.BUTTON1));
-                equal(false,table.isEditing());button(panel,"query-edit").doClick();table.dispatchEvent(new MouseEvent(table,MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,cell.x+12,cell.y+12,2,false,MouseEvent.BUTTON1));
+                equal(false,table.isEditing());table.changeSelection(0,1,false,false);Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection("No debe pegar"),null);table.getActionMap().get("paste-grid").actionPerformed(new ActionEvent(table,ActionEvent.ACTION_PERFORMED,"paste"));equal("Alice",model.getValueAt(0,1));
+                button(panel,"query-edit").doClick();table.dispatchEvent(new MouseEvent(table,MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,cell.x+12,cell.y+12,2,false,MouseEvent.BUTTON1));
                 equal(true,table.isEditing());equal(true,button(panel,"query-edit").isSelected());((JTextField)table.getEditorComponent()).setText("Alice changed");table.getCellEditor().stopCellEditing();
                 equal(1,model.changeCount());equal(1,model.changes().get(0).values().size());
+                table.changeSelection(0,2,false,false);Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection("Nota pegada"),null);table.getActionMap().get("paste-grid").actionPerformed(new ActionEvent(table,ActionEvent.ACTION_PERFORMED,"paste"));equal("Nota pegada",model.getValueAt(0,2));equal(2,model.changeCount());
+                equal("texto exacto",ResultGridActions.clipboardCell("texto exacto"));equal("",ResultGridActions.clipboardCell(null));equal("paste-grid",table.getInputMap().get(KeyStroke.getKeyStroke("control V")));
                 snapshot(panel,"query-grid-light.png");
             });
             QueryResultPanel panel=reference.get();
