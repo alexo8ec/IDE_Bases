@@ -4,6 +4,7 @@ import static com.nexodb.util.I18n.tr;
 
 import com.nexodb.db.JdbcSession;
 import com.nexodb.db.QueryResult;
+import com.nexodb.db.QueryPaging;
 import com.nexodb.db.SqlColumnCompletion;
 import com.nexodb.db.SqlJoinCompletion;
 import com.nexodb.db.SqlTableAliases;
@@ -566,7 +567,8 @@ public final class QueryPanel extends JPanel {
                     String statement = statements.get(i);
                     long started=System.nanoTime();
                     try {
-                        List<QueryResult> results=executingSession.executeAllEditable(statement,limit);
+                        int statementLimit=limit==Integer.MAX_VALUE&&QueryPaging.supported(statement)?1000:limit;
+                        List<QueryResult> results=executingSession.executeAllEditable(statement,statementLimit);
                         for (QueryResult result : results) outcomes.add(new StatementOutcome(i+1,statement,result,null));
                         recordHistory(executingSession,executionDatabase,statement,(System.nanoTime()-started)/1_000_000,
                                 results.stream().mapToLong(result->result.hasRows()?result.rows().size():Math.max(0,result.updateCount())).sum(),"");
@@ -604,7 +606,7 @@ public final class QueryPanel extends JPanel {
                             totalRows += result.rows().size();
                             addResultTab(resultTabName(outcome.sql(), outcome.index()), result, executingSession, outcome.sql(), limit);
                             resultTabs++;
-                            String suffix = result.truncated() ? tr(" (límite alcanzado)") : "";
+                            String suffix = result.truncated() ? (limit==Integer.MAX_VALUE?tr(" (carga virtual; desplázate para continuar)"):tr(" (límite alcanzado)")) : "";
                             appendMessage(tr("Resultado ") + outcome.index(), result.rows().size() + tr(" filas") + suffix
                                     + tr(" en ") + result.elapsedMillis() + " ms");
                         } else {

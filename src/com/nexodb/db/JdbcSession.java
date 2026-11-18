@@ -400,26 +400,26 @@ public final class JdbcSession implements AutoCloseable {
     /** Forward-only JDBC fallback keeps SQL dialect, explicit LIMIT/TOP and scope intact. */
     public QueryResult executePage(String sql,int pageSize,long offset)throws SQLException {
       synchronized(connection) {
-        QueryPaging.validate(sql,pageSize,offset);long started=System.nanoTime();
+        QueryPaging.PageSql page=QueryPaging.pageSql(sql,profile.type(),pageSize,offset);long started=System.nanoTime();
         try(Statement statement=connection.createStatement()) {
-            activeStatement=statement;long needed=offset+pageSize+1L;statement.setMaxRows(needed>0&&needed<=5_000_000?(int)needed:0);statement.setFetchSize(Math.min(pageSize,500));
-            long serverStarted=System.nanoTime();boolean returned=statement.execute(sql);long serverMillis=elapsedMillis(serverStarted);
+            activeStatement=statement;long needed=page.nativeOffset()?pageSize+1L:offset+pageSize+1L;statement.setMaxRows(needed>0&&needed<=5_000_000?(int)needed:0);statement.setFetchSize(Math.min(pageSize,500));
+            long serverStarted=System.nanoTime();boolean returned=statement.execute(page.sql());long serverMillis=elapsedMillis(serverStarted);
             if(!returned)throw new SQLException("La consulta no devolvió una tabla paginable.");
             QueryEditSupport.Enrichment enrichment;
             try(ResultSet rows=statement.getResultSet()) {
                 long metadataStarted=System.nanoTime();
-                enrichment=QueryEditSupport.enrichMissingPrimaryKeys(connection,profile.type(),sql,rows.getMetaData(),editMetadata);
+                enrichment=QueryEditSupport.enrichMissingPrimaryKeys(connection,profile.type(),page.sql(),rows.getMetaData(),editMetadata);
                 long metadataMillis=elapsedMillis(metadataStarted);
                 if(enrichment==null){
                     long fetchStarted=System.nanoTime();
-                    long skipped=0;while(skipped<offset&&rows.next()){skipped++;if(Thread.currentThread().isInterrupted())throw new SQLException("Paginación cancelada.");}
+                    long skipped=0;while(!page.nativeOffset()&&skipped<offset&&rows.next()){skipped++;if(Thread.currentThread().isInterrupted())throw new SQLException("Paginación cancelada.");}
                     QueryResult result=QueryResult.from(rows,pageSize);
                     long fetchMillis=elapsedMillis(fetchStarted);metadataStarted=System.nanoTime();
-                    result=result.withEditing(QueryEditSupport.describe(connection,profile.type(),sql,rows.getMetaData(),editMetadata));
+                    result=result.withEditing(QueryEditSupport.describe(connection,profile.type(),page.sql(),rows.getMetaData(),editMetadata));
                     metadataMillis+=elapsedMillis(metadataStarted);
                     return result.withTiming(timing(started,serverMillis,fetchMillis,metadataMillis));
                 }
-                return executeEnrichedPage(statement,enrichment,pageSize,offset,started,serverMillis,metadataMillis);
+                return executeEnrichedPage(statement,enrichment,pageSize,page.nativeOffset()?0:offset,started,serverMillis,metadataMillis);
             }
         }finally{activeStatement=null;}
       }

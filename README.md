@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.41**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.42**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Carga virtual de resultados — 0.18.42
+
+- Las consultas `SELECT` grandes ya no conservan todas sus filas en memoria cuando se desactiva **Limitar filas**: comienzan con una página de 1.000 registros y solicitan las siguientes bajo demanda.
+- Al llegar al final de la cuadrícula con la rueda, las flechas, `Page Down` o `End`, se carga automáticamente la página siguiente. Las flechas compactas de navegación continúan disponibles.
+- Se mantienen en una caché acotada únicamente las tres páginas más recientes. Volver a una de ellas es inmediato y **Recargar** siempre invalida la caché para consultar datos actuales.
+- MySQL, MariaDB, PostgreSQL, SQLite y H2 usan `LIMIT/OFFSET` en el servidor. SQL Server y Oracle usan `OFFSET/FETCH` cuando la consulta posee un `ORDER BY` seguro; los casos con límites explícitos conservan una ruta compatible.
+- La paginación conserva la identidad editable, filtros, referencias y seguridad de la consulta. Las pruebas verifican 2.505 filas sin saltos ni duplicados, la carga automática y la reutilización de páginas.
 
 ## Actualización que conserva la versión instalada — 0.18.41
 

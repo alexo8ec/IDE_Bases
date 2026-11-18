@@ -1,6 +1,6 @@
 {
-  "version": "0.18.41",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.41-win64.zip",
-  "sha256": "8db06dda9b7e5cd084de06c38252e7678dbb9b3f0aad5a66c70dfe8e80eb8e35",
-  "notes": "AdisDB 0.18.41: corrige la versión incorporada para que la actualización se aplique una sola vez y sea reconocida al reiniciar."
+  "version": "0.18.42",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.42-win64.zip",
+  "sha256": "4d631dd14d94cdabdc725c67cda4f51b03974e7b8f9c010f0a3311a0edefbeea",
+  "notes": "AdisDB 0.18.42: carga virtual de resultados, páginas bajo demanda, caché acotada y paginación nativa para consultas grandes."
 }

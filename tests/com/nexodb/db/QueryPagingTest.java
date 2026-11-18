@@ -7,6 +7,12 @@ import java.util.*;
 public final class QueryPagingTest {
     public static void main(String[] args)throws Exception {
         var profile=new ConnectionProfile("paging","Test",DatabaseType.H2,"",0,"mem:paging","sa","jdbc:h2:mem:paging","org.h2.Driver",Path.of("build/h2-test.jar").toAbsolutePath().toString(),false);
+        var mysqlPage=QueryPaging.pageSql("SELECT * FROM entries ORDER BY id;",DatabaseType.MYSQL,100,500);
+        equal(true,mysqlPage.nativeOffset());equal(true,mysqlPage.sql().endsWith("LIMIT 101 OFFSET 500"));
+        equal(false,QueryPaging.pageSql("SELECT * FROM entries ORDER BY id LIMIT 7",DatabaseType.MYSQL,3,6).nativeOffset());
+        equal(true,QueryPaging.pageSql("WITH x AS (SELECT * FROM t LIMIT 2) SELECT * FROM x ORDER BY id",DatabaseType.POSTGRESQL,10,20).nativeOffset());
+        equal(false,QueryPaging.pageSql("SELECT * FROM entries",DatabaseType.SQLSERVER,100,500).nativeOffset());
+        equal(true,QueryPaging.pageSql("SELECT * FROM entries ORDER BY id",DatabaseType.SQLSERVER,100,500).nativeOffset());
         try(JdbcSession session=JdbcSession.open(profile,new char[0])) {
             session.execute("CREATE TABLE entries(id INT PRIMARY KEY,name VARCHAR(20))",10);session.execute("INSERT INTO entries SELECT X,'row' FROM SYSTEM_RANGE(1,2505)",10);
             QueryResult page=session.execute("SELECT * FROM entries ORDER BY id",1000);equal(1000,page.rows().size());equal(true,page.truncated());

@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: corrige la versión incorporada para que la actualización se aplique una sola vez y sea reconocida al reiniciar."
+    notes = "AdisDB ${version}: carga virtual de resultados, páginas bajo demanda, caché acotada y paginación nativa para consultas grandes."
 }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path $distRoot 'update-manifest.json'),($manifest | ConvertTo-Json),$utf8NoBom)
