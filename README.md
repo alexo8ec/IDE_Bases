@@ -1,6 +1,12 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.29**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.30**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Filtros compactos por columna — 0.18.30
+
+El embudo de cada encabezado abre una ventana compacta al estilo dbForge, con buscador y valores disponibles, además de `NULL`, `No NULL`, limpiar y filtro personalizado. Al volver a abrirla conserva el valor buscado y las condiciones aplicadas; si se pasa al filtro personalizado, el texto escrito aparece ya colocado en la primera condición.
+
+El formulario grande de condiciones personalizadas se centra respecto a la ventana principal de AdisDB, aunque la cuadrícula se encuentre en la parte inferior o en un panel lateral. El menú de clic derecho continúa disponible.
 
 ## Administración global de usuarios MySQL/MariaDB — 0.18.29
 
@@ -8,7 +14,7 @@ Cuando el usuario seleccionado ya tiene privilegios globales, el editor abre dir
 
 La acción **Conceder administración total** aplica el perfil nativo `ALL PRIVILEGES ON *.* WITH GRANT OPTION`. Esto diferencia a una cuenta con acceso total de una cuenta que además puede conceder o retirar permisos a otros usuarios. Los privilegios globales y `GRANT OPTION` también se pueden desmarcar de forma individual para retirar administración sin ocultar los cambios que se enviarán al servidor.
 
-Los encabezados de las cuadrículas muestran un icono de embudo permanente. Al pulsarlo se abre el filtro de esa columna con sus valores y la opción personalizada; el embudo cambia de color cuando hay un filtro activo. Se conservan el desplegable existente y todas las acciones mediante clic derecho.
+Los encabezados de las cuadrículas muestran un icono de embudo permanente. Al pulsarlo se abre el filtro de esa columna; el embudo cambia de color cuando hay un filtro activo. Se conservan el desplegable existente y todas las acciones mediante clic derecho.
 
 ## Permisos, filtros, contenido XML e impresión de reportes — 0.18.28
 

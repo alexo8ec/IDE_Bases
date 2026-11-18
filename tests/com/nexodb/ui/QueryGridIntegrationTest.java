@@ -78,6 +78,7 @@ public final class QueryGridIntegrationTest {
                 for(int column=0;column<table.getColumnCount();column++)equal(true,table.isCellSelected(0,column));
                 snapshot(panel,"query-grid-checked-row.png");
                 ResultGridActions actions=field(panel,"grid",ResultGridActions.class);equal(List.of(2),actions.selectedRows());
+                JPopupMenu compact=invoke(actions,"columnFilterMenu",new Class[]{int.class},1);equal("Carol",find(compact,"column-filter-search",JTextField.class).getText());equal(true,find(compact,"column-filter-values",JList.class).getModel().getSize()>0);
                 filter.setText("");table.getRowSorter().toggleSortOrder(0);table.getRowSorter().toggleSortOrder(0);
                 equal(List.of(2),actions.selectedRows());equal("Carol\ttwo",ResultGridActions.text(model,actions.selectedRows(),List.of(1,2)));
                 // Reordered display columns still map NULL to the correct database column.

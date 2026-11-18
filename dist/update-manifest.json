@@ -1,6 +1,6 @@
 {
-  "version": "0.18.29",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.29-win64.zip",
-  "sha256": "b0c2ecbe6ab6200f998792be123cbf152bcb5ec0794e9e03d41de8003d65a482",
-  "notes": "AdisDB 0.18.29: administracion global MySQL/MariaDB con ALL PRIVILEGES y GRANT OPTION, edicion clara de permisos heredados e iconos de filtro visibles en cada columna."
+  "version": "0.18.30",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.30-win64.zip",
+  "sha256": "60f2c5bc07cc607a8e4d6ef1da2466eda2937ad1958443cecc43188dba50c83b",
+  "notes": "AdisDB 0.18.30: filtro compacto por columna con buscador y valores, condiciones conservadas y formulario personalizado centrado en la ventana principal."
 }

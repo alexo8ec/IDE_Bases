@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: administracion global MySQL/MariaDB con ALL PRIVILEGES y GRANT OPTION, edicion clara de permisos heredados e iconos de filtro visibles en cada columna."
+    notes = "AdisDB ${version}: filtro compacto por columna con buscador y valores, condiciones conservadas y formulario personalizado centrado en la ventana principal."
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\AdisDB.exe"
