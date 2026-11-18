@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: agrega conexiones por tunel SSH con contrasena o clave privada, puerto local automatico, keep-alive y credenciales protegidas por Windows."
+    notes = "AdisDB ${version}: el boton Actualizar datos de Reporteria vuelve a ejecutar solamente la consulta de origen y regenera la vista previa conservando el diseno."
 }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path $distRoot 'update-manifest.json'),($manifest | ConvertTo-Json),$utf8NoBom)

@@ -292,11 +292,18 @@ public final class QueryPanel extends JPanel {
     public List<com.nexodb.reporting.ReportData> reportSources(){
         List<com.nexodb.reporting.ReportData> sources=new ArrayList<>();
         for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel grid){
-            QueryResult result=grid.result();
-            var data=new com.nexodb.reporting.ReportData(outputTabs.getTitleAt(i)+(grid.hasChanges()?" · borrador":""),result.columns(),result.rows(),result.truncated());
+            var data=reportData(i,grid);
             if(outputTabs.getSelectedIndex()==i)sources.add(0,data);else sources.add(data);
         }
         return List.copyOf(sources);
+    }
+    private com.nexodb.reporting.ReportData reportData(int index,QueryResultPanel grid){QueryResult result=grid.result();return new com.nexodb.reporting.ReportData(outputTabs.getTitleAt(index)+(grid.hasChanges()?" · borrador":""),result.columns(),result.rows(),result.truncated());}
+    public void refreshReportSource(String sourceName,java.util.function.BiConsumer<com.nexodb.reporting.ReportData,Throwable> completion){
+        String requested=java.util.Objects.toString(sourceName,"").replace(" · borrador","");
+        for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel grid&&outputTabs.getTitleAt(i).equals(requested)){
+            grid.reloadForReport((fresh,error)->{int current=outputTabs.indexOfComponent(grid);completion.accept(error==null&&current>=0?reportData(current,grid):null,error);});return;
+        }
+        completion.accept(null,new IllegalStateException(tr("El resultado original ya no está disponible. Ejecuta nuevamente la consulta.")));
     }
     public JdbcSession currentSession(){return session;}
     public void undoCurrent(){if(editor!=null&&!fileBusy)editor.undoEdit();}

@@ -1,6 +1,13 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.37**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.38**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Actualización real de datos en Reportería — 0.18.38
+
+- **Actualizar datos** vuelve a ejecutar únicamente el `SELECT` que originó el resultado elegido; ya no se limita a reconstruir la lista con la copia anterior.
+- La cuadrícula original y la vista previa del reporte reciben las filas nuevas inmediatamente, respetando la página y el límite activos.
+- El diseño se conserva: orientación, títulos, anchos, agrupaciones, totales y objetos no se reinician al actualizar.
+- Si la consulta fue cerrada, cambió de base o tiene cambios pendientes, se muestra el motivo y no se reemplaza silenciosamente el reporte.
 
 ## Conexiones mediante túnel SSH — 0.18.37
 

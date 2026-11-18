@@ -190,13 +190,15 @@ final class QueryResultPanel extends JPanel {
     }
     private static String namespace(JdbcSession origin,boolean catalog){if(origin==null)return "";try{return java.util.Objects.toString(catalog?origin.connection().getCatalog():origin.connection().getSchema(),"");}catch(Exception error){return "";}}
     private void restorePageChoice(){changingPageSize=true;String value=""+pageSize;boolean present=false;for(int i=0;i<pageSizeChoice.getItemCount();i++)if(value.equals(pageSizeChoice.getItemAt(i)))present=true;if(!present)pageSizeChoice.insertItemAt(value,0);pageSizeChoice.setSelectedItem(value);changingPageSize=false;}
-    private void loadPage(long offset,int size){
-        if(!available||saving||!pageable||!confirmDiscard()){restorePageChoice();return;}
-        if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){JOptionPane.showMessageDialog(this,tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de paginar."));restorePageChoice();return;}
+    private void loadPage(long offset,int size){loadPage(offset,size,(fresh,error)->{if(error!=null)showError(error,"No se pudo cargar la página");});}
+    private void loadPage(long offset,int size,java.util.function.BiConsumer<QueryResult,Throwable> completion){
+        if(!available||saving||!pageable){restorePageChoice();completion.accept(null,new IllegalStateException(tr("El resultado no está disponible para actualizarse.")));return;}
+        if(!confirmDiscard()){restorePageChoice();completion.accept(null,new java.util.concurrent.CancellationException(tr("Actualización cancelada.")));return;}
+        if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){restorePageChoice();completion.accept(null,new IllegalStateException(tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de paginar.")));return;}
         start();UiLanguage.text(status,UiLanguage.key("Cargando página…"));
         new SwingWorker<QueryResult,Void>() {
             protected QueryResult doInBackground()throws Exception{return origin.executePage(sql,size,offset);}
-            protected void done(){try{QueryResult fresh=get();pageOffset=offset;pageSize=size;pagingRequested=true;grid.clearChecked();model.setResult(fresh);configureTargets(fresh,target==null?null:target.qualifiedTable());stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);loadReferences();}catch(Exception error){showError(error,"No se pudo cargar la página");}finally{restorePageChoice();end();}}
+            protected void done(){try{QueryResult fresh=get();pageOffset=offset;pageSize=size;pagingRequested=true;grid.clearChecked();model.setResult(fresh);configureTargets(fresh,target==null?null:target.qualifiedTable());stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);loadReferences();completion.accept(fresh,null);}catch(Exception error){completion.accept(null,root(error));}finally{restorePageChoice();end();}}
         }.execute();
     }
     private void updateActions(){
@@ -333,19 +335,23 @@ final class QueryResultPanel extends JPanel {
             }
         }.execute();
     }
-    private void reload(){
-        if(!available||saving||!SqlExecutionPolicy.readOnly(sql)||!confirmDiscard())return;
-        if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){JOptionPane.showMessageDialog(this,tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de recargar."));return;}
-        if(pageable){loadPage(pageOffset,pageSize);return;}
+    private void reload(){reloadForReport((fresh,error)->{if(error!=null&&!isCancellation(error))showError(error,"Error al ejecutar la consulta");});}
+    void reloadForReport(java.util.function.BiConsumer<QueryResult,Throwable> completion){
+        if(!available||saving||!SqlExecutionPolicy.readOnly(sql)){completion.accept(null,new IllegalStateException(tr("El resultado no está disponible para actualizarse.")));return;}
+        if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){completion.accept(null,new IllegalStateException(tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de recargar.")));return;}
+        if(pageable){loadPage(pageOffset,pageSize,completion);return;}
+        if(!confirmDiscard()){completion.accept(null,new java.util.concurrent.CancellationException(tr("Actualización cancelada.")));return;}
         String replay=target==null?sql:QueryEditSupport.qualifiedSelect(sql,target);start();UiLanguage.text(status,UiLanguage.key("Recargando solo esta consulta…"));
         new SwingWorker<QueryResult,Void>() {
             protected QueryResult doInBackground()throws Exception{return origin.executeEditable(replay,rowLimit.getAsInt());}
             protected void done(){
-                try{QueryResult fresh=get();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();model.setResult(fresh);configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);loadReferences();}
-                catch(Exception error){showError(error,"Error al ejecutar la consulta");}finally{end();}
+                try{QueryResult fresh=get();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();model.setResult(fresh);configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);loadReferences();completion.accept(fresh,null);}
+                catch(Exception error){completion.accept(null,root(error));}finally{end();}
             }
         }.execute();
     }
+    private static boolean isCancellation(Throwable error){while(error!=null){if(error instanceof java.util.concurrent.CancellationException)return true;error=error.getCause();}return false;}
+    private static Throwable root(Throwable error){while(error.getCause()!=null)error=error.getCause();return error;}
     private void start(){saving=true;updateActions();busy.accept(true);}
     private void end(){saving=false;busy.accept(false);updateActions();}
     private void showError(Throwable error,String title){while(error.getCause()!=null)error=error.getCause();JOptionPane.showMessageDialog(this,error.getMessage(),tr(title),JOptionPane.ERROR_MESSAGE);}

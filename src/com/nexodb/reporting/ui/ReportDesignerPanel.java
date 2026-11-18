@@ -16,7 +16,11 @@ import java.util.function.*;
 
 /** Standalone Swing module. Integration supplies snapshots and CSV/XLSX writers, never a JDBC session. */
 public final class ReportDesignerPanel extends JPanel {
+    @FunctionalInterface public interface SourceRefresher {
+        void refresh(String sourceName,BiConsumer<ReportData,Throwable> completion);
+    }
     private final Supplier<List<ReportData>> sources;
+    private final SourceRefresher sourceRefresher;
     private final ReportExporter.TabularWriter tabular;
     private final Consumer<String> status;
     private ReportData data;
@@ -42,13 +46,16 @@ public final class ReportDesignerPanel extends JPanel {
     private final JCheckBox bold=new JCheckBox("Negrita"),landscape=new JCheckBox("Horizontal");
     private final JComboBox<Aggregate> aggregate=new JComboBox<>(Aggregate.values());
     private int blockColor=0x176B65;
-    private final JButton export=new JButton("Exportar…"),print=new JButton("Imprimir…"),undoButton=new JButton("Deshacer"),redoButton=new JButton("Rehacer");
+    private final JButton export=new JButton("Exportar…"),print=new JButton("Imprimir…"),undoButton=new JButton("Deshacer"),redoButton=new JButton("Rehacer"),refreshSource=new JButton("Actualizar datos");
     private final javax.swing.Timer previewTimer;
     private SwingWorker<ReportLayout,Void> previewWorker;
     private long previewGeneration;
 
     public ReportDesignerPanel(Supplier<List<ReportData>> sources,ReportData initial,ReportExporter.TabularWriter tabular,Consumer<String> status) {
-        super(new BorderLayout(8,8));this.sources=sources;this.tabular=tabular;this.status=status;
+        this(sources,initial,tabular,status,null);
+    }
+    public ReportDesignerPanel(Supplier<List<ReportData>> sources,ReportData initial,ReportExporter.TabularWriter tabular,Consumer<String> status,SourceRefresher sourceRefresher) {
+        super(new BorderLayout(8,8));this.sources=sources;this.tabular=tabular;this.status=status;this.sourceRefresher=sourceRefresher;
         this.data=initial==null?ReportData.empty():initial;this.design=ReportDesign.create(this.data);
         setBorder(new EmptyBorder(8,8,8,8));setName("report-designer");
         previewTimer=new javax.swing.Timer(180,e->buildPreview());previewTimer.setRepeats(false);
@@ -73,7 +80,7 @@ public final class ReportDesignerPanel extends JPanel {
         button(actions,"+ Texto",()->addBlock(Kind.TEXT));button(actions,"+ Indicador",()->addBlock(Kind.METRIC));button(actions,"+ Gráfico",()->addBlock(Kind.BAR_CHART));
         export.addActionListener(e->export());actions.add(export);print.addActionListener(e->print());actions.add(print);top.add(actions);
         JPanel dataBar=new JPanel(new WrapLayout());dataBar.add(new JLabel("Resultado de origen:"));source.setPreferredSize(new Dimension(300,28));dataBar.add(source);
-        button(dataBar,"Actualizar lista",this::reloadSources);button(dataBar,"Usar resultado",()->{var next=selectedSource();if(next!=null)useData(next);});
+        refreshSource.setName("report-refresh-source");refreshSource.addActionListener(e->refreshSource());dataBar.add(refreshSource);button(dataBar,"Usar resultado",()->{var next=selectedSource();if(next!=null)useData(next);});
         JLabel hint=new JLabel("Arrastra objetos o el inicio del detalle. Doble clic para editar texto.");hint.setForeground(new Color(0x607080));dataBar.add(hint);top.add(dataBar,BorderLayout.SOUTH);return top;
     }
     private JComponent columnSettings() {
@@ -145,6 +152,18 @@ public final class ReportDesignerPanel extends JPanel {
     private void moveGroup(int delta){int row=groups.getSelectedIndex(),next=row+delta;if(row>=0&&next>=0&&next<design.groups().size()){var list=new ArrayList<>(design.groups());Collections.swap(list,row,next);change(design.withGroups(list));groups.setSelectedIndex(next);}}
     private void reloadSources(){ReportData selected=selectedSource();source.removeAllItems();for(var item:sources.get())source.addItem(item);if(selected!=null)for(int i=0;i<source.getItemCount();i++)if(source.getItemAt(i).name().equals(selected.name()))source.setSelectedIndex(i);}
     private ReportData selectedSource(){return (ReportData)source.getSelectedItem();}
+    private void refreshSource(){
+        ReportData selected=selectedSource();if(selected==null)return;
+        if(sourceRefresher==null){reloadSources();ReportData next=selectedSource();if(next!=null)useData(next);return;}
+        refreshSource.setEnabled(false);state.setText("Actualizando datos del resultado…");status.accept("Actualizando datos del reporte…");
+        sourceRefresher.refresh(selected.name(),(fresh,failure)->SwingUtilities.invokeLater(()->{
+            refreshSource.setEnabled(true);
+            if(failure!=null){Throwable cause=root(failure);if(cause instanceof java.util.concurrent.CancellationException){state.setText("Actualización cancelada.");return;}state.setText("No se pudieron actualizar los datos: "+Objects.toString(cause.getMessage(),cause.getClass().getSimpleName()));error(cause);return;}
+            if(fresh==null){state.setText("No se recibió un resultado actualizado.");return;}
+            reloadSources();for(int i=0;i<source.getItemCount();i++)if(source.getItemAt(i).name().equals(fresh.name())){source.setSelectedIndex(i);break;}
+            useData(fresh);status.accept("Datos del reporte actualizados: "+fresh.rows().size()+" filas");
+        }));
+    }
     private void useData(ReportData next) {
         if(!design.sourceColumns().equals(next.columns())) {
             if(JOptionPane.showConfirmDialog(this,"Las columnas son distintas. ¿Crear un diseño nuevo para este resultado?","Cambiar origen",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;

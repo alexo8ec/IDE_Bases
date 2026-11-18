@@ -1,6 +1,6 @@
 {
-    "version":  "0.18.37",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.37-win64.zip",
-    "sha256":  "9ef3b477e8d3df11de61a4b8c5552ba1b5fabb563b1015ca91b8a39782bff542",
-    "notes":  "AdisDB 0.18.37: agrega conexiones por tunel SSH con contrasena o clave privada, puerto local automatico, keep-alive y credenciales protegidas por Windows."
+    "version":  "0.18.38",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.38-win64.zip",
+    "sha256":  "32f30b9a99d4d665ea7bb89e13baa45d5d10e439e9fd63e873a4c7ef4d1eb85f",
+    "notes":  "AdisDB 0.18.38: el boton Actualizar datos de Reporteria vuelve a ejecutar solamente la consulta de origen y regenera la vista previa conservando el diseno."
 }

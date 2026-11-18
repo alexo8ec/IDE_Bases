@@ -416,7 +416,7 @@ public final class MainFrame extends JFrame {
         var sources=queryPanel.reportSources();
         var panel=new com.nexodb.reporting.ui.ReportDesignerPanel(queryPanel::reportSources,sources.isEmpty()?null:sources.get(0),
                 (data,path,format)->DataExporter.write(new QueryResult(data.columns(),data.rows(),-1,0,data.limited()),path,
-                        format==com.nexodb.reporting.ReportExporter.Format.XLSX?DataExporter.Format.XLSX:DataExporter.Format.CSV,"reporte"),this::setStatus);
+                        format==com.nexodb.reporting.ReportExporter.Format.XLSX?DataExporter.Format.XLSX:DataExporter.Format.CSV,"reporte"),this::setStatus,queryPanel::refreshReportSource);
         addToolTab(tr("Reportería"),panel);
     }
     private void openAi(){

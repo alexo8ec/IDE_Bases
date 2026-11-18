@@ -11,8 +11,9 @@ import java.util.List;
 public final class ReportDesignerTest {
     public static void main(String[] args)throws Exception {
         ReportData data=new ReportData("Preview",List.of("Region","Amount"),List.of(List.of("Costa",15),List.of("Sierra",20)),false);
+        java.util.concurrent.atomic.AtomicReference<ReportData> source=new java.util.concurrent.atomic.AtomicReference<>(data);
         final ReportDesignerPanel[] ref=new ReportDesignerPanel[1];
-        SwingUtilities.invokeAndWait(()->ref[0]=new ReportDesignerPanel(()->List.of(data),data,ReportingTest.TABULAR,s->{}));ReportDesignerPanel panel=ref[0];
+        SwingUtilities.invokeAndWait(()->ref[0]=new ReportDesignerPanel(()->List.of(source.get()),data,ReportingTest.TABULAR,s->{},(name,completion)->{ReportData fresh=new ReportData(name,List.of("Region","Amount"),List.of(List.of("Costa",15),List.of("Sierra",20),List.of("Oriente",30)),false);source.set(fresh);completion.accept(fresh,null);}));ReportDesignerPanel panel=ref[0];
         await(panel);
         SwingUtilities.invokeAndWait(()->{
             JComponent canvas=field(panel,"canvas",JComponent.class);canvas.setSize(canvas.getPreferredSize());
@@ -26,13 +27,17 @@ public final class ReportDesignerTest {
             if(field(panel,"design",ReportDesign.class).columns().get(1).aggregate()!=ReportDesign.Aggregate.SUM)throw new AssertionError("Column aggregate edit missing");
             JCheckBox landscape=field(panel,"landscape",JCheckBox.class);landscape.doClick();
             if(!field(panel,"design",ReportDesign.class).landscape())throw new AssertionError("Orientation must apply immediately without an extra button");
+            ReportDesign preserved=field(panel,"design",ReportDesign.class);field(panel,"refreshSource",JButton.class).doClick();
+            if(!preserved.equals(field(panel,"design",ReportDesign.class)))throw new AssertionError("Refreshing data must preserve the report design");
         });
+        awaitRows(panel,3);
         await(panel);
         SwingUtilities.invokeAndWait(()->{try{JComponent canvas=field(panel,"canvas",JComponent.class);var image=new java.awt.image.BufferedImage(canvas.getWidth(),canvas.getHeight(),java.awt.image.BufferedImage.TYPE_INT_RGB);Graphics2D g=image.createGraphics();try{canvas.paint(g);}finally{g.dispose();}javax.imageio.ImageIO.write(image,"png",java.nio.file.Path.of("build/report-qa/designer.png").toFile());panel.dispose();}catch(Exception error){throw new RuntimeException(error);}});
-        System.out.println("ReportDesignerTest: OK (real canvas mouse drag, atomic undo/redo, title edit, totals, immediate orientation, async preview and rendering)");
+        System.out.println("ReportDesignerTest: OK (real canvas mouse drag, atomic undo/redo, title edit, totals, immediate orientation, live source refresh, async preview and rendering)");
     }
     private static void mouse(JComponent canvas,int id,int x,int y){canvas.dispatchEvent(new MouseEvent(canvas,id,System.currentTimeMillis(),0,16+(int)(x*.8),16+(int)(y*.8),1,false,MouseEvent.BUTTON1));}
     private static void await(ReportDesignerPanel panel)throws Exception{long end=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(15);while(System.nanoTime()<end){boolean[] ready={false};SwingUtilities.invokeAndWait(()->{var layout=field(panel,"layout",ReportLayout.class);ready[0]=layout!=null&&layout.plan().design()==field(panel,"design",ReportDesign.class);});if(ready[0])return;Thread.sleep(30);}throw new AssertionError("Preview timed out");}
+    private static void awaitRows(ReportDesignerPanel panel,int rows)throws Exception{long end=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(15);while(System.nanoTime()<end){boolean[] ready={false};SwingUtilities.invokeAndWait(()->ready[0]=field(panel,"data",ReportData.class).rows().size()==rows);if(ready[0])return;Thread.sleep(30);}throw new AssertionError("Refreshed report data timed out");}
     private static <T>T field(Object obj,String name,Class<T> type){try{Field f=obj.getClass().getDeclaredField(name);f.setAccessible(true);return type.cast(f.get(obj));}catch(Exception error){throw new RuntimeException(error);}}
     private static void invoke(Object obj,String name){try{Method m=obj.getClass().getDeclaredMethod(name);m.setAccessible(true);m.invoke(obj);}catch(Exception error){throw new RuntimeException(error);}}
 }
