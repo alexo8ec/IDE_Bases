@@ -203,7 +203,7 @@ final class QueryResultPanel extends JPanel {
         boolean enabled=available&&!saving&&target!=null&&!origin.profile().readOnly();
         edit.setEnabled(enabled&&!stale);model.setEditable(enabled&&!stale&&edit.isSelected());
         mode.setEnabled(enabled&&!stale);updatingMode=true;try{int index=edit.isSelected()?editTargets.indexOf(target)+1:0;mode.setSelectedIndex(Math.max(0,index));}finally{updatingMode=false;}
-        save.setEnabled(enabled&&!stale&&edit.isSelected()&&hasChanges());discard.setEnabled(available&&!saving&&hasChanges());reload.setEnabled(available&&!saving&&target!=null);
+        save.setEnabled(enabled&&!stale&&edit.isSelected()&&hasChanges());discard.setEnabled(available&&!saving&&hasChanges());reload.setEnabled(available&&!saving&&SqlExecutionPolicy.readOnly(sql));
         int row=table.getSelectedRow(),column=table.getSelectedColumn();
         setNull.setEnabled(canEditSelectedCell());
         referenceButton.setEnabled(available&&!saving&&column>=0&&hasReference(table.convertColumnIndexToModel(column))&&row>=0);
@@ -229,11 +229,18 @@ final class QueryResultPanel extends JPanel {
         new SwingWorker<QueryEditSupport.BatchSaved,Void>(){
             protected QueryEditSupport.BatchSaved doInBackground()throws Exception{return QueryEditSupport.saveChanges(origin.connection(),target,changes);}
             protected void done(){
-                try{QueryEditSupport.BatchSaved saved=get();pendingCommit|=saved.pendingCommit();model.accept(saved.rows());UiLanguage.text(status,UiLanguage.key(saved.pendingCommit()?"Fila aplicada · pendiente de Commit":"Fila guardada automáticamente"));changed.accept(tr(saved.pendingCommit()?"Fila aplicada · pendiente de Commit":"Fila guardada automáticamente"));}
+                try{QueryEditSupport.BatchSaved saved=get();pendingCommit|=saved.pendingCommit();CellCursor cursor=currentCursor();model.accept(saved.rows());restoreCursor(cursor);UiLanguage.text(status,UiLanguage.key(saved.pendingCommit()?"Fila aplicada · pendiente de Commit":"Fila guardada automáticamente"));changed.accept(tr(saved.pendingCommit()?"Fila aplicada · pendiente de Commit":"Fila guardada automáticamente"));}
                 catch(Exception error){UiLanguage.text(status,UiLanguage.key("No se pudo guardar la fila; el cambio continúa pendiente."));showError(error,"No se pudo actualizar la fila");}
                 finally{autoSaveRows.remove(row);end();SwingUtilities.invokeLater(()->flushAutoSave());}
             }
         }.execute();
+    }
+    private record CellCursor(int row,int column){}
+    private CellCursor currentCursor(){int row=table.getSelectedRow(),column=table.getSelectedColumn();return new CellCursor(row<0?-1:table.convertRowIndexToModel(row),column<0?-1:table.convertColumnIndexToModel(column));}
+    private void restoreCursor(CellCursor cursor){
+        if(cursor==null||cursor.row()<0||cursor.column()<0||cursor.row()>=model.getRowCount()||cursor.column()>=model.getColumnCount())return;
+        int row=table.convertRowIndexToView(cursor.row()),column=table.convertColumnIndexToView(cursor.column());if(row<0||column<0)return;
+        table.changeSelection(row,column,false,false);table.scrollRectToVisible(table.getCellRect(row,column,true));
     }
     private void toggle(){
         if(!edit.isSelected()){finishEditing();updateActions();return;}
@@ -327,11 +334,12 @@ final class QueryResultPanel extends JPanel {
         }.execute();
     }
     private void reload(){
-        if(!available||saving||target==null||!confirmDiscard())return;
+        if(!available||saving||!SqlExecutionPolicy.readOnly(sql)||!confirmDiscard())return;
+        if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){JOptionPane.showMessageDialog(this,tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de recargar."));return;}
         if(pageable){loadPage(pageOffset,pageSize);return;}
-        String qualified=QueryEditSupport.qualifiedSelect(sql,target);start();UiLanguage.text(status,UiLanguage.key("Recargando consulta…"));
+        String replay=target==null?sql:QueryEditSupport.qualifiedSelect(sql,target);start();UiLanguage.text(status,UiLanguage.key("Recargando solo esta consulta…"));
         new SwingWorker<QueryResult,Void>() {
-            protected QueryResult doInBackground()throws Exception{return origin.execute(qualified,rowLimit.getAsInt());}
+            protected QueryResult doInBackground()throws Exception{return origin.executeEditable(replay,rowLimit.getAsInt());}
             protected void done(){
                 try{QueryResult fresh=get();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();model.setResult(fresh);configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);loadReferences();}
                 catch(Exception error){showError(error,"Error al ejecutar la consulta");}finally{end();}

@@ -37,8 +37,9 @@ public final class ResultTableModel extends AbstractTableModel {
     public List<QueryEditSupport.RowChange> changesForRow(int row){return changes().stream().filter(change->change.row()==row&&change.kind()==UPDATE).toList();}
     public void accept(List<QueryEditSupport.RowChange> saved){
         List<List<Object>> originals=new ArrayList<>(result.rows());
-        for(var row:saved){if(row.kind()!=UPDATE)throw new IllegalArgumentException("Row mutations require a refreshed result");List<Object> original=new ArrayList<>(originals.get(row.row()));for(var cell:row.values().entrySet()){rows.get(row.row()).set(cell.getKey(),cell.getValue());original.set(cell.getKey(),cell.getValue());}originals.set(row.row(),original);pending.remove(row.row());deleted.remove(row.row());}
-        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes(),result.hiddenColumns());fireTableDataChanged();changed.run();
+        Set<Integer> updated=new TreeSet<>();
+        for(var row:saved){if(row.kind()!=UPDATE)throw new IllegalArgumentException("Row mutations require a refreshed result");List<Object> original=new ArrayList<>(originals.get(row.row()));for(var cell:row.values().entrySet()){rows.get(row.row()).set(cell.getKey(),cell.getValue());original.set(cell.getKey(),cell.getValue());}originals.set(row.row(),original);pending.remove(row.row());deleted.remove(row.row());updated.add(row.row());}
+        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes(),result.hiddenColumns());updated.forEach(row->fireTableRowsUpdated(row,row));changed.run();
     }
     public int insertRow(Integer duplicate){
         if(!editable||target==null)return -1;

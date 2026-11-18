@@ -1,6 +1,11 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.32**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.33**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Navegación estable y recarga individual — 0.18.33
+
+- Al modificar una celda y desplazarse con las flechas, el guardado automático actualiza solamente la fila anterior y conserva la fila y columna alcanzadas. La selección ya no regresa al inicio del resultado, incluso con filtros u ordenamiento activos.
+- El botón **Recargar** vuelve a ejecutar exclusivamente la sentencia vinculada a la pestaña de resultado actual. Funciona también con consultas agregadas como `SUM(...)` que permanecen en solo lectura, sin ejecutar las otras sentencias del editor; las operaciones que puedan escribir datos no se repiten automáticamente.
 
 ## Portapapeles y edición de consultas parciales — 0.18.32
 

@@ -56,8 +56,9 @@ public final class QueryGridIntegrationTest {
             SwingUtilities.invokeAndWait(()->button(panel,"query-discard").doClick());
             SwingUtilities.invokeAndWait(()->{
                 ResultTableModel model=field(panel,"model",ResultTableModel.class);JTable table=field(panel,"table",JTable.class);
-                model.setValueAt("Guardado al cambiar de fila",0,1);table.setRowSelectionInterval(0,0);table.setRowSelectionInterval(1,1);
+                table.changeSelection(0,2,false,false);model.setValueAt("Guardado al cambiar de fila",0,1);table.changeSelection(1,2,false,false);equal(1,table.getSelectedRow());equal(2,table.getSelectedColumn());
             });await(()->!busy.get());
+            SwingUtilities.invokeAndWait(()->{JTable table=field(panel,"table",JTable.class);equal(1,table.getSelectedRow());equal(2,table.getSelectedColumn());});
             equal("Guardado al cambiar de fila",session.execute("SELECT name FROM people WHERE id=1",10).rows().get(0).get(0));
             SwingUtilities.invokeAndWait(()->{
                 ResultTableModel model=field(panel,"model",ResultTableModel.class);JTable table=field(panel,"table",JTable.class);
@@ -114,10 +115,20 @@ public final class QueryGridIntegrationTest {
             });
             SwingUtilities.invokeAndWait(frame.get()::dispose);
             com.nexodb.util.I18n.initialize("es");
+            reloadCurrentResult(session);
             completion(session);
             joinTargetSelector(session);
         }
         System.out.println("QueryGridIntegrationTest: OK (auto-save, JOIN target selector, staging, filters, copy, themes and completion)");
+    }
+    private static void reloadCurrentResult(JdbcSession session)throws Exception{
+        String sql="SELECT COUNT(*) AS total FROM people";QueryResult initial=session.executeEditable(sql,10);int before=((Number)initial.rows().get(0).get(0)).intValue();
+        AtomicBoolean busy=new AtomicBoolean();AtomicReference<QueryResultPanel> panelRef=new AtomicReference<>();AtomicReference<JFrame> windowRef=new AtomicReference<>();
+        SwingUtilities.invokeAndWait(()->{ResultTableModel model=new ResultTableModel();model.setResult(initial);JTable table=new JTable(model);QueryResultPanel panel=new QueryResultPanel(session,initial,model,table,sql,10,busy::set,text->{},grid->{});panelRef.set(panel);JFrame window=new JFrame();windowRef.set(window);window.setContentPane(panel);window.setSize(700,320);window.setVisible(true);equal(true,button(panel,"query-reload").isEnabled());});
+        session.execute("INSERT INTO people(id,name,note) VALUES(99,'Reloaded',NULL)",1);
+        SwingUtilities.invokeAndWait(()->button(panelRef.get(),"query-reload").doClick());await(()->!busy.get());
+        SwingUtilities.invokeAndWait(()->{ResultTableModel model=field(panelRef.get(),"model",ResultTableModel.class);equal(before+1,((Number)model.getValueAt(0,0)).intValue());equal(1,model.getColumnCount());windowRef.get().dispose();});
+        session.execute("DELETE FROM people WHERE id=99",1);
     }
     private static void joinTargetSelector(JdbcSession session)throws Exception {
         session.execute("CREATE TABLE join_companies(id INT PRIMARY KEY,name VARCHAR(50)); CREATE TABLE join_docs(id INT PRIMARY KEY,company_id INT,status VARCHAR(30)); INSERT INTO join_companies VALUES(1,'Acme'); INSERT INTO join_docs VALUES(10,1,'draft')",100);

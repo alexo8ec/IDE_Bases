@@ -1,6 +1,6 @@
 {
-  "version": "0.18.32",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.32-win64.zip",
-  "sha256": "75ccf16b5b3882080af5809cfc939505082a69dc87e5e9927855916b20cc4e9e",
-  "notes": "AdisDB 0.18.32: copiar y pegar valores con Ctrl+C/Ctrl+V en celdas editables y edición segura de consultas parciales mediante claves primarias internas ocultas."
+  "version": "0.18.33",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.33-win64.zip",
+  "sha256": "a0d6aef93cf09198b74b0421ae6684d60b9503bfa5beb6c5da443efdfa292fa1",
+  "notes": "AdisDB 0.18.33: el guardado automático conserva la celda alcanzada con las flechas y Recargar ejecuta solamente la consulta de la pestaña de resultado activa, incluso para agregados de solo lectura."
 }
