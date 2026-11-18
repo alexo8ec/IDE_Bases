@@ -154,9 +154,9 @@ public final class QueryGridIntegrationTest {
         SwingUtilities.invokeAndWait(()->{QueryPanel p=new QueryPanel(text->{},value->{});p.setSession(session);panel.set(p);JFrame frame=new JFrame();window.set(frame);frame.setContentPane(p);frame.setSize(1100,700);frame.setVisible(true);});
         QueryPanel p=panel.get();
         try{
-            SwingUtilities.invokeAndWait(()->{SqlEditorPane editor=field(p,"editor",SqlEditorPane.class);editor.setText("SELECT p. FROM people p");editor.setCaretPosition("SELECT p.".length());editor.requestFocusInWindow();});
+            SwingUtilities.invokeAndWait(()->{SqlEditorPane editor=field(p,"editor",SqlEditorPane.class);editor.setText("SELECT p. FROM people p");editor.setCaretPosition("SELECT p.".length());field(p,"completionTimer",javax.swing.Timer.class).stop();editor.requestFocusInWindow();});
             await(()->field(p,"editor",SqlEditorPane.class).isFocusOwner());
-            SwingUtilities.invokeAndWait(()->invoke(p,"showCompletions",new Class[]{boolean.class},true));
+            SwingUtilities.invokeAndWait(()->{field(p,"completionTimer",javax.swing.Timer.class).stop();invoke(p,"showCompletions",new Class[]{boolean.class},true);});
             await(()->field(p,"completionModel",DefaultListModel.class).contains("NAME"));
             SwingUtilities.invokeAndWait(()->{JList<?> list=field(p,"completionList",JList.class);DefaultListModel<?> values=field(p,"completionModel",DefaultListModel.class);int index=values.indexOf("NAME");if(index<0)throw new AssertionError("NAME completion disappeared");list.setSelectedIndex(index);equal("NAME",list.getSelectedValue());invoke(p,"acceptCompletion",new Class[]{});equal("SELECT p.NAME FROM people p",field(p,"editor",SqlEditorPane.class).getText());});
         }finally{SwingUtilities.invokeAndWait(()->{field(p,"completionTimer",javax.swing.Timer.class).stop();window.get().dispose();});}

@@ -405,10 +405,10 @@ public final class MainFrame extends JFrame {
         if(tool.equals("ai")){openAi();return;}
         if(tool.equals("plan")){openPlan();return;}
         if(!requireDatabase())return;JdbcSession origin=session;String database=queryPanel.activeDatabase();
-        if(origin.profile().type()!=DatabaseType.MYSQL&&origin.profile().type()!=DatabaseType.MARIADB&&origin.profile().type()!=DatabaseType.H2){JOptionPane.showMessageDialog(this,tr("Las herramientas visuales de esta versión están disponibles para MySQL y MariaDB. El editor SQL sigue disponible para esta conexión."));return;}
+        if(origin.profile().type()==DatabaseType.MONGODB||origin.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(this,tr("El diseñador visual requiere un motor relacional reconocido. El editor SQL sigue disponible para esta conexión."));return;}
         java.util.function.Consumer<String> open=sql->insertTemplate(origin,sql);
         if(tool.equals("search")){addToolTab(tr("Buscar datos")+" · "+database,new DataSearchPanel(origin,database,sql->{activateSession(origin);queryPanel.runSql(sql);workspaceTabs.setSelectedIndex(0);}));return;}
-        boolean designer=tool.equals("designer");addToolTab(tr(designer?"Diseñador de esquemas":"Constructor visual de consultas")+" · "+database,new VisualDatabasePanel(origin,database,designer,open,item->openTable(origin,item,TableWorkbenchPanel.COLUMNS)));
+        boolean designer=tool.equals("designer");addToolTab(tr(designer?"Diseñador de esquemas":"Constructor visual de consultas")+" · "+database,new VisualDatabasePanel(origin,database,designer,open,item->openTable(origin,item,TableWorkbenchPanel.COLUMNS),()->{if(session==origin)refreshObjects();else refreshConnectionObjects(origin);}));
     }
     private void openReports(){
         if(!LicenseGate.ensure(this))return;

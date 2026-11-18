@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.33**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.34**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Diseñador visual de tablas — 0.18.34
+
+- **Nueva tabla** crea la tabla directamente y, cuando finaliza, la incorpora al diagrama y actualiza el explorador de objetos y el autocompletado.
+- La cuadrícula muestra tipos de datos propios de MySQL/MariaDB, PostgreSQL, SQL Server, Oracle, SQLite y H2. Incluye clave primaria, nulos, autoincremento, `UNSIGNED`, valor predeterminado y collation.
+- Un panel lateral permite configurar las propiedades avanzadas admitidas por el motor: `ZEROFILL`, binario, `ON UPDATE CURRENT_TIMESTAMP`, charset, comentario, columna generada, expresión e invisibilidad. Para `ENUM` y `SET` incluye un editor para agregar, reemplazar, eliminar y reordenar valores sin escribir manualmente las comillas. La vista previa SQL se actualiza antes de crear.
+- Si el servidor rechaza el SQL, la ventana permanece abierta y conserva nombres, columnas y propiedades para corregir el problema sin rehacer el diseño.
+- Al actualizar el diagrama, las relaciones existentes permanecen visibles mientras se releen. La modificación de claves foráneas MySQL/MariaDB se realiza en dos pasos y restaura automáticamente la relación anterior si la nueva definición falla.
 
 ## Navegación estable y recarga individual — 0.18.33
 

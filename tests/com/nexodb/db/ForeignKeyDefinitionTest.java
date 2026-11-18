@@ -26,10 +26,10 @@ public final class ForeignKeyDefinitionTest {
             ForeignKeyDefinition.apply(session,self.createSql("\""));equal("CHILD",ForeignKeyDefinition.read(session.connection(),DatabaseType.H2,"PUBLIC","CHILD").get(0).parentTable());
         }
         String replacement=definition.replaceSql(definition,DatabaseType.MYSQL,"`");
-        equal(1L,replacement.chars().filter(c->c==';').count());equal(true,replacement.contains("DROP FOREIGN KEY `FK_CHILD_PARENT`,\nADD CONSTRAINT"));
+        equal(2L,replacement.chars().filter(c->c==';').count());equal(true,replacement.contains("DROP FOREIGN KEY `FK_CHILD_PARENT`;\nALTER TABLE"));equal(true,replacement.contains("ADD CONSTRAINT `FK_CHILD_PARENT`"));
         var escaped=new ForeignKeyDefinition("db`x","child","fk`name","db`x","parent",List.of(new ForeignKeyDefinition.ColumnPair("a`b","id")),"RESTRICT","NO ACTION");equal(true,escaped.createSql("`").contains("`a``b`"));
         boolean rejected=false;try{new ForeignKeyDefinition("PUBLIC","CHILD","bad","PUBLIC","PARENT",pairs,"CASCADE; DROP TABLE parent","RESTRICT").createSql("\"");}catch(IllegalArgumentException expected){rejected=true;}equal(true,rejected);
-        System.out.println("ForeignKeyDefinitionTest: OK (composite metadata order, real enforcement/cascade/drop/self-reference, transaction guard, one MySQL ALTER, quoting and action validation)");
+        System.out.println("ForeignKeyDefinitionTest: OK (composite metadata order, enforcement/cascade/drop/self-reference, transaction guard, recoverable MySQL replacement, quoting and actions)");
     }
     private static void equal(Object expected,Object actual){if(!Objects.equals(expected,actual))throw new AssertionError(expected+" != "+actual);}
 }

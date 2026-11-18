@@ -28,8 +28,7 @@ public record ForeignKeyDefinition(String database,String table,String name,Stri
     }
     public String replaceSql(ForeignKeyDefinition previous,DatabaseType type,String quote){
         if(!Objects.equals(database,previous.database)||!table.equals(previous.table))throw new IllegalArgumentException(tr("No se puede cambiar la tabla hija al modificar una relación."));
-        // One MySQL ALTER avoids a separate destructive DROP before a possibly invalid ADD.
-        if(type==DatabaseType.MYSQL||type==DatabaseType.MARIADB)return "ALTER TABLE "+VisualQuery.qualified(database,table,quote)+"\n"+previous.dropClause(type,quote)+",\n"+addClause(quote)+";\n";
+        if(type==DatabaseType.MYSQL||type==DatabaseType.MARIADB)return previous.dropSql(type,quote)+createSql(quote);
         throw new IllegalArgumentException(tr("La modificación visual de relaciones está disponible para MySQL y MariaDB."));
     }
     public static List<ForeignKeyDefinition> read(Connection connection,DatabaseType type,String database,String table)throws SQLException{
@@ -54,6 +53,22 @@ public record ForeignKeyDefinition(String database,String table,String name,Stri
             boolean readOnly=session.getReadOnly();
             try{if(readOnly)session.setReadOnly(false);session.execute(sql,1);}
             finally{if(readOnly)session.setReadOnly(true);}
+        }
+    }
+    /** MySQL validates duplicate constraint names before a combined DROP/ADD. Use two DDLs and restore the old FK if ADD fails. */
+    public static void replace(JdbcSession session,ForeignKeyDefinition previous,ForeignKeyDefinition replacement,String quote)throws Exception{
+        DatabaseType type=session.profile().type();if(type!=DatabaseType.MYSQL&&type!=DatabaseType.MARIADB)throw new SQLException(tr("La modificación visual de relaciones está disponible para MySQL y MariaDB."));
+        String preview=replacement.replaceSql(previous,type,quote),drop=previous.dropSql(type,quote),add=replacement.createSql(quote),restore=previous.createSql(quote);if(preview.isBlank())throw new SQLException(tr("No hay cambios de relación para aplicar."));
+        if(session.profile().readOnly())throw new SQLException(tr("La conexión es de solo lectura."));
+        synchronized(session.connection()){
+            if(!session.getAutoCommit())throw new SQLException(tr("Finaliza la transacción y activa Auto-commit antes de modificar relaciones."));
+            boolean readOnly=session.getReadOnly(),dropped=false;
+            try{
+                if(readOnly)session.setReadOnly(false);session.execute(drop,1);dropped=true;session.execute(add,1);
+            }catch(Exception failure){
+                if(dropped)try{session.execute(restore,1);}catch(Exception restoreFailure){failure.addSuppressed(restoreFailure);throw new SQLException(tr("No se pudo aplicar la nueva relación ni restaurar la anterior. Revisa la estructura de la tabla inmediatamente."),failure);}
+                throw new SQLException(tr("No se pudo aplicar la nueva relación; la relación anterior fue restaurada y continúa activa."),failure);
+            }finally{if(readOnly)session.setReadOnly(true);}
         }
     }
 }

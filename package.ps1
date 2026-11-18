@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: el guardado automático conserva la celda alcanzada con las flechas y Recargar ejecuta solamente la consulta de la pestaña de resultado activa, incluso para agregados de solo lectura."
+    notes = "AdisDB ${version}: creación visual de tablas con panel avanzado y ENUM/SET, conservación del formulario ante errores, refresco inmediato y relaciones visibles con modificación recuperable."
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\AdisDB.exe"
