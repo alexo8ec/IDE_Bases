@@ -30,6 +30,9 @@ final class ResultGridActions {
     enum Junction { AND, OR }
     record Condition(Operator operator,Object value) {}
     record Filter(Condition first,Junction junction,Condition second,boolean caseSensitive) {}
+    record ViewState(String search,Map<Integer,Filter> filters,List<? extends RowSorter.SortKey> sorts) {
+        ViewState {filters=Map.copyOf(filters);sorts=List.copyOf(sorts);}
+    }
     private final JTable table;
     private final ResultTableModel model;
     private final JTextField search;
@@ -43,14 +46,21 @@ final class ResultGridActions {
     private EditingActions editing;
     private Runnable reference;private BooleanSupplier hasReference=()->false;
     private Consumer<com.nexodb.util.DataExporter.Format> exporter;
+    private Consumer<ViewState> serverView;
+    private boolean suppressView;
     void exportAction(Consumer<com.nexodb.util.DataExporter.Format> action){exporter=action;}
     void referenceAction(Runnable action,BooleanSupplier available){reference=action;hasReference=available;}
+    void serverView(Consumer<ViewState> listener){serverView=listener;applyFilter();}
+    void refreshing(Runnable action){
+        List<? extends RowSorter.SortKey> sort=table.getRowSorter()==null?List.of():List.copyOf(table.getRowSorter().getSortKeys());suppressView=true;
+        try{action.run();if(table.getRowSorter()!=null)table.getRowSorter().setSortKeys(sort);applyFilter();}finally{suppressView=false;}
+    }
 
     ResultGridActions(JTable table,ResultTableModel model,JScrollPane scroll,JTextField search,Runnable changed,Consumer<String> copied){
         this.table=table;this.model=model;this.search=search;this.changed=changed;this.copied=copied;
         installRowHeader(scroll);installHeaders();installPopup();
         search.getDocument().addDocumentListener(new DocumentListener(){public void insertUpdate(DocumentEvent e){applyFilter();}public void removeUpdate(DocumentEvent e){applyFilter();}public void changedUpdate(DocumentEvent e){applyFilter();}});
-        model.addTableModelListener(event->{if(event.getFirstRow()==TableModelEvent.HEADER_ROW){checked.clear();filters.clear();SwingUtilities.invokeLater(this::applyFilter);}rows.fireTableDataChanged();changed.run();});
+        model.addTableModelListener(event->{if(event.getFirstRow()==TableModelEvent.HEADER_ROW){checked.clear();if(serverView==null)filters.clear();applyFilter();}rows.fireTableDataChanged();changed.run();});
         table.addPropertyChangeListener("rowSorter",event->{listenSorter();applyFilter();});listenSorter();
         for(String key:List.of("control C","meta C"))table.getInputMap().put(KeyStroke.getKeyStroke(key),"copy-grid");
         table.getActionMap().put("copy-grid",new AbstractAction(){public void actionPerformed(ActionEvent event){copySelection();}});
@@ -68,7 +78,7 @@ final class ResultGridActions {
     }
     List<Integer> selectedColumns(){return Arrays.stream(table.getSelectedColumns()).map(table::convertColumnIndexToModel).boxed().toList();}
     private List<Integer> visibleRows(){List<Integer> values=new ArrayList<>();for(int i=0;i<table.getRowCount();i++){int row=table.convertRowIndexToModel(i);if(!model.isAppendRow(row))values.add(row);}return values;}
-    private void listenSorter(){if(table.getRowSorter()!=null)table.getRowSorter().addRowSorterListener(event->{rows.fireTableDataChanged();changed.run();if(!checked.isEmpty())SwingUtilities.invokeLater(()->{if(!checked.isEmpty())selectMarkedRows();});});}
+    private void listenSorter(){if(table.getRowSorter()!=null)table.getRowSorter().addRowSorterListener(event->{rows.fireTableDataChanged();changed.run();if(serverView!=null&&!suppressView)serverView.accept(viewState());if(!checked.isEmpty())SwingUtilities.invokeLater(()->{if(!checked.isEmpty())selectMarkedRows();});});}
     private void selectMarkedRows(){
         var selection=table.getSelectionModel();selection.setValueIsAdjusting(true);
         try{selection.clearSelection();for(int row:checked)if(row<model.getRowCount()){int view=table.convertRowIndexToView(row);if(view>=0)selection.addSelectionInterval(view,view);}if(!checked.isEmpty()&&table.getColumnCount()>0)table.setColumnSelectionInterval(0,table.getColumnCount()-1);}
@@ -77,6 +87,7 @@ final class ResultGridActions {
     }
     private void applyFilter(){
         if(!(table.getRowSorter() instanceof TableRowSorter<?> sorter))return;
+        if(serverView!=null){boolean before=suppressView;suppressView=true;try{sorter.setRowFilter(null);}finally{suppressView=before;}table.getTableHeader().repaint();rows.fireTableDataChanged();changed.run();if(!suppressView)serverView.accept(viewState());return;}
         String global=search.getText().toLowerCase(Locale.ROOT);
         sorter.setRowFilter(new RowFilter<TableModel,Integer>(){
             public boolean include(Entry<? extends TableModel,? extends Integer> entry){
@@ -88,6 +99,7 @@ final class ResultGridActions {
         });
         table.getTableHeader().repaint();rows.fireTableDataChanged();changed.run();
     }
+    ViewState viewState(){return new ViewState(search.getText().trim(),filters,table.getRowSorter()==null?List.of():table.getRowSorter().getSortKeys());}
     private void installRowHeader(JScrollPane scroll){
         JTable header=new JTable(rows);header.setName("query-row-selector");header.setRowHeight(table.getRowHeight());header.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         header.getColumnModel().getColumn(0).setPreferredWidth(25);header.getColumnModel().getColumn(1).setPreferredWidth(39);

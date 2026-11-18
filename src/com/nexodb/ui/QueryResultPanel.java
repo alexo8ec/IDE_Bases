@@ -26,6 +26,14 @@ final class QueryResultPanel extends JPanel {
     private final JScrollPane scroll;
     private final String sql;
     private final int limit;
+    private String viewSql;
+    private List<Object> viewParameters=List.of();
+    private final boolean serverView;
+    private final List<String> viewColumns;
+    private final List<Integer> viewTypes;
+    private final QueryEditSupport.Eligibility viewEditing;
+    private final Timer viewTimer;
+    private ResultGridActions.ViewState activeView=new ResultGridActions.ViewState("",Map.of(),List.of()),pendingView=activeView;
     private final JToggleButton edit = UiLanguage.text(new JToggleButton(),UiLanguage.key("Editar"));
     private final JComboBox<String> mode=new JComboBox<>(new String[]{"Solo lectura"});
     private boolean updatingMode;
@@ -67,8 +75,10 @@ final class QueryResultPanel extends JPanel {
 
     QueryResultPanel(JdbcSession origin, QueryResult result, ResultTableModel model, JTable table, String sql, int limit,
                      Consumer<Boolean> busy, Consumer<String> changed, Consumer<JTable> resize) {
-        super(new BorderLayout());this.origin=origin;this.model=model;this.table=table;this.sql=sql;this.limit=limit;
+        super(new BorderLayout());this.origin=origin;this.model=model;this.table=table;this.sql=sql;this.viewSql=sql;this.limit=limit;
         pageable=QueryPaging.supported(sql);
+        viewColumns=List.copyOf(result.columns().subList(0,result.visibleColumnCount()));viewTypes=List.copyOf(result.jdbcTypes().subList(0,result.visibleColumnCount()));viewEditing=result.editing();
+        serverView=(result.truncated()||limit==Integer.MAX_VALUE)&&result.hiddenColumns()==0&&ResultQuery.supported(sql,origin.profile().type(),viewColumns);
         pageCatalog=namespace(origin,true);pageSchema=namespace(origin,false);
         pageSize=Math.min(10_000,Math.max(1,limit==Integer.MAX_VALUE?1000:limit));
         rowLimit=()->this.limit;
@@ -107,12 +117,18 @@ final class QueryResultPanel extends JPanel {
         previous.setName("query-page-previous");next.setName("query-page-next");pageSizeChoice.setName("query-page-size");elapsed.setName("query-elapsed");
         previous.setMargin(new Insets(2,7,2,7));next.setMargin(new Insets(2,7,2,7));UiLanguage.tooltip(previous,UiLanguage.key("Página anterior"));UiLanguage.tooltip(next,UiLanguage.key("Página siguiente"));
         changingPageSize=true;String initialSize=""+pageSize;if(!java.util.Set.of("100","500","1000").contains(initialSize))pageSizeChoice.insertItemAt(initialSize,0);pageSizeChoice.setSelectedItem(initialSize);changingPageSize=false;
-        UiLanguage.tooltip(pageSizeChoice,UiLanguage.key("Cambiar de página vuelve a ejecutar el SELECT. Usa ORDER BY para mantener un orden estable. Los filtros y el orden de la cuadrícula se aplican a la página cargada."));
+        UiLanguage.tooltip(pageSizeChoice,UiLanguage.key(serverView?"La paginación, los filtros y el orden se ejecutan sobre todo el resultado en la base de datos.":"Cambiar de página vuelve a ejecutar el SELECT. Usa ORDER BY para mantener un orden estable."));
         previous.addActionListener(e->loadPage(Math.max(0,pageOffset-pageSize),pageSize));next.addActionListener(e->loadPage(pageOffset+model.dataRowCount(),pageSize));
         pageSizeChoice.addActionListener(e->{if(changingPageSize||!pageable)return;String choice=(String)pageSizeChoice.getSelectedItem();int size=pageSize;
             try{if("Personalizado…".equals(choice)){String value=JOptionPane.showInputDialog(this,tr("Filas por página (1 a 10000):"),pageSize);if(value==null){restorePageChoice();return;}size=Integer.parseInt(value.trim());}else size=Integer.parseInt(choice);if(size<1||size>10000)throw new NumberFormatException();loadPage(0,size);}catch(NumberFormatException error){JOptionPane.showMessageDialog(this,tr("El tamaño de página debe estar entre 1 y 10.000 filas."));restorePageChoice();}});
         scroll=new JScrollPane(table);
         grid=new ResultGridActions(table,model,scroll,filter,this::updateCount,changed);
+        viewTimer=new Timer(350,event->applyServerView());viewTimer.setRepeats(false);
+        if(serverView){
+            grid.serverView(this::scheduleServerView);
+            filter.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){private void changed(){scheduleServerView(grid.viewState());}public void insertUpdate(javax.swing.event.DocumentEvent e){changed();}public void removeUpdate(javax.swing.event.DocumentEvent e){changed();}public void changedUpdate(javax.swing.event.DocumentEvent e){changed();}});
+            UiLanguage.tooltip(filter,UiLanguage.key("Busca en todo el resultado; el filtro se ejecuta en la base de datos."));
+        }
         grid.exportAction(format->ResultExports.write(this,model.snapshot(),target==null?"resultado":target.qualifiedTable(),format,changed));
         toolbar.add(ResultExports.button(this,model::snapshot,target==null?"resultado":target.qualifiedTable(),changed));
         grid.editingActions(new ResultGridActions.EditingActions(this::editSelectedCell,()->insertRow(false),this::deleteRows,this::save,this::requestDiscard,this::setSelectionValue,this::pasteSelectionValue,()->insertRow(true),()->{if(exportAction!=null)exportAction.run();},this::canWrite,this::hasChanges,this::canEditSelectedCell,()->origin.profile().type()!=com.nexodb.model.DatabaseType.SQLITE,()->exportAction!=null));
@@ -206,6 +222,26 @@ final class QueryResultPanel extends JPanel {
     }
     private static String namespace(JdbcSession origin,boolean catalog){if(origin==null)return "";try{return java.util.Objects.toString(catalog?origin.connection().getCatalog():origin.connection().getSchema(),"");}catch(Exception error){return "";}}
     private void restorePageChoice(){changingPageSize=true;String value=""+pageSize;boolean present=false;for(int i=0;i<pageSizeChoice.getItemCount();i++)if(value.equals(pageSizeChoice.getItemAt(i)))present=true;if(!present)pageSizeChoice.insertItemAt(value,0);pageSizeChoice.setSelectedItem(value);changingPageSize=false;}
+    private void scheduleServerView(ResultGridActions.ViewState state){if(!serverView)return;pendingView=state;viewTimer.restart();}
+    private void applyServerView(){
+        if(!serverView||pendingView.equals(activeView))return;if(saving||hasChanges()){viewTimer.restart();return;}
+        try{
+            List<ResultQuery.Filter> filters=new java.util.ArrayList<>();
+            for(var entry:pendingView.filters().entrySet())filters.add(resultFilter(entry.getKey(),entry.getValue()));
+            List<ResultQuery.Sort> sorts=pendingView.sorts().stream().filter(key->key.getSortOrder()!=SortOrder.UNSORTED).map(key->new ResultQuery.Sort(key.getColumn(),key.getSortOrder()==SortOrder.DESCENDING)).toList();
+            ResultQuery.Prepared prepared=ResultQuery.prepare(sql,origin.profile().type(),viewColumns,viewTypes,pendingView.search(),filters,sorts);
+            String previousSql=viewSql;List<Object> previousParameters=viewParameters;ResultGridActions.ViewState previousView=activeView;
+            activeView=pendingView;viewSql=prepared.sql();viewParameters=prepared.parameters();pageCache.clear();
+            loadPage(0,pageSize,(fresh,error)->{if(error!=null){viewSql=previousSql;viewParameters=previousParameters;activeView=previousView;pageCache.clear();showError(error,"No se pudo aplicar el filtro u orden");}},false);
+        }catch(Exception error){showError(error,"No se pudo aplicar el filtro u orden");}
+    }
+    private static ResultQuery.Filter resultFilter(int column,ResultGridActions.Filter filter){
+        return new ResultQuery.Filter(column,resultCondition(filter.first()),ResultQuery.Junction.valueOf(filter.junction().name()),resultCondition(filter.second()),filter.caseSensitive());
+    }
+    private static ResultQuery.Condition resultCondition(ResultGridActions.Condition condition){return condition==null?null:new ResultQuery.Condition(ResultQuery.Operator.valueOf(condition.operator().name()),condition.value());}
+    private QueryResult executeViewPage(int size,long offset)throws java.sql.SQLException{
+        QueryResult fresh=origin.executePage(viewSql,viewParameters,size,offset);return !viewSql.equals(sql)&&viewEditing!=null?fresh.withEditing(viewEditing):fresh;
+    }
     private void loadPage(long offset,int size){loadPage(offset,size,(fresh,error)->{if(error!=null)showError(error,"No se pudo cargar la página");});}
     private void loadPage(long offset,int size,java.util.function.BiConsumer<QueryResult,Throwable> completion){
         loadPage(offset,size,completion,true);
@@ -217,12 +253,12 @@ final class QueryResultPanel extends JPanel {
         if(useCache){pageCache.put(new PageKey(pageOffset,pageSize),model.definition());QueryResult cached=pageCache.get(new PageKey(offset,size));if(cached!=null){showPage(cached,offset,size);completion.accept(cached,null);return;}}
         start();UiLanguage.text(status,UiLanguage.key("Cargando página…"));
         new SwingWorker<QueryResult,Void>() {
-            protected QueryResult doInBackground()throws Exception{return origin.executePage(sql,size,offset);}
+            protected QueryResult doInBackground()throws Exception{return executeViewPage(size,offset);}
             protected void done(){try{QueryResult fresh=get();pageCache.put(new PageKey(offset,size),fresh);showPage(fresh,offset,size);completion.accept(fresh,null);}catch(Exception error){completion.accept(null,root(error));}finally{restorePageChoice();end();}}
         }.execute();
     }
     private void showPage(QueryResult fresh,long offset,int size){
-        long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();int horizontal=scroll.getHorizontalScrollBar().getValue();pageOffset=offset;pageSize=size;pagingRequested=true;grid.clearChecked();model.setResult(fresh);configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);scroll.getViewport().setViewPosition(new Point(horizontal,0));setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();
+        long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();int horizontal=scroll.getHorizontalScrollBar().getValue();pageOffset=offset;pageSize=size;pagingRequested=true;grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);scroll.getViewport().setViewPosition(new Point(horizontal,0));setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();
     }
     private void installVirtualPaging(){
         scroll.addMouseWheelListener(e->{if(e.getWheelRotation()>0)SwingUtilities.invokeLater(this::loadNextIfNeeded);});
@@ -391,11 +427,11 @@ final class QueryResultPanel extends JPanel {
         boolean refresh=changes.stream().anyMatch(row->row.kind()!=QueryEditSupport.ChangeKind.UPDATE||row.values().containsValue(QueryEditSupport.DefaultValue.INSTANCE));
         start();UiLanguage.text(status,UiLanguage.key("Guardando cambios…"));
         new SwingWorker<SaveOutcome,Void>() {
-            protected SaveOutcome doInBackground()throws Exception{var saved=QueryEditSupport.saveChanges(origin.connection(),target,changes);if(refresh)try{String qualified=QueryEditSupport.qualifiedSelect(sql,target);return new SaveOutcome(saved,pagingRequested?origin.executePage(qualified,pageSize,pageOffset):origin.executeEditable(qualified,rowLimit.getAsInt()),null);}catch(Exception error){return new SaveOutcome(saved,null,error);}return new SaveOutcome(saved,null,null);}
+            protected SaveOutcome doInBackground()throws Exception{var saved=QueryEditSupport.saveChanges(origin.connection(),target,changes);if(refresh)try{String qualified=QueryEditSupport.qualifiedSelect(sql,target);return new SaveOutcome(saved,pagingRequested?executeViewPage(pageSize,pageOffset):origin.executeEditable(qualified,rowLimit.getAsInt()),null);}catch(Exception error){return new SaveOutcome(saved,null,error);}return new SaveOutcome(saved,null,null);}
             protected void done(){
                 try {
                     SaveOutcome outcome=get();QueryEditSupport.BatchSaved saved=outcome.saved();pendingCommit|=saved.pendingCommit();
-                    if(outcome.fresh()!=null){pageCache.clear();long renderStarted=System.nanoTime();String selected=target.qualifiedTable();grid.clearChecked();model.setResult(outcome.fresh());configureTargets(outcome.fresh(),selected);resize.accept(table);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);pageCache.put(new PageKey(pageOffset,pageSize),outcome.fresh());loadReferences();}
+                    if(outcome.fresh()!=null){pageCache.clear();long renderStarted=System.nanoTime();String selected=target.qualifiedTable();grid.clearChecked();grid.refreshing(()->model.setResult(outcome.fresh()));configureTargets(outcome.fresh(),selected);resize.accept(table);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);pageCache.put(new PageKey(pageOffset,pageSize),outcome.fresh());loadReferences();}
                     else if(outcome.refreshError()!=null){grid.clearChecked();model.discard();stale=true;edit.setSelected(false);UiLanguage.text(status,UiLanguage.key("Los cambios se guardaron, pero no se pudo recargar el resultado. Pulsa Recargar."));showError(outcome.refreshError(),"No se pudo recargar el resultado");return;}
                     else model.accept(saved.rows());
                     UiLanguage.text(status,UiLanguage.key(saved.pendingCommit()?"Cambio aplicado · pendiente de Commit":"Cambio guardado"));
@@ -415,7 +451,7 @@ final class QueryResultPanel extends JPanel {
         new SwingWorker<QueryResult,Void>() {
             protected QueryResult doInBackground()throws Exception{return origin.executeEditable(replay,rowLimit.getAsInt());}
             protected void done(){
-                try{QueryResult fresh=get();long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();model.setResult(fresh);configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();completion.accept(fresh,null);}
+                try{QueryResult fresh=get();long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();completion.accept(fresh,null);}
                 catch(Exception error){completion.accept(null,root(error));}finally{end();}
             }
         }.execute();

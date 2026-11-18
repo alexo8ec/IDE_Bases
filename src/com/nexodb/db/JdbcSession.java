@@ -399,16 +399,20 @@ public final class JdbcSession implements AutoCloseable {
 
     /** Forward-only JDBC fallback keeps SQL dialect, explicit LIMIT/TOP and scope intact. */
     public QueryResult executePage(String sql,int pageSize,long offset)throws SQLException {
+      return executePage(sql,List.of(),pageSize,offset);
+    }
+    public QueryResult executePage(String sql,List<?> parameters,int pageSize,long offset)throws SQLException {
       synchronized(connection) {
         QueryPaging.PageSql page=QueryPaging.pageSql(sql,profile.type(),pageSize,offset);long started=System.nanoTime();
-        try(Statement statement=connection.createStatement()) {
+        try(PreparedStatement statement=connection.prepareStatement(page.sql())) {
             activeStatement=statement;long needed=page.nativeOffset()?pageSize+1L:offset+pageSize+1L;statement.setMaxRows(needed>0&&needed<=5_000_000?(int)needed:0);statement.setFetchSize(Math.min(pageSize,500));
-            long serverStarted=System.nanoTime();boolean returned=statement.execute(page.sql());long serverMillis=elapsedMillis(serverStarted);
+            for(int i=0;i<parameters.size();i++)statement.setObject(i+1,parameters.get(i));
+            long serverStarted=System.nanoTime();boolean returned=statement.execute();long serverMillis=elapsedMillis(serverStarted);
             if(!returned)throw new SQLException("La consulta no devolvió una tabla paginable.");
             QueryEditSupport.Enrichment enrichment;
             try(ResultSet rows=statement.getResultSet()) {
                 long metadataStarted=System.nanoTime();
-                enrichment=QueryEditSupport.enrichMissingPrimaryKeys(connection,profile.type(),page.sql(),rows.getMetaData(),editMetadata);
+                enrichment=parameters.isEmpty()?QueryEditSupport.enrichMissingPrimaryKeys(connection,profile.type(),page.sql(),rows.getMetaData(),editMetadata):null;
                 long metadataMillis=elapsedMillis(metadataStarted);
                 if(enrichment==null){
                     long fetchStarted=System.nanoTime();

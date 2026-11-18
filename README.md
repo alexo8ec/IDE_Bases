@@ -1,6 +1,15 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.42**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.43**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Filtros y orden global en resultados virtuales — 0.18.43
+
+- El buscador general y los filtros de cada columna ya no trabajan solamente con la página visible: se ejecutan en la base de datos sobre el resultado completo y regresan a la primera página con las coincidencias reales.
+- El orden ascendente o descendente de una o varias columnas también se aplica al conjunto completo antes de paginar. Al cambiar de página se conserva exactamente el filtro y el orden activos.
+- Los valores del usuario se envían como parámetros preparados, sin concatenarlos al SQL. Se escapan correctamente los comodines de `LIKE` y se respetan filtros numéricos, texto, `NULL`, vacío y combinaciones `AND`/`OR`.
+- Una espera breve de 350 ms agrupa lo escrito antes de consultar, evita solicitudes por cada tecla e invalida la caché anterior solamente cuando cambia la vista.
+- Las consultas pequeñas conservan el filtrado local inmediato. Las formas que no se pueden envolver con seguridad mantienen la ruta compatible y editable sin alterar el SQL original.
+- Las pruebas verifican búsquedas fuera de la página cargada, rangos numéricos, orden global, parámetros hostiles y compatibilidad con los dialectos soportados.
 
 ## Carga virtual de resultados — 0.18.42
 
