@@ -53,7 +53,7 @@ public final class PostgresSupport {
         String url = match.group(1) + "/" + encoded + (match.group(3) == null ? "" : match.group(3));
         return new ConnectionProfile(profile.id(), profile.name(), profile.type(), profile.host(), profile.port(),
                 savedDatabase, profile.username(), url, profile.driverClass(), profile.driverJar(),
-                profile.authenticationMode(), profile.readOnly());
+                profile.authenticationMode(), profile.ssh(), profile.readOnly());
     }
 
     public static List<String> databases(Connection connection) throws SQLException {

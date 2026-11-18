@@ -45,7 +45,7 @@ public final class SqlTransferDialog extends JDialog {
 
     public SqlTransferDialog(Frame owner,ConnectionProfile source,char[] password,boolean importing,String defaultDatabase,String defaultTable){
         super(owner,true);this.importing=importing;this.password=password;initialDatabase=Objects.toString(defaultDatabase,"");initialTable=Objects.toString(defaultTable,"");
-        profile=new ConnectionProfile(source.id(),source.name(),source.type(),source.host(),source.port(),source.database(),source.username(),source.jdbcUrl(),source.driverClass(),source.driverJar(),source.authenticationMode(),!importing);
+        profile=new ConnectionProfile(source.id(),source.name(),source.type(),source.host(),source.port(),source.database(),source.username(),source.jdbcUrl(),source.driverClass(),source.driverJar(),source.authenticationMode(),source.ssh(),!importing);
         UiLanguage.title(this,UiLanguage.key(importing?"Importar / restaurar SQL":"Respaldo SQL"));
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);addWindowListener(new WindowAdapter(){public void windowClosing(WindowEvent e){requestClose();}});
         JPanel content=new JPanel(new BorderLayout(10,12));content.setBorder(new EmptyBorder(18,20,16,20));setContentPane(content);

@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.36**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.37**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Conexiones mediante túnel SSH — 0.18.37
+
+- La ventana de conexión incorpora una pestaña **SSH** para llegar a bases de datos que no exponen su puerto directamente.
+- Admite autenticación SSH por contraseña o clave privada con frase de clave opcional.
+- El puerto local puede asignarse automáticamente; también incluye tiempo de espera, keep-alive y verificación mediante `known_hosts`.
+- La contraseña o frase SSH se cifra por separado con Windows DPAPI y nunca se guarda dentro del perfil de conexión.
+- El túnel se abre antes de JDBC, conserva SSL/TLS de la base de datos y se cierra automáticamente al desconectar.
 
 ## Impresión horizontal fiel a la vista previa — 0.18.36
 
@@ -380,4 +388,6 @@ MariaDB Connector/J 3.5.11 y Waffle-JNA 3.6.0 se incluyen para autenticación in
 FlatLaf 3.7.2, publicado por FormDev bajo Apache License 2.0. Artefacto `com.formdev:flatlaf:3.7.2`, verificado con SHA-256 `917aff3963c88d797d0fd9b9ccbd70f7681c101df9d11c59e2bc7a3a6c0fabf4`.
 
 FlatLaf Extras 3.7.2 y JSVG 2.1.0 renderizan los SVG. Los logotipos de motores proceden de Devicon (MIT) y del proyecto H2; las marcas pertenecen a sus respectivos propietarios y se usan únicamente para identificar el motor seleccionado.
+
+JSch 2.28.0, mantenido por Matthias Wiedemann y colaboradores bajo licencia BSD, proporciona los túneles SSH incluidos en AdisDB. El artefacto `com.github.mwiede:jsch:2.28.0` se verifica con SHA-256 `916f950708937fa1e7813f1e0b6879854e456c10770033dee54fa4df1de73974`.
 

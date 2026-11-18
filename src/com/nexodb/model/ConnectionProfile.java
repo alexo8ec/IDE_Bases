@@ -14,6 +14,7 @@ public record ConnectionProfile(
         String driverClass,
         String driverJar,
         AuthenticationMode authenticationMode,
+        SshConfig ssh,
         boolean readOnly
 ) {
     public ConnectionProfile {
@@ -27,12 +28,19 @@ public record ConnectionProfile(
         driverClass = value(driverClass);
         driverJar = value(driverJar);
         authenticationMode = Objects.requireNonNullElse(authenticationMode, AuthenticationMode.DATABASE);
+        ssh = Objects.requireNonNullElse(ssh,SshConfig.disabled());
+    }
+
+    public ConnectionProfile(String id,String name,DatabaseType type,String host,int port,String database,
+                             String username,String jdbcUrl,String driverClass,String driverJar,
+                             AuthenticationMode authenticationMode,boolean readOnly) {
+        this(id,name,type,host,port,database,username,jdbcUrl,driverClass,driverJar,authenticationMode,SshConfig.disabled(),readOnly);
     }
 
     public ConnectionProfile(String id, String name, DatabaseType type, String host, int port, String database,
                              String username, String jdbcUrl, String driverClass, String driverJar, boolean readOnly) {
         this(id, name, type, host, port, database, username, jdbcUrl, driverClass, driverJar,
-                AuthenticationMode.DATABASE, readOnly);
+                AuthenticationMode.DATABASE, SshConfig.disabled(), readOnly);
     }
 
     private static String value(String text) {

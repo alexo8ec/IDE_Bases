@@ -94,7 +94,7 @@ public final class MysqlDebugSession implements AutoCloseable {
         String url=profile.jdbcUrl();int query=url.indexOf('?');String base=query<0?url:url.substring(0,query);List<String> options=new ArrayList<>();
         if(query>=0)for(String option:url.substring(query+1).split("&"))if(!option.isBlank()&&!option.split("=",2)[0].equalsIgnoreCase("netTimeoutForStreamingResults"))options.add(option);
         options.add("netTimeoutForStreamingResults=0");
-        return new ConnectionProfile(profile.id(),profile.name(),profile.type(),profile.host(),profile.port(),profile.database(),profile.username(),base+"?"+String.join("&",options),profile.driverClass(),profile.driverJar(),profile.authenticationMode(),profile.readOnly());
+        return new ConnectionProfile(profile.id(),profile.name(),profile.type(),profile.host(),profile.port(),profile.database(),profile.username(),base+"?"+String.join("&",options),profile.driverClass(),profile.driverJar(),profile.authenticationMode(),profile.ssh(),profile.readOnly());
     }
     private static void bind(Connection connection,String variable,Object value)throws SQLException{try(PreparedStatement s=connection.prepareStatement("SET "+variable+"=?")){s.setObject(1,value);s.execute();}}
     private String pauseSql(){int finalPoint=program.points().get(program.points().size()-1).id();return "CREATE PROCEDURE "+pause+"(IN nx_point INT,IN nx_line INT,IN nx_context LONGTEXT) SQL SECURITY INVOKER\nBEGIN\n"

@@ -15,6 +15,7 @@ import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.Arrays;
 import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
@@ -24,26 +25,49 @@ public final class JdbcSession implements AutoCloseable {
     private final ConnectionProfile profile;
     private final Connection connection;
     private final URLClassLoader driverLoader;
+    private final SshTunnel sshTunnel;
     private final QueryEditSupport.MetadataCache editMetadata = new QueryEditSupport.MetadataCache();
     private volatile Statement activeStatement;
 
     private JdbcSession(ConnectionProfile profile, Connection connection, URLClassLoader driverLoader) {
+        this(profile,connection,driverLoader,null);
+    }
+    private JdbcSession(ConnectionProfile profile, Connection connection, URLClassLoader driverLoader,SshTunnel sshTunnel) {
         this.profile = profile;
         this.connection = connection;
         this.driverLoader = driverLoader;
+        this.sshTunnel=sshTunnel;
     }
 
     public static JdbcSession open(ConnectionProfile profile, char[] password) throws Exception {
-        return open(profile, password, null);
+        return open(profile, password, (IntConsumer)null);
     }
 
     public static JdbcSession open(ConnectionProfile profile, char[] password, IntConsumer driverProgress) throws Exception {
+        char[] sshSecret=loadStoredSshSecret(profile);
+        try{return open(profile,password,sshSecret,driverProgress);}
+        finally{Arrays.fill(sshSecret,'\0');}
+    }
+
+    public static JdbcSession open(ConnectionProfile profile,char[] password,char[] sshSecret,IntConsumer driverProgress)throws Exception{
         profile = SQLiteSupport.prepare(profile);
         if (profile.authenticationMode() == AuthenticationMode.WINDOWS && !com.nexodb.util.SecretStore.isSupported()) {
             throw new IllegalArgumentException("La autenticación integrada de Windows requiere Windows. Edita el perfil y elige usuario y contraseña.");
         }
         profile = PostgresSupport.initialProfile(profile);
         ensureKnownDriver(profile, driverProgress);
+        SshTunnel tunnel=null;
+        try{
+            if(profile.ssh().enabled()){
+                tunnel=SshTunnel.open(profile,sshSecret);
+                profile=tunnel.forward(profile);
+            }
+            JdbcSession opened=openDatabase(profile,password);
+            return tunnel==null?opened:new JdbcSession(opened.profile,opened.connection,opened.driverLoader,tunnel);
+        }catch(Exception error){if(tunnel!=null)tunnel.close();throw error;}
+    }
+
+    private static JdbcSession openDatabase(ConnectionProfile profile,char[] password)throws Exception{
         try {
             return openResilient(profile, password);
         } catch (Exception firstError) {
@@ -73,7 +97,7 @@ public final class JdbcSession implements AutoCloseable {
             ConnectionProfile mariaDbProfile = new ConnectionProfile(
                     profile.id(), profile.name(), DatabaseType.MARIADB, profile.host(), profile.port(), profile.database(),
                     profile.username(), mariaDbFallbackUrl(profile),
-                    DatabaseType.MARIADB.driverClass(), "", profile.authenticationMode(), profile.readOnly());
+                    DatabaseType.MARIADB.driverClass(), "", profile.authenticationMode(), profile.ssh(), profile.readOnly());
             try {
                 return openResilient(mariaDbProfile, password);
             } catch (Exception fallbackError) {
@@ -87,6 +111,12 @@ public final class JdbcSession implements AutoCloseable {
                 throw fallbackError;
             }
         }
+    }
+
+    private static char[] loadStoredSshSecret(ConnectionProfile profile)throws Exception{
+        if(!profile.ssh().enabled()||profile.id().isBlank())return new char[0];
+        com.nexodb.util.SecretStore store=new com.nexodb.util.SecretStore();String key=com.nexodb.model.SshConfig.secretId(profile.id());
+        char[] value=store.has(key)?store.load(key):null;return value==null?new char[0]:value;
     }
 
     /** One quick retry handles short VPN/Wi-Fi route changes without exceeding the old total wait. */
@@ -509,7 +539,10 @@ public final class JdbcSession implements AutoCloseable {
         try {
             if (!connection.isClosed() && !connection.getAutoCommit()) connection.rollback();
         } finally {
-            try { connection.close(); } finally { if (driverLoader != null) driverLoader.close(); }
+            try { connection.close(); } finally {
+                try { if (driverLoader != null) driverLoader.close(); }
+                finally { if(sshTunnel!=null)sshTunnel.close(); }
+            }
         }
     }
 }

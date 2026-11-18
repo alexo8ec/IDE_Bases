@@ -9,6 +9,7 @@ import com.nexodb.db.SQLiteSupport;
 import com.nexodb.model.AuthenticationMode;
 import com.nexodb.model.ConnectionProfile;
 import com.nexodb.model.DatabaseType;
+import com.nexodb.model.SshConfig;
 import com.nexodb.util.SecretStore;
 
 import javax.swing.*;
@@ -21,7 +22,7 @@ import java.io.File;
 import java.util.Arrays;
 
 public final class ConnectionDialog extends JDialog {
-    public record Result(ConnectionProfile profile, char[] password, boolean connect, boolean rememberPassword) {}
+    public record Result(ConnectionProfile profile,char[] password,char[] sshSecret,boolean connect,boolean rememberPassword,boolean rememberSshSecret) {}
     private record ConnectionCheck(String server, String database, long elapsedMillis) {}
 
     private enum TlsMode {
@@ -55,13 +56,23 @@ public final class ConnectionDialog extends JDialog {
     private final JTextField driverJar = new JTextField(30);
     private final JToggleButton advancedToggle = UiLanguage.text(new JToggleButton(tr("Configuración avanzada   >")), UiLanguage.key("Configuración avanzada   >"));
     private final JPanel advancedPanel = new JPanel(new GridBagLayout());
+    private final JTabbedPane connectionTabs=new JTabbedPane();
     private final JCheckBox readOnly = UiLanguage.text(new JCheckBox(tr("Solo lectura (recomendado para producción)")), UiLanguage.key("Solo lectura (recomendado para producción)"));
+    private final JCheckBox sshEnabled=new JCheckBox("Usar túnel SSH");
+    private final JTextField sshHost=new JTextField(28),sshUsername=new JTextField(28),sshPrivateKey=new JTextField(28),sshKnownHosts=new JTextField(28);
+    private final JSpinner sshPort=new JSpinner(new SpinnerNumberModel(22,1,65535,1)),sshLocalPort=new JSpinner(new SpinnerNumberModel(0,0,65535,1)),sshTimeout=new JSpinner(new SpinnerNumberModel(10,1,120,1)),sshKeepAlive=new JSpinner(new SpinnerNumberModel(30,0,3600,1));
+    private final JComboBox<SshConfig.Authentication> sshAuthentication=new JComboBox<>(SshConfig.Authentication.values());
+    private final JPasswordField sshPassword=new JPasswordField(28);
+    private final JCheckBox rememberSshPassword=new JCheckBox("Recordar contraseña/frase SSH de forma segura");
+    private final JCheckBox sshStrictHostKey=new JCheckBox("Verificar identidad con known_hosts");
+    private final JLabel sshSecurityNote=new JLabel();
     private final JLabel status = new JLabel(" ");
     private final JProgressBar driverProgress = new JProgressBar(0, 100);
     private final JLabel authenticationNote = new JLabel();
     private final String profileId;
     private final SecretStore secretStore;
     private final boolean hadStoredPassword;
+    private final boolean hadStoredSshPassword;
     private Result result;
     private boolean internalChange;
     private DatabaseType currentEngine;
@@ -78,9 +89,12 @@ public final class ConnectionDialog extends JDialog {
         this.profileId = profile == null ? "" : profile.id();
         this.secretStore = secretStore;
         this.hadStoredPassword = profile != null && secretStore.has(profile.id());
+        this.hadStoredSshPassword=profile!=null&&secretStore.has(SshConfig.secretId(profile.id()));
         JSpinner.NumberEditor portEditor = new JSpinner.NumberEditor(port, "0");
         portEditor.getFormat().setGroupingUsed(false);
         port.setEditor(portEditor);
+        for(JSpinner spinner:new JSpinner[]{sshPort,sshLocalPort,sshTimeout,sshKeepAlive}){JSpinner.NumberEditor editor=new JSpinner.NumberEditor(spinner,"0");editor.getFormat().setGroupingUsed(false);spinner.setEditor(editor);}
+        sshKnownHosts.setText(SshConfig.defaultKnownHosts());sshStrictHostKey.setSelected(!sshKnownHosts.getText().isBlank());
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setMinimumSize(new Dimension(690, 470));
         setContentPane(buildContent());
@@ -93,6 +107,7 @@ public final class ConnectionDialog extends JDialog {
             populate(profile);
         }
         rememberPassword.setSelected(hadStoredPassword);
+        rememberSshPassword.setSelected(hadStoredSshPassword);
         UiLanguage.tooltip(rememberPassword, UiLanguage.key("Se cifra con DPAPI para el usuario actual de Windows; nunca se guarda en el perfil."));
         updateAuthenticationUi();
         currentEngine = (DatabaseType) type.getSelectedItem();
@@ -104,6 +119,8 @@ public final class ConnectionDialog extends JDialog {
         setVisible(true);
         return result;
     }
+
+    @Override public void dispose(){char[] databaseSecret=password.getPassword(),tunnelSecret=sshPassword.getPassword();Arrays.fill(databaseSecret,'\0');Arrays.fill(tunnelSecret,'\0');password.setText("");sshPassword.setText("");super.dispose();}
 
     private JComponent buildContent() {
         JPanel root = new JPanel(new BorderLayout(12, 12));
@@ -207,7 +224,8 @@ public final class ConnectionDialog extends JDialog {
         gc.gridy++;
         form.add(authenticationNote, gc);
 
-        root.add(form, BorderLayout.CENTER);
+        connectionTabs.addTab(tr("Base de datos"),form);JScrollPane sshScroll=new JScrollPane(sshPanel());sshScroll.setBorder(null);sshScroll.getVerticalScrollBar().setUnitIncrement(16);sshScroll.setPreferredSize(new Dimension(650,420));connectionTabs.addTab("SSH",sshScroll);
+        root.add(connectionTabs, BorderLayout.CENTER);
 
         JPanel footer = new JPanel(new BorderLayout(8, 8));
         status.setForeground(UIManager.getColor("Label.foreground"));
@@ -245,6 +263,21 @@ public final class ConnectionDialog extends JDialog {
         return root;
     }
 
+    private JComponent sshPanel(){
+        JPanel panel=new JPanel(new GridBagLayout());panel.setBorder(new EmptyBorder(10,8,10,8));GridBagConstraints gc=new GridBagConstraints();gc.insets=new Insets(5,5,5,5);gc.anchor=GridBagConstraints.WEST;gc.fill=GridBagConstraints.HORIZONTAL;gc.gridx=0;gc.gridy=0;
+        gc.gridwidth=2;gc.weightx=1;panel.add(sshEnabled,gc);gc.gridy++;gc.gridwidth=1;
+        addRow(panel,gc,"Host SSH",sshHost);addRow(panel,gc,"Puerto SSH",sshPort);addRow(panel,gc,"Usuario SSH",sshUsername);addRow(panel,gc,"Autenticación SSH",sshAuthentication);addRow(panel,gc,"Contraseña / frase de clave",sshPassword);addRow(panel,gc,"Seguridad",rememberSshPassword);
+        JPanel keyPanel=new JPanel(new BorderLayout(6,0));keyPanel.add(sshPrivateKey);JButton keyBrowse=new JButton(tr("Examinar…"));keyBrowse.addActionListener(e->browseSshFile(sshPrivateKey,tr("Selecciona la clave privada SSH")));keyPanel.add(keyBrowse,BorderLayout.EAST);addRow(panel,gc,"Clave privada",keyPanel);
+        addRow(panel,gc,"Puerto local (0 = automático)",sshLocalPort);addRow(panel,gc,"Tiempo de espera (segundos)",sshTimeout);addRow(panel,gc,"Keep-alive (segundos)",sshKeepAlive);
+        gc.gridx=1;gc.weightx=1;panel.add(sshStrictHostKey,gc);gc.gridy++;
+        JPanel knownPanel=new JPanel(new BorderLayout(6,0));knownPanel.add(sshKnownHosts);JButton knownBrowse=new JButton(tr("Examinar…"));knownBrowse.addActionListener(e->browseSshFile(sshKnownHosts,"Selecciona known_hosts"));knownPanel.add(knownBrowse,BorderLayout.EAST);addRow(panel,gc,"Archivo known_hosts",knownPanel);
+        sshSecurityNote.setText("<html>El host y puerto de la pestaña Base de datos son el destino visto desde el servidor SSH.<br>Si no verificas known_hosts, el tráfico va cifrado pero la identidad del servidor no se confirma.</html>");
+        gc.gridx=0;gc.gridwidth=2;gc.weightx=1;panel.add(sshSecurityNote,gc);gc.gridy++;gc.weighty=1;panel.add(Box.createVerticalGlue(),gc);
+        updateSshUi();return panel;
+    }
+
+    private void browseSshFile(JTextField target,String title){JFileChooser chooser=new JFileChooser();chooser.setDialogTitle(title);if(!target.getText().isBlank())chooser.setSelectedFile(new File(target.getText()));if(chooser.showOpenDialog(this)==JFileChooser.APPROVE_OPTION)target.setText(chooser.getSelectedFile().getAbsolutePath());}
+
     private void addRow(JPanel panel, GridBagConstraints gc, String label, Component component) {
         gc.gridx = 0;
         gc.weightx = 0;
@@ -272,6 +305,7 @@ public final class ConnectionDialog extends JDialog {
                 switchEngine((DatabaseType)e.getItem());
                 updateAuthenticationUi();
                 updateTlsUi();
+                updateSshUi();
                 pack();
             }
         });
@@ -279,6 +313,9 @@ public final class ConnectionDialog extends JDialog {
             if (e.getStateChange() == ItemEvent.SELECTED) updateAuthenticationUi();
         });
         rememberPassword.addActionListener(e -> updateAuthenticationUi());
+        sshEnabled.addActionListener(e->updateSshUi());
+        sshAuthentication.addActionListener(e->updateSshUi());
+        sshStrictHostKey.addActionListener(e->updateSshUi());
         tlsMode.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED && !internalChange) generateUrl();
         });
@@ -477,11 +514,13 @@ public final class ConnectionDialog extends JDialog {
             driverClass.setText(profile.driverClass());
             driverJar.setText(profile.driverJar());
             readOnly.setSelected(profile.readOnly());
+            SshConfig ssh=profile.ssh();sshEnabled.setSelected(ssh.enabled());sshHost.setText(ssh.host());sshPort.setValue(ssh.port());sshUsername.setText(ssh.username());sshAuthentication.setSelectedItem(ssh.authentication());sshPrivateKey.setText(ssh.privateKey());sshKnownHosts.setText(ssh.knownHosts());sshStrictHostKey.setSelected(ssh.strictHostKeyChecking());sshLocalPort.setValue(ssh.localPort());sshTimeout.setValue(ssh.connectTimeoutSeconds());sshKeepAlive.setValue(ssh.keepAliveSeconds());
         } finally {
             internalChange = false;
         }
         updateAuthenticationUi();
         updateTlsUi();
+        updateSshUi();
     }
 
     private static TlsMode detectTlsMode(String url) {
@@ -495,11 +534,12 @@ public final class ConnectionDialog extends JDialog {
     }
 
     private ConnectionProfile profileFromForm() {
+        SshConfig ssh=new SshConfig(sshEnabled.isEnabled()&&sshEnabled.isSelected(),sshHost.getText(),((Number)sshPort.getValue()).intValue(),sshUsername.getText(),(SshConfig.Authentication)sshAuthentication.getSelectedItem(),sshPrivateKey.getText(),sshKnownHosts.getText(),sshStrictHostKey.isSelected(),((Number)sshLocalPort.getValue()).intValue(),((Number)sshTimeout.getValue()).intValue(),((Number)sshKeepAlive.getValue()).intValue());
         if (type.getSelectedItem() == DatabaseType.SQLITE) return new ConnectionProfile(profileId, name.getText(), DatabaseType.SQLITE, "", 0,
-                database.getText(), "", DatabaseType.SQLITE.buildUrl("",0,database.getText()), driverClass.getText(), driverJar.getText(), AuthenticationMode.DATABASE, readOnly.isSelected());
+                database.getText(), "", DatabaseType.SQLITE.buildUrl("",0,database.getText()), driverClass.getText(), driverJar.getText(), AuthenticationMode.DATABASE, SshConfig.disabled(), readOnly.isSelected());
         return new ConnectionProfile(profileId, name.getText(), (DatabaseType) type.getSelectedItem(), host.getText(),
                 ((Number) port.getValue()).intValue(), database.getText(), username.getText(), jdbcUrl.getText(),
-                driverClass.getText(), driverJar.getText(), (AuthenticationMode) authentication.getSelectedItem(), readOnly.isSelected());
+                driverClass.getText(), driverJar.getText(), (AuthenticationMode) authentication.getSelectedItem(), ssh, readOnly.isSelected());
     }
 
     private boolean validateForm() {
@@ -521,6 +561,14 @@ public final class ConnectionDialog extends JDialog {
         if (jdbcUrl.getText().isBlank() || !jdbcUrl.getText().startsWith("jdbc:")) return fail(tr("La URL debe comenzar con jdbc:."), jdbcUrl);
         if (!driverJar.getText().isBlank() && !new File(driverJar.getText()).isFile()) return fail(tr("No se encontró el archivo del controlador."), driverJar);
         if (!driverJar.getText().isBlank() && driverClass.getText().isBlank()) return fail(tr("Indica la clase del controlador."), driverClass);
+        SshConfig ssh=profileFromForm().ssh();
+        if(ssh.enabled()){
+            if(ssh.host().isBlank())return fail("Escribe el host del servidor SSH.",sshHost);
+            if(ssh.username().isBlank())return fail("Escribe el usuario SSH.",sshUsername);
+            if(ssh.authentication()==SshConfig.Authentication.PASSWORD&&sshPassword.getPassword().length==0&&!(hadStoredSshPassword&&rememberSshPassword.isSelected()))return fail("Escribe la contraseña SSH o conserva la contraseña guardada.",sshPassword);
+            if(ssh.authentication()==SshConfig.Authentication.PRIVATE_KEY&&(ssh.privateKey().isBlank()||!new File(ssh.privateKey()).isFile()))return fail("Selecciona una clave privada SSH válida.",sshPrivateKey);
+            if(ssh.strictHostKeyChecking()&&(ssh.knownHosts().isBlank()||!new File(ssh.knownHosts()).isFile()))return fail("Selecciona un archivo known_hosts válido o desactiva la verificación explícitamente.",sshKnownHosts);
+        }
         return true;
     }
 
@@ -595,6 +643,16 @@ public final class ConnectionDialog extends JDialog {
                 : tr("Este motor administra la seguridad desde su propia URL o archivo local"));
     }
 
+    private void updateSshUi(){
+        DatabaseType engine=(DatabaseType)type.getSelectedItem();boolean network=engine!=null&&engine!=DatabaseType.SQLITE&&engine!=DatabaseType.H2&&engine!=DatabaseType.GENERIC;
+        sshEnabled.setEnabled(network);boolean active=network&&sshEnabled.isSelected();boolean key=sshAuthentication.getSelectedItem()==SshConfig.Authentication.PRIVATE_KEY;
+        for(Component component:new Component[]{sshHost,sshPort,sshUsername,sshAuthentication,sshPassword,rememberSshPassword,sshLocalPort,sshTimeout,sshKeepAlive,sshStrictHostKey})component.setEnabled(active);
+        sshPrivateKey.setEnabled(active&&key);sshKnownHosts.setEnabled(active&&sshStrictHostKey.isSelected());
+        rememberSshPassword.setEnabled(active&&SecretStore.isSupported());
+        sshPassword.setToolTipText(key?tr("Frase de la clave privada; puede quedar vacía si la clave no está cifrada."):tr("Contraseña del usuario SSH."));
+        if(!SecretStore.isSupported())rememberSshPassword.setSelected(false);
+    }
+
     private boolean fail(String message, JComponent component) {
         JOptionPane.showMessageDialog(this, message, tr("Revisa la conexión"), JOptionPane.WARNING_MESSAGE);
         component.requestFocusInWindow();
@@ -603,8 +661,8 @@ public final class ConnectionDialog extends JDialog {
 
     private void accept(boolean connect) {
         if (!validateForm()) return;
-        result = new Result(profileFromForm(), type.getSelectedItem() == DatabaseType.SQLITE ? new char[0] : password.getPassword(), connect,
-                SecretStore.isSupported() && password.isEnabled() && rememberPassword.isSelected());
+        result = new Result(profileFromForm(), type.getSelectedItem() == DatabaseType.SQLITE ? new char[0] : password.getPassword(),sshEnabled.isSelected()?sshPassword.getPassword():new char[0], connect,
+                SecretStore.isSupported() && password.isEnabled() && rememberPassword.isSelected(),SecretStore.isSupported()&&sshEnabled.isSelected()&&rememberSshPassword.isSelected());
         dispose();
     }
 
@@ -625,11 +683,17 @@ public final class ConnectionDialog extends JDialog {
             }
         }
         char[] testSecret = secret == null ? new char[0] : secret;
+        char[] tunnelSecret=profile.ssh().enabled()?sshPassword.getPassword():new char[0];
+        if(profile.ssh().enabled()&&tunnelSecret.length==0&&hadStoredSshPassword&&rememberSshPassword.isSelected()){
+            try{char[] stored=secretStore.load(SshConfig.secretId(profileId));tunnelSecret=stored==null?new char[0]:stored;}
+            catch(Exception error){button.setEnabled(true);status.setText("Windows no pudo recuperar la contraseña SSH protegida.");Arrays.fill(testSecret,'\0');return;}
+        }
+        char[] testTunnelSecret=tunnelSecret;
         long started = System.nanoTime();
         new SwingWorker<ConnectionCheck, Void>() {
             private java.util.List<String> availableDatabases;
             @Override protected ConnectionCheck doInBackground() throws Exception {
-                try (JdbcSession session = JdbcSession.open(profile, testSecret, value -> SwingUtilities.invokeLater(() -> {
+                try (JdbcSession session = JdbcSession.open(profile, testSecret,testTunnelSecret, value -> SwingUtilities.invokeLater(() -> {
                     driverProgress.setVisible(true);
                     driverProgress.setValue(value);
                     driverProgress.setString(value < 100 ? tr("Descargando adaptador ") + value + "%" : tr("Adaptador verificado"));
@@ -644,6 +708,7 @@ public final class ConnectionDialog extends JDialog {
                             (System.nanoTime() - started) / 1_000_000L);
                 } finally {
                     Arrays.fill(testSecret, '\0');
+                    Arrays.fill(testTunnelSecret,'\0');
                 }
             }
 

@@ -6,7 +6,7 @@ $env:PATH = "$jdkBin;$env:PATH"
 & (Join-Path $projectRoot 'build.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $testRoot = Join-Path $projectRoot 'build\test-classes'
-$mainClasspath = "$projectRoot\build\classes;$projectRoot\build\lib\flatlaf-3.7.2.jar;$projectRoot\build\lib\flatlaf-extras-3.7.2.jar;$projectRoot\build\lib\jsvg-2.1.0.jar"
+$mainClasspath = "$projectRoot\build\classes;$projectRoot\build\lib\flatlaf-3.7.2.jar;$projectRoot\build\lib\flatlaf-extras-3.7.2.jar;$projectRoot\build\lib\jsvg-2.1.0.jar;$projectRoot\build\lib\jsch-2.28.0.jar"
 if (Test-Path $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
 $tests = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -Filter '*.java' -Recurse | ForEach-Object { $_.FullName }
@@ -26,6 +26,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del formateador SQL fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del nucleo fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.JdbcSessionTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de credenciales JDBC fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.SshTunnelTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de tuneles SSH fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.debug.MysqlProcedureTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de instrumentacion de procedimientos fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.StoredObjectServiceTest

@@ -1,6 +1,6 @@
 {
-    "version":  "0.18.36",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.36-win64.zip",
-    "sha256":  "3941043c991af4d1b5305308b67dfeda671d8b0aced5ac21a8c8b6ce3f2aa664",
-    "notes":  "AdisDB 0.18.36: la impresion respeta la orientacion horizontal del reporte y crea paginas A4 apaisadas, incluida la salida de Microsoft Print to PDF."
+    "version":  "0.18.37",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.37-win64.zip",
+    "sha256":  "9ef3b477e8d3df11de61a4b8c5552ba1b5fabb563b1015ca91b8a39782bff542",
+    "notes":  "AdisDB 0.18.37: agrega conexiones por tunel SSH con contrasena o clave privada, puerto local automatico, keep-alive y credenciales protegidas por Windows."
 }

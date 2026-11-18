@@ -46,12 +46,17 @@ public final class AccountConnectionUiTest {
                     render((JComponent)dialog.getContentPane(),740,570,"connection-sqlite");
                     type.setSelectedItem(DatabaseType.ORACLE);render((JComponent)dialog.getContentPane(),740,620,"connection-oracle");
                     type.setSelectedItem(DatabaseType.H2);render((JComponent)dialog.getContentPane(),740,520,"connection-h2");
+                    type.setSelectedItem(DatabaseType.MYSQL);JCheckBox ssh=(JCheckBox)field(dialog,"sshEnabled");ssh.doClick();
+                    ((JTextField)field(dialog,"sshHost")).setText("bastion.example.com");((JTextField)field(dialog,"sshUsername")).setText("deploy");
+                    @SuppressWarnings("unchecked") JComboBox<SshConfig.Authentication> sshAuthentication=(JComboBox<SshConfig.Authentication>)field(dialog,"sshAuthentication");sshAuthentication.setSelectedItem(SshConfig.Authentication.PRIVATE_KEY);
+                    if(!((JTextField)field(dialog,"sshPrivateKey")).isEnabled()||!((JPasswordField)field(dialog,"sshPassword")).isEnabled())throw new AssertionError("SSH key controls unavailable");
+                    ((JTabbedPane)field(dialog,"connectionTabs")).setSelectedIndex(1);render((JComponent)dialog.getContentPane(),780,700,"connection-ssh");type.setSelectedItem(DatabaseType.SQLITE);if(ssh.isEnabled())throw new AssertionError("SSH must be unavailable for SQLite");
                     I18n.initialize("en");PasswordEditorPanel english=new PasswordEditorPanel();if(!english.generate.getText().equals("Generate password"))throw new AssertionError("English labels");english.close();
                 } finally {dialog.dispose();I18n.initialize("es");}
             } catch(Exception error){throw new RuntimeException(error);}
         });
         if(!GraphicsEnvironment.isHeadless() && Files.exists(Path.of("build/h2-test.jar"))) accountWindow();
-        System.out.println("AccountConnectionUiTest: OK (password generation/validation/cleanup, engine-specific fields, both themes, English)");
+        System.out.println("AccountConnectionUiTest: OK (password generation/validation/cleanup, engine-specific fields, SSH options, both themes, English)");
     }
     private static void accountWindow()throws Exception {
         ConnectionProfile profile=new ConnectionProfile("account-ui","Isolated user manager",DatabaseType.H2,"",0,"mem:account_ui","sa","jdbc:h2:mem:account_ui","org.h2.Driver",Path.of("build/h2-test.jar").toAbsolutePath().toString(),false);

@@ -10,6 +10,7 @@ import com.nexodb.db.SchemaItem;
 import com.nexodb.db.StoredObjectService;
 import com.nexodb.model.ConnectionProfile;
 import com.nexodb.model.DatabaseType;
+import com.nexodb.model.SshConfig;
 import com.nexodb.update.UpdateService;
 import com.nexodb.util.ProfileStore;
 import com.nexodb.util.SecretStore;
@@ -733,10 +734,11 @@ public final class MainFrame extends JFrame {
         if (answer == null) return;
         ConnectionProfile saved = profileStore.save(answer.profile());
         char[] secret = persistSecret(saved, answer);
+        char[] sshSecret=persistSshSecret(saved,answer);
         loadProfiles();
         selectProfile(saved.id());
-        if (answer.connect()) connect(saved, secret);
-        else Arrays.fill(secret, '\0');
+        if (answer.connect()) connect(saved,secret,sshSecret,false,false);
+        else {Arrays.fill(secret,'\0');Arrays.fill(sshSecret,'\0');}
     }
 
     private void editSelected() {
@@ -746,10 +748,11 @@ public final class MainFrame extends JFrame {
         if (answer == null) return;
         ConnectionProfile saved = profileStore.save(answer.profile());
         char[] secret = persistSecret(saved, answer);
+        char[] sshSecret=persistSshSecret(saved,answer);
         loadProfiles();
         selectProfile(saved.id());
-        if (answer.connect()) connect(saved, secret);
-        else Arrays.fill(secret, '\0');
+        if (answer.connect()) connect(saved,secret,sshSecret,false,false);
+        else {Arrays.fill(secret,'\0');Arrays.fill(sshSecret,'\0');}
     }
 
     private void deleteSelected() {
@@ -763,6 +766,7 @@ public final class MainFrame extends JFrame {
         if (answer == JOptionPane.YES_OPTION) {
             profileStore.delete(selected);
             secretStore.delete(selected.id());
+            secretStore.delete(SshConfig.secretId(selected.id()));
             loadProfiles();
         }
     }
@@ -788,27 +792,20 @@ public final class MainFrame extends JFrame {
             setStatus(new Object[]{UiLanguage.key("Conexión activa: "), profile.name()});
             return;
         }
-        if (profile.type() == DatabaseType.SQLITE) { connect(profile, new char[0]); return; }
-        if (secretStore.has(profile.id())) {
-            try {
-                char[] protectedPassword = secretStore.load(profile.id());
-                connect(profile, protectedPassword == null ? new char[0] : protectedPassword);
-                return;
-            } catch (Exception error) {
-                showError(tr("Windows no pudo recuperar la contraseña protegida"), error);
-            }
-        }
-        JPasswordField password = new JPasswordField(24);
-        JCheckBox remember = UiLanguage.text(new JCheckBox(tr("Recordar de forma segura con Windows"), true), UiLanguage.key("Recordar de forma segura con Windows"));
-        remember.setEnabled(SecretStore.isSupported());
-        remember.setSelected(SecretStore.isSupported());
-        if (!SecretStore.isSupported()) UiLanguage.text(remember, UiLanguage.key("Guardar contraseña no disponible en este sistema"));
-        JPanel panel = new JPanel(new BorderLayout(6, 6));
-        panel.add(new JLabel(tr("Contraseña para ") + profile.name() + ":"), BorderLayout.NORTH);
-        panel.add(password, BorderLayout.CENTER);
-        panel.add(remember, BorderLayout.SOUTH);
-        int answer = JOptionPane.showConfirmDialog(this, panel, tr("Conectar"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (answer == JOptionPane.OK_OPTION) connect(profile, password.getPassword(), SecretStore.isSupported() && remember.isSelected());
+        char[] databaseSecret=new char[0],sshSecret=new char[0];boolean needDatabase=profile.type()!=DatabaseType.SQLITE&&!secretStore.has(profile.id()),needSsh=profile.ssh().enabled()&&!secretStore.has(SshConfig.secretId(profile.id()));
+        try{
+            if(!needDatabase&&profile.type()!=DatabaseType.SQLITE){char[] stored=secretStore.load(profile.id());databaseSecret=stored==null?new char[0]:stored;}
+            if(!needSsh&&profile.ssh().enabled()){char[] stored=secretStore.load(SshConfig.secretId(profile.id()));sshSecret=stored==null?new char[0]:stored;}
+        }catch(Exception error){showError(tr("Windows no pudo recuperar la contraseña protegida"),error);Arrays.fill(databaseSecret,'\0');Arrays.fill(sshSecret,'\0');return;}
+        if(!needDatabase&&!needSsh){connect(profile,databaseSecret,sshSecret,false,false);return;}
+        JPanel panel=new JPanel(new GridBagLayout());GridBagConstraints g=new GridBagConstraints();g.insets=new Insets(4,4,4,4);g.fill=GridBagConstraints.HORIZONTAL;g.gridx=0;g.gridy=0;g.weightx=0;
+        JPasswordField databasePassword=new JPasswordField(24),sshPassword=new JPasswordField(24);JCheckBox rememberDatabase=new JCheckBox(tr("Recordar contraseña de base de datos"),SecretStore.isSupported()),rememberSsh=new JCheckBox("Recordar contraseña/frase SSH",SecretStore.isSupported());
+        if(needDatabase){panel.add(new JLabel(tr("Contraseña de base de datos:")),g);g.gridx=1;g.weightx=1;panel.add(databasePassword,g);g.gridx=1;g.gridy++;panel.add(rememberDatabase,g);g.gridy++;}
+        if(needSsh){g.gridx=0;g.weightx=0;panel.add(new JLabel(profile.ssh().authentication()==SshConfig.Authentication.PRIVATE_KEY?"Frase de clave SSH:":"Contraseña SSH:"),g);g.gridx=1;g.weightx=1;panel.add(sshPassword,g);g.gridy++;panel.add(rememberSsh,g);}
+        rememberDatabase.setEnabled(SecretStore.isSupported());rememberSsh.setEnabled(SecretStore.isSupported());
+        if(JOptionPane.showConfirmDialog(this,panel,tr("Conectar"),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE)!=JOptionPane.OK_OPTION){Arrays.fill(databaseSecret,'\0');Arrays.fill(sshSecret,'\0');return;}
+        if(needDatabase)databaseSecret=databasePassword.getPassword();if(needSsh)sshSecret=sshPassword.getPassword();
+        connect(profile,databaseSecret,sshSecret,needDatabase&&rememberDatabase.isSelected(),needSsh&&rememberSsh.isSelected());
     }
 
     private char[] persistSecret(ConnectionProfile profile, ConnectionDialog.Result answer) {
@@ -829,19 +826,36 @@ public final class MainFrame extends JFrame {
         return entered;
     }
 
+    private char[] persistSshSecret(ConnectionProfile profile,ConnectionDialog.Result answer){
+        char[] entered=answer.sshSecret();String id=SshConfig.secretId(profile.id());
+        try{
+            if(!profile.ssh().enabled()||!answer.rememberSshSecret()){secretStore.delete(id);return entered;}
+            if(entered.length>0||!secretStore.has(id))secretStore.save(id,entered);
+            if(entered.length==0&&secretStore.has(id)){char[] stored=secretStore.load(id);if(stored!=null)return stored;}
+        }catch(Exception error){showError("No se pudo proteger la contraseña SSH con Windows",error);}
+        return entered;
+    }
+
     private void connect(ConnectionProfile profile, char[] password) {
-        connect(profile, password, false);
+        char[] sshSecret=new char[0];try{String id=SshConfig.secretId(profile.id());if(profile.ssh().enabled()&&secretStore.has(id)){char[] stored=secretStore.load(id);if(stored!=null)sshSecret=stored;}}catch(Exception error){showError("Windows no pudo recuperar la contraseña SSH",error);}
+        connect(profile,password,sshSecret,false,false);
     }
 
     private void connect(ConnectionProfile profile, char[] password, boolean rememberAfterSuccess) {
+        char[] sshSecret=new char[0];try{String id=SshConfig.secretId(profile.id());if(profile.ssh().enabled()&&secretStore.has(id)){char[] stored=secretStore.load(id);if(stored!=null)sshSecret=stored;}}catch(Exception error){showError("Windows no pudo recuperar la contraseña SSH",error);}
+        connect(profile,password,sshSecret,rememberAfterSuccess,false);
+    }
+
+    private void connect(ConnectionProfile profile,char[] password,char[] sshSecret,boolean rememberAfterSuccess,boolean rememberSshAfterSuccess) {
         char[] savedCandidate = rememberAfterSuccess ? Arrays.copyOf(password, password.length) : new char[0];
+        char[] savedSshCandidate=rememberSshAfterSuccess?Arrays.copyOf(sshSecret,sshSecret.length):new char[0];
         setStatus(new Object[]{UiLanguage.key("Conectando a "), profile.name(), "…"});
         setBusy(true);
         connectButton.setEnabled(false);
         new SwingWorker<JdbcSession, Void>() {
             @Override protected JdbcSession doInBackground() throws Exception {
                 try {
-                    JdbcSession opened = JdbcSession.open(profile, password, value -> SwingUtilities.invokeLater(() -> {
+                    JdbcSession opened = JdbcSession.open(profile,password,sshSecret, value -> SwingUtilities.invokeLater(() -> {
                         busyBar.setIndeterminate(false);
                         busyBar.setStringPainted(true);
                         busyBar.setValue(value);
@@ -859,9 +873,9 @@ public final class MainFrame extends JFrame {
                     SwingUtilities.invokeAndWait(() -> selected[0] = DatabaseSelectionDialog.choose(
                             MainFrame.this, profile.username(), databases));
                     if (selected[0] == null) return null;
-                    return JdbcSession.open(PostgresSupport.withDatabase(profile, selected[0]), password);
+                    return JdbcSession.open(PostgresSupport.withDatabase(profile, selected[0]),password,sshSecret,null);
                 }
-                finally { Arrays.fill(password, '\0'); }
+                finally { Arrays.fill(password, '\0');Arrays.fill(sshSecret,'\0'); }
             }
 
             @Override protected void done() {
@@ -885,6 +899,7 @@ public final class MainFrame extends JFrame {
                                     tr("Contraseña no guardada"), JOptionPane.WARNING_MESSAGE);
                         }
                     }
+                    if(rememberSshAfterSuccess){try{secretStore.save(SshConfig.secretId(profile.id()),savedSshCandidate);}catch(Exception error){JOptionPane.showMessageDialog(MainFrame.this,"La conexión se abrió, pero Windows no pudo proteger la contraseña SSH.\n"+rootCause(error).getMessage(),"Contraseña SSH no guardada",JOptionPane.WARNING_MESSAGE);}}
                     activateSession(next);
                     setStatus(new Object[]{UiLanguage.key("Conectado a "), next.connection().getMetaData().getDatabaseProductName()});
                     refreshConnectionObjects(next);
@@ -893,6 +908,7 @@ public final class MainFrame extends JFrame {
                     setStatus(new Object[]{UiLanguage.key("Error de conexión")});
                 } finally {
                     Arrays.fill(savedCandidate, '\0');
+                    Arrays.fill(savedSshCandidate,'\0');
                     busyBar.setIndeterminate(true);
                     busyBar.setStringPainted(false);
                     busyBar.setValue(0);

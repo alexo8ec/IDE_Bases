@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: la impresion respeta la orientacion horizontal del reporte y crea paginas A4 apaisadas, incluida la salida de Microsoft Print to PDF."
+    notes = "AdisDB ${version}: agrega conexiones por tunel SSH con contrasena o clave privada, puerto local automatico, keep-alive y credenciales protegidas por Windows."
 }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path $distRoot 'update-manifest.json'),($manifest | ConvertTo-Json),$utf8NoBom)

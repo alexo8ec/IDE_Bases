@@ -39,7 +39,8 @@ if (-not (Test-Path -LiteralPath $flatLafSource)) {
 }
 $flatLafExtrasSource = Join-Path $projectRoot 'third-party\flatlaf-extras-3.7.2\flatlaf-extras-3.7.2.jar'
 $jsvgSource = Join-Path $projectRoot 'third-party\jsvg-2.1.0\jsvg-2.1.0.jar'
-if (-not (Test-Path -LiteralPath $flatLafExtrasSource) -or -not (Test-Path -LiteralPath $jsvgSource)) {
+$jschSource = Join-Path $projectRoot 'third-party\jsch-2.28.0\jsch-2.28.0.jar'
+if (-not (Test-Path -LiteralPath $flatLafExtrasSource) -or -not (Test-Path -LiteralPath $jsvgSource) -or -not (Test-Path -LiteralPath $jschSource)) {
     throw 'Faltan las librerias para renderizar los logotipos SVG.'
 }
 New-Item -ItemType Directory -Path $bundledDriversRoot -Force | Out-Null
@@ -50,6 +51,7 @@ Copy-Item -LiteralPath $mariaDbWindowsDriverSource -Destination (Join-Path $bund
 Copy-Item -LiteralPath $flatLafSource -Destination (Join-Path $bundledLibrariesRoot 'flatlaf-3.7.2.jar') -Force
 Copy-Item -LiteralPath $flatLafExtrasSource -Destination (Join-Path $bundledLibrariesRoot 'flatlaf-extras-3.7.2.jar') -Force
 Copy-Item -LiteralPath $jsvgSource -Destination (Join-Path $bundledLibrariesRoot 'jsvg-2.1.0.jar') -Force
+Copy-Item -LiteralPath $jschSource -Destination (Join-Path $bundledLibrariesRoot 'jsch-2.28.0.jar') -Force
 foreach ($windowsAuthSource in $windowsAuthSources) {
     Copy-Item -LiteralPath $windowsAuthSource -Destination (Join-Path $bundledLibrariesRoot (Split-Path -Leaf $windowsAuthSource)) -Force
 }
@@ -59,7 +61,7 @@ if (-not $sources) {
     throw 'No se encontraron archivos Java.'
 }
 
-$compileClasspath = "$flatLafSource;$flatLafExtrasSource;$jsvgSource"
+$compileClasspath = "$flatLafSource;$flatLafExtrasSource;$jsvgSource;$jschSource"
 & javac --release 17 -encoding UTF-8 -cp $compileClasspath -d $classesRoot $sources
 if ($LASTEXITCODE -ne 0) { throw 'La compilacion fallo.' }
 
@@ -71,7 +73,7 @@ $manifestPath = Join-Path $buildRoot 'MANIFEST.MF'
 @(
     'Manifest-Version: 1.0'
     'Main-Class: com.nexodb.App'
-    'Class-Path: lib/flatlaf-3.7.2.jar lib/flatlaf-extras-3.7.2.jar lib/jsvg-2.1.0.jar lib/waffle-jna-3.6.0.jar lib/jna-5.18.1.jar lib/jna-platform-5.18.1.jar lib/slf4j-api-2.0.17.jar lib/caffeine-3.2.3.jar lib/checker-qual-3.53.1.jar'
+    'Class-Path: lib/flatlaf-3.7.2.jar lib/flatlaf-extras-3.7.2.jar lib/jsvg-2.1.0.jar lib/jsch-2.28.0.jar lib/waffle-jna-3.6.0.jar lib/jna-5.18.1.jar lib/jna-platform-5.18.1.jar lib/slf4j-api-2.0.17.jar lib/caffeine-3.2.3.jar lib/checker-qual-3.53.1.jar'
     ''
 ) | Set-Content -LiteralPath $manifestPath -Encoding ascii
 

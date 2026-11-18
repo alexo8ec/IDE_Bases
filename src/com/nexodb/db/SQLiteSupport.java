@@ -53,6 +53,6 @@ public final class SQLiteSupport {
         }
         String canonical = "jdbc:sqlite:" + file.toUri().toASCIIString() + (profile.readOnly() ? "?mode=ro" : "?mode=rw");
         return new ConnectionProfile(profile.id(), profile.name(), DatabaseType.SQLITE, "", 0, file.toString(), "", canonical,
-                profile.driverClass(), profile.driverJar(), AuthenticationMode.DATABASE, profile.readOnly());
+                profile.driverClass(), profile.driverJar(), AuthenticationMode.DATABASE, profile.ssh(), profile.readOnly());
     }
 }
