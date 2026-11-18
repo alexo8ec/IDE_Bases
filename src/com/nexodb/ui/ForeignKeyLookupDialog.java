@@ -27,7 +27,7 @@ final class ForeignKeyLookupDialog extends JDialog {
     private QueryResult result;
     private Map<Integer,Object> selection;
     private SwingWorker<ForeignKeyLookup.Page,Void> worker;
-    private boolean initializing;
+    private boolean initializing,initialLoad=true;
     ForeignKeyLookupDialog(Window owner,JdbcSession session,ForeignKeyLookup.Reference reference,List<Object> child,int clicked,boolean writable){
         super(owner,tr("Registro relacionado")+" · "+reference.parentTable(),ModalityType.APPLICATION_MODAL);
         this.session=session;this.reference=reference;this.child=new ArrayList<>(child);this.clicked=clicked;this.writable=writable&&reference.complete();
@@ -51,10 +51,10 @@ final class ForeignKeyLookupDialog extends JDialog {
     private void load(){
         if(worker!=null)return;
         try{size.commitEdit();offset.commitEdit();}catch(java.text.ParseException invalid){status.setText(tr("Límite o posición no válidos."));return;}
-        String text=search.getText(),field=column.getSelectedIndex()<=0?"":Objects.toString(column.getSelectedItem(),"");boolean match=others.isSelected();int first=limit.isSelected()?((Number)offset.getValue()).intValue():0,maximum=limit.isSelected()?((Number)size.getValue()).intValue():0;
+        String text=search.getText(),field=column.getSelectedIndex()<=0?"":Objects.toString(column.getSelectedItem(),"");boolean match=others.isSelected(),exactOnly=initialLoad&&!text.isBlank();initialLoad=false;int first=limit.isSelected()?((Number)offset.getValue()).intValue():0,maximum=limit.isSelected()?((Number)size.getValue()).intValue():0;
         find.setEnabled(false);select.setEnabled(false);next.setEnabled(false);previous.setEnabled(false);size.setEnabled(false);offset.setEnabled(false);limit.setEnabled(false);column.setEnabled(false);others.setEnabled(false);status.setText(tr("Leyendo tabla referenciada…"));
         worker=new SwingWorker<>(){
-            protected ForeignKeyLookup.Page doInBackground()throws Exception{return ForeignKeyLookup.search(session.connection(),session.profile().type(),reference,child,clicked,text,field,match,first,maximum);}
+            protected ForeignKeyLookup.Page doInBackground()throws Exception{return ForeignKeyLookup.search(session.connection(),session.profile().type(),reference,child,clicked,text,field,match,first,maximum,exactOnly);}
             protected void done(){
                 worker=null;if(!isDisplayable())return;
                 try{ForeignKeyLookup.Page page=get();result=page.result();rows.setDataVector(result.rows().stream().map(List::toArray).toArray(Object[][]::new),result.columns().toArray());

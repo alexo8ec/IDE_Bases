@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.38**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.39**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Inserción visual, relaciones directas y actividad fluida — 0.18.39
+
+- Los resultados editables muestran siempre una última fila de inserción, incluso cuando la consulta no devuelve registros. También se incorporó un botón **Nueva fila** visible; la fila auxiliar no cuenta como dato ni se copia o exporta.
+- Las columnas `AUTO_INCREMENT` se muestran como `(AUTO)`, no admiten escritura manual y se omiten del `INSERT`, de modo que el servidor genera identificadores únicos. Las tablas nuevas crean su `id` autonumérico de forma predeterminada cuando el motor lo admite.
+- Los `ENUM` de MySQL/MariaDB se editan mediante una lista desplegable con sus valores reales y la opción de conservar el valor predeterminado.
+- Las claves foráneas abren directamente la vista de la tabla relacionada: con valor muestran únicamente la coincidencia exacta; con `NULL` o vacío muestran los registros disponibles para consultar o seleccionar.
+- Las barras de actividad de consultas y operaciones generales usan animación basada en tiempo para mantener un movimiento continuo. MySQL reutiliza además sentencias preparadas y estado de sesión para reducir trabajo repetido.
 
 ## Actualización real de datos en Reportería — 0.18.38
 

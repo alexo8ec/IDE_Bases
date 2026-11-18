@@ -56,6 +56,9 @@ public final class ForeignKeyLookup {
         }
     }
     public static Page search(Connection connection,DatabaseType type,Reference reference,List<Object> row,int clicked,String text,String searchColumn,boolean matchOthers,int offset,int limit)throws SQLException {
+        return search(connection,type,reference,row,clicked,text,searchColumn,matchOthers,offset,limit,false);
+    }
+    public static Page search(Connection connection,DatabaseType type,Reference reference,List<Object> row,int clicked,String text,String searchColumn,boolean matchOthers,int offset,int limit,boolean exactOnly)throws SQLException {
         synchronized(connection){
             if(offset<0||limit<0||limit>10000)throw new IllegalArgumentException(tr("Límite o posición no válidos."));
             List<Column> columns=columns(connection,reference);String quote=connection.getMetaData().getIdentifierQuoteString().trim();
@@ -65,7 +68,7 @@ public final class ForeignKeyLookup {
             if(!input.isEmpty()){
                 Column key=columns.stream().filter(c->c.name().equals(clickedPart.referenced())).findFirst().orElseThrow(()->new SQLException(tr("La columna referenciada ya no existe.")));
                 Object value=exactValue(input,key.type());
-                if(value!=null){List<Parameter> params=new ArrayList<>();List<String> terms=otherTerms(reference,row,clicked,matchOthers,columns,quote,params);terms.add(VisualQuery.quote(key.name(),quote)+" = ?");params.add(new Parameter(value,key.type()));QueryResult exact=read(connection,type,reference,terms,params,quote,offset,limit);if(!exact.rows().isEmpty())return new Page(exact,offset,true);}
+                if(value!=null){List<Parameter> params=new ArrayList<>();List<String> terms=otherTerms(reference,row,clicked,matchOthers,columns,quote,params);terms.add(VisualQuery.quote(key.name(),quote)+" = ?");params.add(new Parameter(value,key.type()));QueryResult exact=read(connection,type,reference,terms,params,quote,offset,limit);if(exactOnly||!exact.rows().isEmpty())return new Page(exact,offset,true);}
             }
             List<Parameter> params=new ArrayList<>();List<String> terms=otherTerms(reference,row,clicked,matchOthers,columns,quote,params);
             if(!input.isEmpty()){

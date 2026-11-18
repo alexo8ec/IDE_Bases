@@ -61,7 +61,7 @@ public final class MainFrame extends JFrame {
     private final CardLayout objectCards = new CardLayout();
     private final JPanel objectCenter = new JPanel(objectCards);
     private final JLabel status = UiLanguage.text(new JLabel(tr("Listo")), UiLanguage.key("Listo"));
-    private final JProgressBar busyBar = new JProgressBar();
+    private final JProgressBar busyBar = new SmoothProgressBar();
     private final QueryPanel queryPanel = new QueryPanel(this::setStatus, this::setBusy);
     private final JTabbedPane workspaceTabs = new JTabbedPane();
     private final JButton connectButton = UiLanguage.text(new JButton(tr("Conectar")), UiLanguage.key("Conectar"));

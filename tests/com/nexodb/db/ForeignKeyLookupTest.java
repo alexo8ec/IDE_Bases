@@ -18,6 +18,7 @@ public final class ForeignKeyLookupTest {
             QueryResult result=s.execute("SELECT id,client FROM sales ORDER BY id",100);List<ForeignKeyLookup.Reference> refs=ForeignKeyLookup.describe(s.connection(),result);equal(1,refs.size());var ref=refs.get(0);equal("CUSTOMERS",ref.parentTable());equal(1,ref.parts().get(0).column());
             s.setReadOnly(true);var exact=ForeignKeyLookup.search(s.connection(),DatabaseType.H2,ref,result.rows().get(0),1,"0951561075","",true,0,25);equal(true,exact.exact());equal(1,exact.result().rows().size());equal("Cliente original",exact.result().rows().get(0).get(1));equal(true,s.getReadOnly());
             var fuzzy=ForeignKeyLookup.search(s.connection(),DatabaseType.H2,ref,result.rows().get(0),1,"nuevo","",true,0,25);equal(false,fuzzy.exact());equal("1308434412",fuzzy.result().rows().get(0).get(0));
+            var strict=ForeignKeyLookup.search(s.connection(),DatabaseType.H2,ref,result.rows().get(0),1,"Cliente","",true,0,25,true);equal(true,strict.exact());equal(0,strict.result().rows().size());
             equal(1,ForeignKeyLookup.search(s.connection(),DatabaseType.H2,ref,result.rows().get(0),1,"%_!","",true,0,25).result().rows().size());
             equal(0,ForeignKeyLookup.search(s.connection(),DatabaseType.H2,ref,result.rows().get(0),1,"x' OR 1=1 --","",true,0,25).result().rows().size());
             equal(2,ForeignKeyLookup.search(s.connection(),DatabaseType.H2,ref,result.rows().get(1),1,"","",true,0,25).result().rows().size());

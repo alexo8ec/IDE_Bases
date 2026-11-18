@@ -77,7 +77,7 @@ public final class QueryPanel extends JPanel {
     private final JButton report = UiLanguage.text(new JButton(),UiLanguage.key("Reporte…"));
     private final JLabel state = UiLanguage.text(new JLabel(tr("Sin conexión")), UiLanguage.key("Sin conexión"));
     private final JComboBox<String> database = new JComboBox<>();
-    private final JProgressBar progress = new JProgressBar();
+    private final JProgressBar progress = new SmoothProgressBar();
     private final JPopupMenu completionPopup = new JPopupMenu();
     private final DefaultListModel<String> completionModel = new DefaultListModel<>();
     private final JList<String> completionList = new JList<>(completionModel);

@@ -67,7 +67,7 @@ final class ResultGridActions {
         return Arrays.stream(table.getSelectedRows()).map(table::convertRowIndexToModel).boxed().toList();
     }
     List<Integer> selectedColumns(){return Arrays.stream(table.getSelectedColumns()).map(table::convertColumnIndexToModel).boxed().toList();}
-    private List<Integer> visibleRows(){List<Integer> values=new ArrayList<>();for(int i=0;i<table.getRowCount();i++)values.add(table.convertRowIndexToModel(i));return values;}
+    private List<Integer> visibleRows(){List<Integer> values=new ArrayList<>();for(int i=0;i<table.getRowCount();i++){int row=table.convertRowIndexToModel(i);if(!model.isAppendRow(row))values.add(row);}return values;}
     private void listenSorter(){if(table.getRowSorter()!=null)table.getRowSorter().addRowSorterListener(event->{rows.fireTableDataChanged();changed.run();if(!checked.isEmpty())SwingUtilities.invokeLater(()->{if(!checked.isEmpty())selectMarkedRows();});});}
     private void selectMarkedRows(){
         var selection=table.getSelectionModel();selection.setValueIsAdjusting(true);
@@ -101,9 +101,9 @@ final class ResultGridActions {
         scroll.setRowHeaderView(header);scroll.setCorner(JScrollPane.UPPER_LEFT_CORNER,all);
     }
     private final class RowHeader extends AbstractTableModel {
-        public int getRowCount(){return table==null?0:table.getRowCount();}public int getColumnCount(){return 2;}
+        public int getRowCount(){if(table==null)return 0;RowSorter<?> sorter=table.getRowSorter();return sorter==null?table.getRowCount():Math.min(table.getRowCount(),sorter.getViewRowCount());}public int getColumnCount(){return 2;}
         public Class<?> getColumnClass(int column){return column==0?Boolean.class:String.class;}
-        public Object getValueAt(int row,int column){int index=table.convertRowIndexToModel(row);return column==0?checked.contains(index):(model.isNewRow(index)?"*":"")+Integer.toString(index+1);}
+        public Object getValueAt(int row,int column){try{int index=table.convertRowIndexToModel(row);return column==0?checked.contains(index):(model.isNewRow(index)?"*":"")+Integer.toString(index+1);}catch(RuntimeException transientSort){return column==0?Boolean.FALSE:"";}}
         public boolean isCellEditable(int row,int column){return column==0;}
         public void setValueAt(Object value,int row,int column){int index=table.convertRowIndexToModel(row);if(Boolean.TRUE.equals(value))checked.add(index);else checked.remove(index);selectMarkedRows();fireTableCellUpdated(row,column);changed.run();}
     }

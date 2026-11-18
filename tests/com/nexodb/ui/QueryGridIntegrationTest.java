@@ -26,6 +26,7 @@ public final class QueryGridIntegrationTest {
         equal(true,ResultGridActions.matches(15,numeric));equal(false,ResultGridActions.matches(25,numeric));
         var textFilter=new ResultGridActions.Filter(new ResultGridActions.Condition(ResultGridActions.Operator.STARTS_WITH,"car"),ResultGridActions.Junction.OR,new ResultGridActions.Condition(ResultGridActions.Operator.IS_NULL,null),false);
         equal(true,ResultGridActions.matches("Carol",textFilter));equal(true,ResultGridActions.matches(null,textFilter));equal(false,ResultGridActions.matches("Alice",textFilter));
+        equal(List.of("PENDIENTE","EN_REVISION","O'HARE"),QueryResultPanel.enumChoices("enum('PENDIENTE','EN_REVISION','O''HARE')"));equal(List.of(),QueryResultPanel.enumChoices("varchar(20)"));
         ResultTableModel copied=new ResultTableModel();copied.setResult(new QueryResult(List.of("id","text","note"),List.of(Arrays.asList(1,"a\t\"b\n",null)),-1,0,false));
         equal("1\t\"a\t\"\"b\n\"\t(NULL)",ResultGridActions.text(copied,List.of(0),List.of(0,1,2)));
         Path driver=Path.of(System.getProperty("nexodb.test.h2Jar","build/h2-test.jar")).toAbsolutePath();
@@ -44,7 +45,7 @@ public final class QueryGridIntegrationTest {
                 JFrame window=new JFrame();frame.set(window);window.setContentPane(panel);window.setSize(1100,420);window.setVisible(true);window.validate();
                 Rectangle cell=table.getCellRect(0,1,true);table.dispatchEvent(new MouseEvent(table,MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,cell.x+12,cell.y+12,2,false,MouseEvent.BUTTON1));
                 equal(false,table.isEditing());table.changeSelection(0,1,false,false);Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection("No debe pegar"),null);table.getActionMap().get("paste-grid").actionPerformed(new ActionEvent(table,ActionEvent.ACTION_PERFORMED,"paste"));equal("Alice",model.getValueAt(0,1));
-                button(panel,"query-edit").doClick();table.dispatchEvent(new MouseEvent(table,MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,cell.x+12,cell.y+12,2,false,MouseEvent.BUTTON1));
+                button(panel,"query-edit").doClick();equal(4,model.getRowCount());equal(true,model.isAppendRow(3));equal(true,button(panel,"query-add-row").isEnabled());table.dispatchEvent(new MouseEvent(table,MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,cell.x+12,cell.y+12,2,false,MouseEvent.BUTTON1));
                 equal(true,table.isEditing());equal(true,button(panel,"query-edit").isSelected());((JTextField)table.getEditorComponent()).setText("Alice changed");table.getCellEditor().stopCellEditing();
                 equal(1,model.changeCount());equal(1,model.changes().get(0).values().size());
                 table.changeSelection(0,2,false,false);Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection("Nota pegada"),null);table.getActionMap().get("paste-grid").actionPerformed(new ActionEvent(table,ActionEvent.ACTION_PERFORMED,"paste"));equal("Nota pegada",model.getValueAt(0,2));equal(2,model.changeCount());
@@ -79,7 +80,7 @@ public final class QueryGridIntegrationTest {
             await(()->!busy.get());equal(3,session.execute("SELECT * FROM people",10).rows().size());
             SwingUtilities.invokeAndWait(()->{
                 JTable table=field(panel,"table",JTable.class);ResultTableModel model=field(panel,"model",ResultTableModel.class);
-                JTextField filter=field(panel,"filter",JTextField.class);filter.setText("Carol");equal(1,table.getRowCount());
+                JTextField filter=field(panel,"filter",JTextField.class);filter.setText("Carol");equal(2,table.getRowCount());
                 JTable rows=find(panel,"query-row-selector",JTable.class);rows.setValueAt(true,0,0);
                 for(int column=0;column<table.getColumnCount();column++)equal(true,table.isCellSelected(0,column));
                 snapshot(panel,"query-grid-checked-row.png");
@@ -96,7 +97,7 @@ public final class QueryGridIntegrationTest {
                 // Header click selects the entire column without changing sort order.
                 List<? extends RowSorter.SortKey> order=table.getRowSorter().getSortKeys();
                 table.getTableHeader().dispatchEvent(new MouseEvent(table.getTableHeader(),MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,10,10,1,false,MouseEvent.BUTTON1));
-                equal(3,table.getSelectedRowCount());equal(1,table.getSelectedColumnCount());equal(order,table.getRowSorter().getSortKeys());
+                equal(4,table.getSelectedRowCount());equal(1,table.getSelectedColumnCount());equal(order,table.getRowSorter().getSortKeys());
                 Rectangle heading=table.getTableHeader().getHeaderRect(0);table.getTableHeader().dispatchEvent(new MouseEvent(table.getTableHeader(),MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,heading.x+heading.width-5,heading.y+10,1,false,MouseEvent.BUTTON1));
                 equal(true,MenuSelectionManager.defaultManager().getSelectedPath().length>0);MenuSelectionManager.defaultManager().clearSelectedPath();
                 table.changeSelection(0,0,false,false);
@@ -104,7 +105,7 @@ public final class QueryGridIntegrationTest {
                 equal(true,menuItem(menu,"Insertar nueva fila").isEnabled());equal(true,menuItem(menu,"Eliminar filas seleccionadas").isEnabled());equal(false,menuItem(menu,"Guardar cambios").isEnabled());
                 snapshot(menuImage(menu),"query-grid-menu.png");
                 for(Component item:menu.getComponents())if(item instanceof JMenuItem entry&&entry.getText().equals("Filtrar por este valor"))entry.doClick();
-                equal(1,table.getRowCount());equal("two",table.getValueAt(0,0));
+                equal(2,table.getRowCount());equal("two",table.getValueAt(0,0));
                 AtomicReference<String> structureColumn=new AtomicReference<>();panel.setColumnEditor((origin,target,column,delete)->{equal(session,origin);equal("PEOPLE",target.table().name());equal(true,delete);structureColumn.set(column);});
                 JPopupMenu structure=invoke(actions,"menu",new Class[]{boolean.class},true);
                 for(Component item:structure.getComponents())if(item instanceof JMenuItem entry&&entry.getText().equals("Eliminar columna de la tabla…"))entry.doClick();

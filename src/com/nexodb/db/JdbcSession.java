@@ -241,6 +241,11 @@ public final class JdbcSession implements AutoCloseable {
             props.setProperty("useInformationSchema", "true");
             props.setProperty("useCursorFetch", "true");
             props.setProperty("cacheResultSetMetadata", "true");
+            props.setProperty("cachePrepStmts", "true");
+            props.setProperty("prepStmtCacheSize", "250");
+            props.setProperty("prepStmtCacheSqlLimit", "2048");
+            props.setProperty("useLocalSessionState", "true");
+            props.setProperty("elideSetAutoCommits", "true");
             props.setProperty("maintainTimeStats", "false");
         }
         if (profile.authenticationMode() == AuthenticationMode.DATABASE) {

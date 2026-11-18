@@ -8,8 +8,9 @@ import static com.nexodb.util.I18n.tr;
 
 /** Resolves actual JDBC column origins and updates one identified row with optimistic locking. */
 public final class QueryEditSupport {
-    public record Column(String name, int type, boolean writable, String sourceName) {
-        public Column(String name,int type,boolean writable){this(name,type,writable,name);}
+    public record Column(String name, int type, boolean writable, String sourceName, boolean autoIncrement) {
+        public Column(String name,int type,boolean writable){this(name,type,writable,name,false);}
+        public Column(String name,int type,boolean writable,String sourceName){this(name,type,writable,sourceName,false);}
     }
     public record Target(String qualifiedTable, List<Column> columns, List<Integer> keys, SchemaItem table, DatabaseType type) {
         public Target { columns=List.copyOf(columns); keys=List.copyOf(keys); }
@@ -108,7 +109,8 @@ public final class QueryEditSupport {
                     && namespaceMatches(origin.schema(),clean(result.getSchemaName(i)));
             String real=actual.get(source);boolean writable=belongs&&real!=null&&!generated.contains(real)&&supported(jdbcType);
             if(belongs&&real!=null&&indexes.put(real,i-1)!=null)return null;
-            columns.add(new Column(quoted(real==null?source:real,quote),jdbcType,writable,real==null?source:real));
+            boolean autoIncrement=false;try{autoIncrement=belongs&&result.isAutoIncrement(i);}catch(SQLException|AbstractMethodError ignored){}
+            columns.add(new Column(quoted(real==null?source:real,quote),jdbcType,writable,real==null?source:real,autoIncrement));
         }
         if(shape.primary().isEmpty())return null;
         List<Integer> keys=new ArrayList<>();
@@ -218,7 +220,7 @@ public final class QueryEditSupport {
         }
     }
     private static void insertRow(Connection connection,Target target,RowChange row)throws SQLException {
-        List<Integer> columns=row.values().keySet().stream().filter(index->row.values().get(index)!=DefaultValue.INSTANCE).toList();
+        List<Integer> columns=row.values().keySet().stream().filter(index->row.values().get(index)!=DefaultValue.INSTANCE&&!target.columns().get(index).autoIncrement()).toList();
         StringBuilder sql=new StringBuilder("INSERT INTO ").append(target.qualifiedTable());
         if(columns.isEmpty()) {
             if(target.type()==DatabaseType.MYSQL||target.type()==DatabaseType.MARIADB)sql.append(" () VALUES ()");

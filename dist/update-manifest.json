@@ -1,6 +1,6 @@
 {
-    "version":  "0.18.38",
-    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.38-win64.zip",
-    "sha256":  "32f30b9a99d4d665ea7bb89e13baa45d5d10e439e9fd63e873a4c7ef4d1eb85f",
-    "notes":  "AdisDB 0.18.38: el boton Actualizar datos de Reporteria vuelve a ejecutar solamente la consulta de origen y regenera la vista previa conservando el diseno."
+  "version": "0.18.39",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.39-win64.zip",
+  "sha256": "f8fb8e8bec5570f98005443aaa917bb1e5e626ddb0c29ea63681cfa749b1b342",
+  "notes": "AdisDB 0.18.39: fila final para insertar incluso sin datos, AUTO_INCREMENT seguro, selector ENUM, relaciones directas y barras de actividad fluidas."
 }

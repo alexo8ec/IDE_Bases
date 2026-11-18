@@ -9,6 +9,7 @@ import java.awt.font.TextAttribute;
 import java.util.EventObject;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -31,6 +32,7 @@ final class QueryResultPanel extends JPanel {
     private java.util.function.IntSupplier rowLimit;
     private java.util.function.BiPredicate<String,String> confirm=(title,text)->Confirmations.ask(this,title,text);
     private final JButton save = UiLanguage.text(new JButton(),UiLanguage.key("Guardar"));
+    private final JButton addRow = UiLanguage.text(new JButton(),UiLanguage.key("Nueva fila"));
     private final JButton discard = UiLanguage.text(new JButton(),UiLanguage.key("Descartar"));
     private final JButton setNull = new JButton("NULL");
     private final JButton reload = UiLanguage.text(new JButton(),UiLanguage.key("Recargar"));
@@ -54,6 +56,7 @@ final class QueryResultPanel extends JPanel {
     private List<ForeignKeyLookup.Reference> references=List.of();
     private final JButton referenceButton=UiLanguage.button("Ver referencia");
     private int referenceGeneration;
+    private int enumGeneration;
     private int activeModelRow=-1;
     private final Set<Integer> autoSaveRows=new LinkedHashSet<>();
     private boolean autoSaveScheduled;
@@ -84,11 +87,12 @@ final class QueryResultPanel extends JPanel {
         table.setDefaultRenderer(Object.class,new CellRenderer());
         JToolBar toolbar=new JToolBar();toolbar.setFloatable(false);
         button(edit,"query-edit",IconFactory.Kind.EDIT,"Editar resultados");
+        button(addRow,"query-add-row",IconFactory.Kind.ADD,"Agregar una fila nueva");
         button(save,"query-save",IconFactory.Kind.SAVE,"Guardar cambios");
         button(discard,"query-discard",IconFactory.Kind.CANCEL,"Descartar cambios");
         button(setNull,"query-null",IconFactory.Kind.DELETE,"Establecer NULL");
         button(reload,"query-reload",IconFactory.Kind.REFRESH,"Recargar consulta");
-        mode.setName("query-result-mode");UiLanguage.choices(mode);mode.setMaximumSize(new Dimension(180,28));toolbar.add(mode);toolbar.add(edit);toolbar.add(save);toolbar.add(discard);toolbar.add(setNull);toolbar.addSeparator();toolbar.add(reload);toolbar.addSeparator();
+        mode.setName("query-result-mode");UiLanguage.choices(mode);mode.setMaximumSize(new Dimension(180,28));toolbar.add(mode);toolbar.add(edit);toolbar.add(addRow);toolbar.add(save);toolbar.add(discard);toolbar.add(setNull);toolbar.addSeparator();toolbar.add(reload);toolbar.addSeparator();
         mode.addActionListener(e->{if(!updatingMode)selectMode();});
         JButton actions=new JButton("▾");actions.setName("query-actions");UiLanguage.tooltip(actions,UiLanguage.key("Acciones del resultado"));toolbar.add(actions);
         toolbar.add(new JLabel(IconFactory.of(IconFactory.Kind.SEARCH,15)));
@@ -100,7 +104,7 @@ final class QueryResultPanel extends JPanel {
         previous.setMargin(new Insets(2,7,2,7));next.setMargin(new Insets(2,7,2,7));UiLanguage.tooltip(previous,UiLanguage.key("Página anterior"));UiLanguage.tooltip(next,UiLanguage.key("Página siguiente"));
         changingPageSize=true;String initialSize=""+pageSize;if(!java.util.Set.of("100","500","1000").contains(initialSize))pageSizeChoice.insertItemAt(initialSize,0);pageSizeChoice.setSelectedItem(initialSize);changingPageSize=false;
         UiLanguage.tooltip(pageSizeChoice,UiLanguage.key("Cambiar de página vuelve a ejecutar el SELECT. Usa ORDER BY para mantener un orden estable. Los filtros y el orden de la cuadrícula se aplican a la página cargada."));
-        previous.addActionListener(e->loadPage(Math.max(0,pageOffset-pageSize),pageSize));next.addActionListener(e->loadPage(pageOffset+model.getRowCount(),pageSize));
+        previous.addActionListener(e->loadPage(Math.max(0,pageOffset-pageSize),pageSize));next.addActionListener(e->loadPage(pageOffset+model.dataRowCount(),pageSize));
         pageSizeChoice.addActionListener(e->{if(changingPageSize||!pageable)return;String choice=(String)pageSizeChoice.getSelectedItem();int size=pageSize;
             try{if("Personalizado…".equals(choice)){String value=JOptionPane.showInputDialog(this,tr("Filas por página (1 a 10000):"),pageSize);if(value==null){restorePageChoice();return;}size=Integer.parseInt(value.trim());}else size=Integer.parseInt(choice);if(size<1||size>10000)throw new NumberFormatException();loadPage(0,size);}catch(NumberFormatException error){JOptionPane.showMessageDialog(this,tr("El tamaño de página debe estar entre 1 y 10.000 filas."));restorePageChoice();}});
         JScrollPane scroll=new JScrollPane(table);
@@ -115,6 +119,7 @@ final class QueryResultPanel extends JPanel {
         add(toolbar,BorderLayout.NORTH);add(scroll,BorderLayout.CENTER);add(footer,BorderLayout.SOUTH);
         setHint(result);
         edit.addActionListener(event->toggle());save.addActionListener(event->save());
+        addRow.addActionListener(event->insertRow(false));
         discard.addActionListener(event->requestDiscard());
         reload.addActionListener(event->reload());
         setNull.addActionListener(event->setSelectionValue(null));
@@ -140,6 +145,7 @@ final class QueryResultPanel extends JPanel {
             for(QueryEditSupport.Target item:editTargets)mode.addItem(editTargets.size()==1?"Editar datos · "+item.qualifiedTable():item.qualifiedTable());
             mode.setMaximumSize(new Dimension(editTargets.size()>1?260:210,28));mode.setSelectedIndex(0);
         }finally{updatingMode=false;}
+        loadEnumEditors();
     }
     private void selectMode(){
         int index=mode.getSelectedIndex();
@@ -183,9 +189,9 @@ final class QueryResultPanel extends JPanel {
         else UiLanguage.text(status,UiLanguage.key("Selecciona una tabla para editar. Al pasar a otra fila se guarda la fila anterior; Guardar aplica los demás cambios pendientes."));
     }
     private void updateCount(){
-        UiLanguage.text(count,UiLanguage.key("Filas: "),table.getRowCount(),UiLanguage.key(" · Marcadas: "),grid==null?0:grid.checkedCount(),UiLanguage.key(" · Cambios: "),model.changeCount());
+        UiLanguage.text(count,UiLanguage.key("Filas: "),model.dataRowCount(),UiLanguage.key(" · Marcadas: "),grid==null?0:grid.checkedCount(),UiLanguage.key(" · Cambios: "),model.changeCount());
         UiLanguage.text(elapsed,UiLanguage.key("Tiempo de consulta: "),model.definition().elapsedMillis()," ms");
-        pageLabel.setText((model.getRowCount()==0?0:pageOffset+1)+"–"+(pageOffset+model.getRowCount())+(model.definition().truncated()?" · +":""));
+        pageLabel.setText((model.dataRowCount()==0?0:pageOffset+1)+"–"+(pageOffset+model.dataRowCount())+(model.definition().truncated()?" · +":""));
         previous.setEnabled(available&&!saving&&pageable&&pageOffset>0);next.setEnabled(available&&!saving&&pageable&&model.definition().truncated());pageSizeChoice.setEnabled(available&&!saving&&pageable);
     }
     private static String namespace(JdbcSession origin,boolean catalog){if(origin==null)return "";try{return java.util.Objects.toString(catalog?origin.connection().getCatalog():origin.connection().getSchema(),"");}catch(Exception error){return "";}}
@@ -203,9 +209,9 @@ final class QueryResultPanel extends JPanel {
     }
     private void updateActions(){
         boolean enabled=available&&!saving&&target!=null&&!origin.profile().readOnly();
-        edit.setEnabled(enabled&&!stale);model.setEditable(enabled&&!stale&&edit.isSelected());
+        CellCursor cursor=currentCursor();edit.setEnabled(enabled&&!stale);model.setEditable(enabled&&!stale&&edit.isSelected());if(table.getSelectedRow()<0)restoreCursor(cursor);
         mode.setEnabled(enabled&&!stale);updatingMode=true;try{int index=edit.isSelected()?editTargets.indexOf(target)+1:0;mode.setSelectedIndex(Math.max(0,index));}finally{updatingMode=false;}
-        save.setEnabled(enabled&&!stale&&edit.isSelected()&&hasChanges());discard.setEnabled(available&&!saving&&hasChanges());reload.setEnabled(available&&!saving&&SqlExecutionPolicy.readOnly(sql));
+        addRow.setEnabled(enabled&&!stale&&edit.isSelected());save.setEnabled(enabled&&!stale&&edit.isSelected()&&hasChanges());discard.setEnabled(available&&!saving&&hasChanges());reload.setEnabled(available&&!saving&&SqlExecutionPolicy.readOnly(sql));
         int row=table.getSelectedRow(),column=table.getSelectedColumn();
         setNull.setEnabled(canEditSelectedCell());
         referenceButton.setEnabled(available&&!saving&&column>=0&&hasReference(table.convertColumnIndexToModel(column))&&row>=0);
@@ -263,14 +269,51 @@ final class QueryResultPanel extends JPanel {
             protected void done(){if(generation!=referenceGeneration||model.definition()!=definition)return;try{references=get();}catch(Exception unavailable){UiLanguage.tooltip(referenceButton,UiLanguage.key("No se pudieron leer las claves foráneas. Comprueba los permisos de metadatos."));}table.getTableHeader().repaint();table.repaint();updateActions();}
         }.execute();
     }
+    private void loadEnumEditors(){
+        int generation=++enumGeneration;
+        for(int column=0;column<table.getColumnModel().getColumnCount();column++)table.getColumnModel().getColumn(column).setCellEditor(null);
+        if(origin==null||!origin.isOpen()||target==null||(target.type()!=com.nexodb.model.DatabaseType.MYSQL&&target.type()!=com.nexodb.model.DatabaseType.MARIADB))return;
+        QueryEditSupport.Target requested=target;
+        new SwingWorker<Map<Integer,List<String>>,Void>(){
+            protected Map<Integer,List<String>> doInBackground()throws Exception{
+                String database=requested.table().schema();if(database==null||database.isBlank())database=requested.table().catalog();
+                if(database==null||database.isBlank())return Map.of();
+                Map<String,String> types=new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+                synchronized(origin.connection()){
+                    try(var statement=origin.connection().prepareStatement("SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=?")){
+                        statement.setString(1,database);statement.setString(2,requested.table().name());
+                        try(var rows=statement.executeQuery()){while(rows.next())types.put(rows.getString(1),rows.getString(2));}
+                    }
+                }
+                Map<Integer,List<String>> choices=new LinkedHashMap<>();
+                for(int column=0;column<requested.columns().size();column++){
+                    List<String> values=enumChoices(types.get(requested.columns().get(column).sourceName()));if(!values.isEmpty())choices.put(column,values);
+                }
+                return choices;
+            }
+            protected void done(){
+                if(generation!=enumGeneration||target!=requested)return;
+                try{
+                    for(var entry:get().entrySet())if(entry.getKey()<table.getColumnModel().getColumnCount()){
+                        JComboBox<Object> choices=new JComboBox<>();choices.addItem(QueryEditSupport.DefaultValue.INSTANCE);entry.getValue().forEach(choices::addItem);
+                        table.getColumnModel().getColumn(entry.getKey()).setCellEditor(new DefaultCellEditor(choices));
+                    }
+                }catch(Exception ignored){}
+            }
+        }.execute();
+    }
+    static List<String> enumChoices(String columnType){
+        if(columnType==null)return List.of();String value=columnType.trim();
+        if(value.length()<7||!value.regionMatches(true,0,"enum(",0,5)||value.charAt(value.length()-1)!=')')return List.of();
+        try{return MysqlTableDesign.enumValues(value.substring(5,value.length()-1),false);}catch(IllegalArgumentException error){return List.of();}
+    }
     private void openReference(int viewRow,int viewColumn){
         if(viewRow<0||viewColumn<0)return;int row=table.convertRowIndexToModel(viewRow),column=table.convertColumnIndexToModel(viewColumn);if(finishEditing())openReferenceModel(row,column);
     }
     private void openReferenceModel(int row,int column){
         if(!available||saving||row<0||row>=model.getRowCount())return;
         List<ForeignKeyLookup.Reference> matches=references.stream().filter(r->r.contains(column)).toList();if(matches.isEmpty())return;
-        ForeignKeyLookup.Reference reference=matches.get(0);
-        if(matches.size()>1){Object chosen=JOptionPane.showInputDialog(this,tr("Selecciona la relación que deseas consultar."),tr("Registro relacionado"),JOptionPane.QUESTION_MESSAGE,null,matches.stream().map(ForeignKeyLookup.Reference::label).toArray(),reference.label());if(chosen==null)return;for(var candidate:matches)if(candidate.label().equals(chosen)){reference=candidate;break;}}
+        ForeignKeyLookup.Reference reference=matches.stream().filter(ForeignKeyLookup.Reference::complete).findFirst().orElse(matches.get(0));
         boolean writable=canWrite()&&!model.isDeleted(row)&&reference.complete()&&reference.parts().stream().allMatch(p->model.isCellEditable(row,p.column()));
         List<Object> values=new java.util.ArrayList<>();for(int i=0;i<model.getColumnCount();i++)values.add(model.getValueAt(row,i));
         Map<Integer,Object> chosen=new ForeignKeyLookupDialog(SwingUtilities.getWindowAncestor(this),origin,reference,values,column,writable).showSelection();
@@ -365,12 +408,14 @@ final class QueryResultPanel extends JPanel {
             int index=grid.convertRowIndexToModel(row);boolean marked=QueryResultPanel.this.grid!=null&&QueryResultPanel.this.grid.isMarked(index);
             super.getTableCellRendererComponent(grid,value,selected||marked,focus,row,column);
             Font font=grid.getFont().deriveFont(value==null||value==QueryEditSupport.DefaultValue.INSTANCE?Font.ITALIC:Font.PLAIN);
-            if(model.isDeleted(index))font=font.deriveFont(java.util.Map.of(TextAttribute.STRIKETHROUGH,TextAttribute.STRIKETHROUGH_ON));setFont(font);setText(value==null?"(NULL)":String.valueOf(value));
+            if(model.isDeleted(index))font=font.deriveFont(java.util.Map.of(TextAttribute.STRIKETHROUGH,TextAttribute.STRIKETHROUGH_ON));setFont(font);
+            int modelColumn=grid.convertColumnIndexToModel(column);boolean automatic=value==QueryEditSupport.DefaultValue.INSTANCE&&model.isNewRow(index)&&target!=null&&modelColumn<target.columns().size()&&target.columns().get(modelColumn).autoIncrement();
+            setText(value==null?"(NULL)":automatic?"(AUTO)":String.valueOf(value));
             boolean dirty=model.isChanged(index,grid.convertColumnIndexToModel(column)),dark=com.formdev.flatlaf.FlatLaf.isLafDark();
             if(!selected&&!marked){Color background=UIManager.getColor("Table.background");setBackground(model.isDeleted(index)?(dark?new Color(85,34,34):new Color(255,221,221)):model.isNewRow(index)?(dark?new Color(25,69,49):new Color(222,247,230)):dirty?(dark?new Color(83,67,22):new Color(255,243,190)):background);setForeground(UIManager.getColor("Table.foreground"));}
             arrow=row==grid.getSelectedRow()&&column==grid.getSelectedColumn();reference=arrow&&hasReference(grid.convertColumnIndexToModel(column));if(arrow)setBorder(BorderFactory.createCompoundBorder(getBorder(),BorderFactory.createEmptyBorder(0,0,0,reference?44:18)));
             boolean specialized=ResultCellEditorDialog.kind(model.jdbcType(grid.convertColumnIndexToModel(column)),value)!=ResultCellEditorDialog.Kind.PLAIN;
-            setToolTipText(model.isDeleted(index)?tr("Fila pendiente de eliminar"):dirty?tr("Cambio sin guardar"):arrow?tr(specialized?"Doble clic para abrir el editor completo.":"Doble clic para editar; clic en ▾ para abrir el menú."):null);return this;
+            setToolTipText(model.isDeleted(index)?tr("Fila pendiente de eliminar"):automatic?tr("MySQL generará este identificador automáticamente al guardar."):dirty?tr("Cambio sin guardar"):arrow?tr(specialized?"Doble clic para abrir el editor completo.":"Doble clic para editar; clic en ▾ para abrir el menú."):null);return this;
         }
         protected void paintComponent(Graphics graphics){super.paintComponent(graphics);if(arrow){graphics.setColor(getForeground());int x=getWidth()-12,y=getHeight()/2;graphics.drawLine(x-3,y-1,x,y+2);graphics.drawLine(x,y+2,x+3,y-1);if(reference)graphics.drawString("…",getWidth()-36,y+4);}}
     }
