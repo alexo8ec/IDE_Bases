@@ -58,6 +58,7 @@ final class QueryResultPanel extends JPanel {
     private int referenceGeneration;
     private int enumGeneration;
     private int activeModelRow=-1;
+    private long renderMillis;
     private final Set<Integer> autoSaveRows=new LinkedHashSet<>();
     private boolean autoSaveScheduled;
 
@@ -157,6 +158,7 @@ final class QueryResultPanel extends JPanel {
     JdbcSession origin(){return origin;}
     void setWriteEnabled(Runnable callback){writeEnabled=callback;}
     void setRowLimit(java.util.function.IntSupplier supplier){rowLimit=supplier;}
+    void setRenderMillis(long value){renderMillis=Math.max(0,value);updateCount();}
     void resetReadOnly(){finishEditing();edit.setSelected(false);updateActions();}
     void setExportAction(Runnable action){exportAction=action;}
     void setColumnEditor(ColumnEditor editor){
@@ -190,7 +192,10 @@ final class QueryResultPanel extends JPanel {
     }
     private void updateCount(){
         UiLanguage.text(count,UiLanguage.key("Filas: "),model.dataRowCount(),UiLanguage.key(" · Marcadas: "),grid==null?0:grid.checkedCount(),UiLanguage.key(" · Cambios: "),model.changeCount());
-        UiLanguage.text(elapsed,UiLanguage.key("Tiempo de consulta: "),model.definition().elapsedMillis()," ms");
+        QueryResult.Timing timing=model.definition().timing();
+        String text=tr("Tiempo: ")+timing.totalMillis()+" ms · "+tr("servidor ")+timing.serverMillis()+" · "+tr("lectura ")+timing.fetchMillis()+" · "+tr("preparación ")+timing.metadataMillis()+" · "+tr("interfaz ")+renderMillis;
+        elapsed.setText(text);
+        elapsed.setToolTipText("<html>"+tr("Tiempo total hasta recibir y preparar el resultado:")+" <b>"+timing.totalMillis()+" ms</b><br>"+tr("Servidor/red hasta responder:")+" "+timing.serverMillis()+" ms<br>"+tr("Lectura y conversión de filas:")+" "+timing.fetchMillis()+" ms<br>"+tr("Metadatos y edición segura:")+" "+timing.metadataMillis()+" ms<br>"+tr("Construcción de la cuadrícula:")+" "+renderMillis+" ms</html>");
         pageLabel.setText((model.dataRowCount()==0?0:pageOffset+1)+"–"+(pageOffset+model.dataRowCount())+(model.definition().truncated()?" · +":""));
         previous.setEnabled(available&&!saving&&pageable&&pageOffset>0);next.setEnabled(available&&!saving&&pageable&&model.definition().truncated());pageSizeChoice.setEnabled(available&&!saving&&pageable);
     }
@@ -204,7 +209,7 @@ final class QueryResultPanel extends JPanel {
         start();UiLanguage.text(status,UiLanguage.key("Cargando página…"));
         new SwingWorker<QueryResult,Void>() {
             protected QueryResult doInBackground()throws Exception{return origin.executePage(sql,size,offset);}
-            protected void done(){try{QueryResult fresh=get();pageOffset=offset;pageSize=size;pagingRequested=true;grid.clearChecked();model.setResult(fresh);configureTargets(fresh,target==null?null:target.qualifiedTable());stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);loadReferences();completion.accept(fresh,null);}catch(Exception error){completion.accept(null,root(error));}finally{restorePageChoice();end();}}
+            protected void done(){try{QueryResult fresh=get();long renderStarted=System.nanoTime();pageOffset=offset;pageSize=size;pagingRequested=true;grid.clearChecked();model.setResult(fresh);configureTargets(fresh,target==null?null:target.qualifiedTable());stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();completion.accept(fresh,null);}catch(Exception error){completion.accept(null,root(error));}finally{restorePageChoice();end();}}
         }.execute();
     }
     private void updateActions(){
@@ -368,7 +373,7 @@ final class QueryResultPanel extends JPanel {
             protected void done(){
                 try {
                     SaveOutcome outcome=get();QueryEditSupport.BatchSaved saved=outcome.saved();pendingCommit|=saved.pendingCommit();
-                    if(outcome.fresh()!=null){String selected=target.qualifiedTable();grid.clearChecked();model.setResult(outcome.fresh());configureTargets(outcome.fresh(),selected);resize.accept(table);loadReferences();}
+                    if(outcome.fresh()!=null){long renderStarted=System.nanoTime();String selected=target.qualifiedTable();grid.clearChecked();model.setResult(outcome.fresh());configureTargets(outcome.fresh(),selected);resize.accept(table);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();}
                     else if(outcome.refreshError()!=null){grid.clearChecked();model.discard();stale=true;edit.setSelected(false);UiLanguage.text(status,UiLanguage.key("Los cambios se guardaron, pero no se pudo recargar el resultado. Pulsa Recargar."));showError(outcome.refreshError(),"No se pudo recargar el resultado");return;}
                     else model.accept(saved.rows());
                     UiLanguage.text(status,UiLanguage.key(saved.pendingCommit()?"Cambio aplicado · pendiente de Commit":"Cambio guardado"));
@@ -388,7 +393,7 @@ final class QueryResultPanel extends JPanel {
         new SwingWorker<QueryResult,Void>() {
             protected QueryResult doInBackground()throws Exception{return origin.executeEditable(replay,rowLimit.getAsInt());}
             protected void done(){
-                try{QueryResult fresh=get();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();model.setResult(fresh);configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);loadReferences();completion.accept(fresh,null);}
+                try{QueryResult fresh=get();long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();model.setResult(fresh);configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();completion.accept(fresh,null);}
                 catch(Exception error){completion.accept(null,root(error));}finally{end();}
             }
         }.execute();

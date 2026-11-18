@@ -1,6 +1,6 @@
 {
-  "version": "0.18.39",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.39-win64.zip",
-  "sha256": "f8fb8e8bec5570f98005443aaa917bb1e5e626ddb0c29ea63681cfa749b1b342",
-  "notes": "AdisDB 0.18.39: fila final para insertar incluso sin datos, AUTO_INCREMENT seguro, selector ENUM, relaciones directas y barras de actividad fluidas."
+  "version": "0.18.40",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.40-win64.zip",
+  "sha256": "6dc500c9fc429f22eec76b2ad73a555224c1baa24ce29af4bb4bef80d5794049",
+  "notes": "AdisDB 0.18.40: diagnóstico de rendimiento por etapas para distinguir servidor, lectura de filas, metadatos e interfaz."
 }

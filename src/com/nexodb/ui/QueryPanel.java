@@ -728,6 +728,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void addResultTab(String requestedName, QueryResult result, JdbcSession origin, String sql, int limit) {
+        long renderStarted=System.nanoTime();
         ResultTableModel model = new ResultTableModel();
         model.setResult(result);
         JTable resultTable = createResultTable(model);
@@ -739,6 +740,7 @@ public final class QueryPanel extends JPanel {
         panel.setColumnEditor(columnEditor);
         panel.setExportAction(this::exportData);
         panel.setWriteEnabled(()->readOnly.setSelected(false));panel.setRowLimit(this::rowLimit);
+        panel.setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);
         panel.setAvailable(session, false);
         int messagesIndex = outputTabs.indexOfComponent(messagesScroll);
         outputTabs.insertTab(uniqueTabName(requestedName), IconFactory.of(IconFactory.Kind.TABLE, 16),

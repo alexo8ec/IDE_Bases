@@ -26,6 +26,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del formateador SQL fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del nucleo fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.JdbcSessionTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de credenciales JDBC fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.QueryTimingTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de medicion por fases de consultas fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.SshTunnelTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de tuneles SSH fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.debug.MysqlProcedureTest

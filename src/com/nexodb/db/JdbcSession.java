@@ -403,29 +403,40 @@ public final class JdbcSession implements AutoCloseable {
         QueryPaging.validate(sql,pageSize,offset);long started=System.nanoTime();
         try(Statement statement=connection.createStatement()) {
             activeStatement=statement;long needed=offset+pageSize+1L;statement.setMaxRows(needed>0&&needed<=5_000_000?(int)needed:0);statement.setFetchSize(Math.min(pageSize,500));
-            if(!statement.execute(sql))throw new SQLException("La consulta no devolvió una tabla paginable.");
+            long serverStarted=System.nanoTime();boolean returned=statement.execute(sql);long serverMillis=elapsedMillis(serverStarted);
+            if(!returned)throw new SQLException("La consulta no devolvió una tabla paginable.");
             QueryEditSupport.Enrichment enrichment;
             try(ResultSet rows=statement.getResultSet()) {
+                long metadataStarted=System.nanoTime();
                 enrichment=QueryEditSupport.enrichMissingPrimaryKeys(connection,profile.type(),sql,rows.getMetaData(),editMetadata);
+                long metadataMillis=elapsedMillis(metadataStarted);
                 if(enrichment==null){
+                    long fetchStarted=System.nanoTime();
                     long skipped=0;while(skipped<offset&&rows.next()){skipped++;if(Thread.currentThread().isInterrupted())throw new SQLException("Paginación cancelada.");}
                     QueryResult result=QueryResult.from(rows,pageSize);
-                    return result.withEditing(QueryEditSupport.describe(connection,profile.type(),sql,rows.getMetaData(),editMetadata)).withElapsed(elapsedMillis(started));
+                    long fetchMillis=elapsedMillis(fetchStarted);metadataStarted=System.nanoTime();
+                    result=result.withEditing(QueryEditSupport.describe(connection,profile.type(),sql,rows.getMetaData(),editMetadata));
+                    metadataMillis+=elapsedMillis(metadataStarted);
+                    return result.withTiming(timing(started,serverMillis,fetchMillis,metadataMillis));
                 }
+                return executeEnrichedPage(statement,enrichment,pageSize,offset,started,serverMillis,metadataMillis);
             }
-            return executeEnrichedPage(statement,enrichment,pageSize,offset,started);
         }finally{activeStatement=null;}
       }
     }
 
-    private QueryResult executeEnrichedPage(Statement owner,QueryEditSupport.Enrichment enrichment,int pageSize,long offset,long started)throws SQLException{
+    private QueryResult executeEnrichedPage(Statement owner,QueryEditSupport.Enrichment enrichment,int pageSize,long offset,long started,long baseServerMillis,long baseMetadataMillis)throws SQLException{
         try(Statement statement=connection.createStatement()){
             activeStatement=statement;long needed=offset+pageSize+1L;statement.setMaxRows(needed>0&&needed<=5_000_000?(int)needed:0);statement.setFetchSize(Math.min(pageSize,500));
-            if(!statement.execute(enrichment.sql()))throw new SQLException("La consulta no devolvió una tabla paginable.");
+            long serverStarted=System.nanoTime();boolean returned=statement.execute(enrichment.sql());long serverMillis=baseServerMillis+elapsedMillis(serverStarted);
+            if(!returned)throw new SQLException("La consulta no devolvió una tabla paginable.");
             try(ResultSet rows=statement.getResultSet()){
+                long fetchStarted=System.nanoTime();
                 long skipped=0;while(skipped<offset&&rows.next()){skipped++;if(Thread.currentThread().isInterrupted())throw new SQLException("Paginación cancelada.");}
                 QueryResult result=QueryResult.from(rows,pageSize).withHiddenColumns(enrichment.hiddenColumns());
-                return result.withEditing(QueryEditSupport.describe(connection,profile.type(),enrichment.sql(),rows.getMetaData(),editMetadata)).withElapsed(elapsedMillis(started));
+                long fetchMillis=elapsedMillis(fetchStarted);long metadataStarted=System.nanoTime();
+                result=result.withEditing(QueryEditSupport.describe(connection,profile.type(),enrichment.sql(),rows.getMetaData(),editMetadata));
+                return result.withTiming(timing(started,serverMillis,fetchMillis,baseMetadataMillis+elapsedMillis(metadataStarted)));
             }
         }finally{activeStatement=owner;}
     }
@@ -447,25 +458,28 @@ public final class JdbcSession implements AutoCloseable {
             activeStatement = statement;
             configureRowLimit(statement,maxRows);
             if(invalidatesMetadata(sql))editMetadata.clear();
-            boolean hasResult = statement.execute(sql);
+            long serverStarted=System.nanoTime();boolean hasResult = statement.execute(sql);long serverMillis=elapsedMillis(serverStarted);
             do {
                 if (hasResult) {
                     QueryEditSupport.Enrichment enrichment;
                     QueryResult result;QueryEditSupport.Eligibility eligibility;
                     try (ResultSet resultSet = statement.getResultSet()) {
+                        long fetchStarted=System.nanoTime();
                         result = QueryResult.from(resultSet, maxRows);
+                        long fetchMillis=elapsedMillis(fetchStarted);long metadataStarted=System.nanoTime();
                         eligibility = QueryEditSupport.describe(connection, profile.type(), sql, resultSet.getMetaData(),editMetadata);
                         enrichment=enrichKeys&&eligibility.target()==null?QueryEditSupport.enrichMissingPrimaryKeys(connection,profile.type(),sql,resultSet.getMetaData(),editMetadata):null;
+                        long metadataMillis=elapsedMillis(metadataStarted);
+                        if(enrichment!=null)results.add(executeEnriched(statement,enrichment,maxRows,started,serverMillis,fetchMillis,metadataMillis));
+                        else results.add(result.withEditing(eligibility).withTiming(timing(started,serverMillis,fetchMillis,metadataMillis)));
                     }
-                    if(enrichment!=null)results.add(executeEnriched(statement,enrichment,maxRows,started));
-                    else results.add(result.withEditing(eligibility).withElapsed(elapsedMillis(started)));
                 } else {
                     int count = statement.getUpdateCount();
                     if (count == -1) break;
-                    results.add(QueryResult.update(count, elapsedMillis(started)));
+                    long total=elapsedMillis(started);results.add(QueryResult.update(count,total).withTiming(new QueryResult.Timing(total,serverMillis,0,0)));
                 }
                 if (!all) break;
-                hasResult = statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT);
+                serverStarted=System.nanoTime();hasResult = statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT);serverMillis=elapsedMillis(serverStarted);
             } while (true);
             if (results.isEmpty()) results.add(QueryResult.update(-1, elapsedMillis(started)));
             return List.copyOf(results);
@@ -478,13 +492,17 @@ public final class JdbcSession implements AutoCloseable {
       }
     }
 
-    private QueryResult executeEnriched(Statement owner,QueryEditSupport.Enrichment enrichment,int maxRows,long started)throws SQLException{
+    private QueryResult executeEnriched(Statement owner,QueryEditSupport.Enrichment enrichment,int maxRows,long started,long baseServerMillis,long baseFetchMillis,long baseMetadataMillis)throws SQLException{
         try(Statement statement=connection.createStatement()){
             activeStatement=statement;configureRowLimit(statement,maxRows);
-            if(!statement.execute(enrichment.sql()))throw new SQLException("La consulta no devolvió un resultado editable.");
+            long serverStarted=System.nanoTime();boolean returned=statement.execute(enrichment.sql());long serverMillis=baseServerMillis+elapsedMillis(serverStarted);
+            if(!returned)throw new SQLException("La consulta no devolvió un resultado editable.");
             try(ResultSet rows=statement.getResultSet()){
+                long fetchStarted=System.nanoTime();
                 QueryResult result=QueryResult.from(rows,maxRows).withHiddenColumns(enrichment.hiddenColumns());
-                return result.withEditing(QueryEditSupport.describe(connection,profile.type(),enrichment.sql(),rows.getMetaData(),editMetadata)).withElapsed(elapsedMillis(started));
+                long fetchMillis=baseFetchMillis+elapsedMillis(fetchStarted);long metadataStarted=System.nanoTime();
+                result=result.withEditing(QueryEditSupport.describe(connection,profile.type(),enrichment.sql(),rows.getMetaData(),editMetadata));
+                return result.withTiming(timing(started,serverMillis,fetchMillis,baseMetadataMillis+elapsedMillis(metadataStarted)));
             }
         }finally{activeStatement=owner;}
     }
@@ -512,6 +530,10 @@ public final class JdbcSession implements AutoCloseable {
 
     private static long elapsedMillis(long started) {
         return (System.nanoTime() - started) / 1_000_000L;
+    }
+
+    private static QueryResult.Timing timing(long started,long serverMillis,long fetchMillis,long metadataMillis){
+        return new QueryResult.Timing(elapsedMillis(started),serverMillis,fetchMillis,metadataMillis);
     }
 
     private static final class DriverClassLoader extends URLClassLoader {

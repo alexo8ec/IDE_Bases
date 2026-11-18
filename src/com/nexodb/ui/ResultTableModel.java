@@ -42,7 +42,7 @@ public final class ResultTableModel extends AbstractTableModel {
         List<List<Object>> originals=new ArrayList<>(result.rows());
         Set<Integer> updated=new TreeSet<>();
         for(var row:saved){if(row.kind()!=UPDATE)throw new IllegalArgumentException("Row mutations require a refreshed result");List<Object> original=new ArrayList<>(originals.get(row.row()));for(var cell:row.values().entrySet()){rows.get(row.row()).set(cell.getKey(),cell.getValue());original.set(cell.getKey(),cell.getValue());}originals.set(row.row(),original);pending.remove(row.row());deleted.remove(row.row());updated.add(row.row());}
-        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes(),result.hiddenColumns());updated.forEach(row->fireTableRowsUpdated(row,row));changed.run();
+        result=new QueryResult(result.columns(),originals,result.updateCount(),result.elapsedMillis(),result.truncated(),result.editing(),result.origins(),result.jdbcTypes(),result.hiddenColumns(),result.timing());updated.forEach(row->fireTableRowsUpdated(row,row));changed.run();
     }
     public int insertRow(Integer duplicate){
         if(!editable||target==null)return -1;
@@ -62,7 +62,7 @@ public final class ResultTableModel extends AbstractTableModel {
         appendPlaceholder();fireTableDataChanged();changed.run();
     }
     public void discard(){rows.clear();for(var row:result.rows())rows.add(new ArrayList<>(row));pending.clear();deleted.clear();appendRows.clear();appendPlaceholder();fireTableDataChanged();changed.run();}
-    public QueryResult snapshot(){int visible=getColumnCount();List<List<Object>> copy=new ArrayList<>();for(int row=0;row<rows.size();row++)if(!appendRows.contains(row))copy.add(Collections.unmodifiableList(new ArrayList<>(rows.get(row).subList(0,visible))));List<QueryResult.Origin> origins=result.origins().size()>=visible?result.origins().subList(0,visible):List.of();return new QueryResult(result.columns().subList(0,visible),List.copyOf(copy),result.updateCount(),result.elapsedMillis(),result.truncated(),null,origins,result.jdbcTypes().subList(0,visible));}
+    public QueryResult snapshot(){int visible=getColumnCount();List<List<Object>> copy=new ArrayList<>();for(int row=0;row<rows.size();row++)if(!appendRows.contains(row))copy.add(Collections.unmodifiableList(new ArrayList<>(rows.get(row).subList(0,visible))));List<QueryResult.Origin> origins=result.origins().size()>=visible?result.origins().subList(0,visible):List.of();return new QueryResult(result.columns().subList(0,visible),List.copyOf(copy),result.updateCount(),result.elapsedMillis(),result.truncated(),null,origins,result.jdbcTypes().subList(0,visible),0,result.timing());}
     public int jdbcType(int column){return column>=0&&column<result.jdbcTypes().size()?result.jdbcTypes().get(column):java.sql.Types.OTHER;}
     public void setReference(int row,Map<Integer,Object> values){
         if(values.isEmpty()||values.keySet().stream().anyMatch(column->column<0||column>=getColumnCount()||!isCellEditable(row,column)))throw new IllegalStateException(tr("La referencia completa no se puede editar en este resultado."));

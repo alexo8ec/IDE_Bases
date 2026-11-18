@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: fila final para insertar incluso sin datos, AUTO_INCREMENT seguro, selector ENUM, relaciones directas y barras de actividad fluidas."
+    notes = "AdisDB ${version}: diagnóstico de rendimiento por etapas para distinguir servidor, lectura de filas, metadatos e interfaz."
 }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path $distRoot 'update-manifest.json'),($manifest | ConvertTo-Json),$utf8NoBom)

@@ -1,6 +1,13 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.39**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.40**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Diagnóstico de rendimiento por etapas — 0.18.40
+
+- Cada consulta mide por separado el tiempo de respuesta del servidor/red, la lectura y conversión de filas, la preparación de metadatos para edición segura y la construcción de la cuadrícula.
+- El pie del resultado muestra el desglose junto al tiempo total; al mantener el puntero sobre él explica cada etapa. Así se puede distinguir una consulta lenta de una transferencia grande o una interfaz que tarda en dibujar los datos.
+- La medición se conserva al paginar, recargar, editar, exportar o reutilizar el resultado en Reportería, sin alterar el tiempo total compatible con el historial existente.
+- Esta instrumentación es la base de la siguiente mejora de rendimiento: carga virtual de resultados y diagnóstico de operaciones activas.
 
 ## Inserción visual, relaciones directas y actividad fluida — 0.18.39
 
