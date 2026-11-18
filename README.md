@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.28**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.29**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Administración global de usuarios MySQL/MariaDB — 0.18.29
+
+Cuando el usuario seleccionado ya tiene privilegios globales, el editor abre directamente **Administrador / todo el servidor (`*.*`)**. Así, los permisos dejan de parecer bloqueados por herencia al inspeccionar una base concreta. Desde una base también se puede saltar al ámbito global que concede las casillas heredadas.
+
+La acción **Conceder administración total** aplica el perfil nativo `ALL PRIVILEGES ON *.* WITH GRANT OPTION`. Esto diferencia a una cuenta con acceso total de una cuenta que además puede conceder o retirar permisos a otros usuarios. Los privilegios globales y `GRANT OPTION` también se pueden desmarcar de forma individual para retirar administración sin ocultar los cambios que se enviarán al servidor.
+
+Los encabezados de las cuadrículas muestran un icono de embudo permanente. Al pulsarlo se abre el filtro de esa columna con sus valores y la opción personalizada; el embudo cambia de color cuando hay un filtro activo. Se conservan el desplegable existente y todas las acciones mediante clic derecho.
 
 ## Permisos, filtros, contenido XML e impresión de reportes — 0.18.28
 

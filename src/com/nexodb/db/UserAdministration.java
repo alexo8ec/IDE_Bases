@@ -120,7 +120,7 @@ public final class UserAdministration {
     public List<PrivilegeScope> privilegeScopes() throws SQLException {
         List<PrivilegeScope> result = new ArrayList<>();
         for (String scope : scopes()) result.add(new PrivilegeScope(scope, scope, false));
-        if (usesHost()) result.add(new PrivilegeScope("*.*", tr("Todo el servidor (*.*) · avanzado"), true));
+        if (usesHost()) result.add(new PrivilegeScope("*.*", tr("Administrador / todo el servidor (*.*)"), true));
         return result;
     }
     public List<String> privileges() {
@@ -174,6 +174,12 @@ public final class UserAdministration {
                     : "REVOKE GRANT OPTION ON " + target + " FROM " + who);
         }
         return sql;
+    }
+
+    /** Grants the traditional MySQL/MariaDB server-administrator preset. */
+    public List<String> administratorSql(Account account) throws SQLException {
+        if (!usesHost()) throw new IllegalStateException(tr("La administración global está disponible para MySQL y MariaDB."));
+        return List.of("GRANT ALL PRIVILEGES ON *.* TO " + principal(account) + " WITH GRANT OPTION");
     }
 
     private List<String> mysqlGrantLines(Account account) throws SQLException {

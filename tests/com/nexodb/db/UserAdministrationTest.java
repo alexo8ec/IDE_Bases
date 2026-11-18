@@ -74,6 +74,7 @@ public final class UserAdministrationTest {
         if(!databaseSql.equals(List.of("REVOKE INSERT ON `medical`.* FROM 'operator'@'%'", "GRANT UPDATE ON `medical`.* TO 'operator'@'%'")))throw new AssertionError(databaseSql);
         List<String> globalSql=admin.updatePrivilegeSql(account,global,List.of(),false,snapshot.states().get(global));
         if(!globalSql.equals(List.of("REVOKE CREATE USER ON *.* FROM 'operator'@'%'", "REVOKE GRANT OPTION ON *.* FROM 'operator'@'%'")))throw new AssertionError(globalSql);
+        if(!admin.administratorSql(account).equals(List.of("GRANT ALL PRIVILEGES ON *.* TO 'operator'@'%' WITH GRANT OPTION")))throw new AssertionError("Administrator preset");
         UserAdministration.PermissionSnapshot patterned=new UserAdministration(mysqlMock(List.of("GRANT ALL PRIVILEGES ON `%`.* TO `operator`@`%`")),DatabaseType.MARIADB).permissionSnapshot(account);
         UserAdministration.PrivilegeScope pattern=patterned.scopes().stream().filter(s->s.name().equals("%")).findFirst().orElseThrow();
         UserAdministration.PrivilegeState inherited=patterned.states().get(patterned.scopes().stream().filter(s->s.name().equals("medical")).findFirst().orElseThrow());

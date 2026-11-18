@@ -88,6 +88,8 @@ public final class QueryGridIntegrationTest {
                 List<? extends RowSorter.SortKey> order=table.getRowSorter().getSortKeys();
                 table.getTableHeader().dispatchEvent(new MouseEvent(table.getTableHeader(),MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,10,10,1,false,MouseEvent.BUTTON1));
                 equal(3,table.getSelectedRowCount());equal(1,table.getSelectedColumnCount());equal(order,table.getRowSorter().getSortKeys());
+                Rectangle heading=table.getTableHeader().getHeaderRect(0);table.getTableHeader().dispatchEvent(new MouseEvent(table.getTableHeader(),MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,heading.x+heading.width-5,heading.y+10,1,false,MouseEvent.BUTTON1));
+                equal(true,MenuSelectionManager.defaultManager().getSelectedPath().length>0);MenuSelectionManager.defaultManager().clearSelectedPath();
                 table.changeSelection(0,0,false,false);
                 JPopupMenu menu=invoke(actions,"menu",new Class[]{boolean.class},false);
                 equal(true,menuItem(menu,"Insertar nueva fila").isEnabled());equal(true,menuItem(menu,"Eliminar filas seleccionadas").isEnabled());equal(false,menuItem(menu,"Guardar cambios").isEnabled());

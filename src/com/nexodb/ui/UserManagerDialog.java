@@ -155,12 +155,17 @@ public final class UserManagerDialog extends JDialog {
         JLabel capability = new JLabel(capabilityText(snapshot.capabilities()));
         capability.setBorder(new EmptyBorder(2, 2, 5, 2));
         JTextArea help = new JTextArea(4, 70); help.setEditable(false); help.setLineWrap(true); help.setWrapStyleWord(true); help.setOpaque(false);
+        JButton global = UiLanguage.text(new JButton(), UiLanguage.key("Editar permisos globales / administrador"));
+        JButton administrator = UiLanguage.text(new JButton(), UiLanguage.key("Conceder administración total"));
+        boolean[] administratorPreset = {false};
         Runnable loadScope = () -> {
             PrivilegeScope selectedScope = (PrivilegeScope) scope.getSelectedItem(); if (selectedScope == null) return;
+            administratorPreset[0] = false;
             PrivilegeState state = snapshot.states().get(selectedScope);
             choices.removeAll(); checks.clear(); choices.setLayout(new GridLayout(0, 2, 12, 8));
             for (String privilege : admin.privileges(selectedScope)) {
                 JCheckBox check = new JCheckBox(privilege, state.direct().contains(privilege) || state.inherited().contains(privilege));
+                check.addActionListener(e -> administratorPreset[0] = false);
                 if (state.inherited().contains(privilege)) {
                     check.setEnabled(false); check.setToolTipText(tr("Heredado de *.* o de un patrón de bases; edita el ámbito que lo concede."));
                 }
@@ -170,22 +175,36 @@ public final class UserManagerDialog extends JDialog {
             grantOption.setEnabled(!state.inheritedGrantOption());
             grantOption.setToolTipText(state.inheritedGrantOption() ? tr("Heredado de GRANT OPTION en *.* o en un patrón de bases; edita ese ámbito.") : null);
             help.setText(selectedScope.global()
-                    ? tr("Este ámbito afecta a todas las bases del servidor. CREATE USER permite crear, modificar y eliminar cuentas. GRANT OPTION permite conceder o revocar los permisos que la cuenta posea.")
-                    : tr("Las casillas deshabilitadas se heredan de *.* o de un patrón como `%`.*. Para retirarlas debes editar el ámbito que las concede."));
+                    ? tr("Estás editando los permisos globales del usuario seleccionado, no los de la cuenta conectada. CREATE USER administra cuentas y GRANT OPTION permite conceder o revocar permisos.")
+                    : tr("Las casillas deshabilitadas se heredan de *.* o de un patrón como `%`.*. Pulsa Editar permisos globales para cambiar el ámbito que las concede."));
+            global.setVisible(!selectedScope.global() && (!state.inherited().isEmpty() || state.inheritedGrantOption()));
+            administrator.setVisible(selectedScope.global());
             choices.revalidate(); choices.repaint(); form.revalidate(); form.repaint();
         };
         scope.addActionListener(e -> loadScope.run());
+        grantOption.addActionListener(e -> administratorPreset[0] = false);
+        global.addActionListener(e -> snapshot.scopes().stream().filter(PrivilegeScope::global).findFirst().ifPresent(scope::setSelectedItem));
+        administrator.addActionListener(e -> {
+            PrivilegeScope server = snapshot.scopes().stream().filter(PrivilegeScope::global).findFirst().orElse(null); if (server == null) return;
+            scope.setSelectedItem(server); administratorPreset[0] = true;
+            for (JCheckBox check : checks) check.setSelected(true);
+            grantOption.setSelected(true);
+            help.setText(tr("Se concederá ALL PRIVILEGES ON *.* WITH GRANT OPTION. El usuario podrá administrar todas las bases y modificar permisos de otros usuarios."));
+        });
         JPanel top = new JPanel(new BorderLayout(8, 8)); top.add(capability, BorderLayout.NORTH); top.add(scope, BorderLayout.SOUTH);
         form.add(top, BorderLayout.NORTH); form.add(choices);
-        JPanel footer = new JPanel(new BorderLayout(8, 8)); footer.add(help); footer.add(grantOption, BorderLayout.SOUTH); form.add(footer, BorderLayout.SOUTH);
+        JPanel quick = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)); quick.add(global); quick.add(administrator);
+        JPanel footer = new JPanel(new BorderLayout(8, 8)); footer.add(help); footer.add(quick, BorderLayout.NORTH); footer.add(grantOption, BorderLayout.SOUTH); form.add(footer, BorderLayout.SOUTH);
         loadScope.run();
+        if (snapshot.capabilities().allGlobal() || !snapshot.capabilities().globalPrivileges().isEmpty())
+            snapshot.scopes().stream().filter(PrivilegeScope::global).findFirst().ifPresent(scope::setSelectedItem);
         if (JOptionPane.showConfirmDialog(this, form, tr("Editar permisos de ") + admin.display(account), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         PrivilegeScope selectedScope = (PrivilegeScope) scope.getSelectedItem(); if (selectedScope == null) return;
         PrivilegeState before = snapshot.states().get(selectedScope);
         Set<String> selected = new LinkedHashSet<>(); for (JCheckBox check : checks) if (check.isSelected()) selected.add(check.getText());
         boolean delegate = grantOption.isEnabled() ? grantOption.isSelected() : before.grantOption();
         List<String> sql;
-        try { sql = admin.updatePrivilegeSql(account, selectedScope, selected, delegate, before); }
+        try { sql = administratorPreset[0] ? admin.administratorSql(account) : admin.updatePrivilegeSql(account, selectedScope, selected, delegate, before); }
         catch (Exception error) { JOptionPane.showMessageDialog(this, error.getMessage(), tr("Revisa los datos"), JOptionPane.WARNING_MESSAGE); return; }
         if (sql.isEmpty()) { JOptionPane.showMessageDialog(this, tr("No hay cambios de permisos para aplicar.")); return; }
         String detail = tr("Editar permisos de ") + admin.display(account) + "\n" + selectedScope.label() + "\n"

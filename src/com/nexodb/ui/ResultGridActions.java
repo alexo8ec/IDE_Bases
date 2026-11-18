@@ -117,10 +117,24 @@ final class ResultGridActions {
         };
         header.setPreferredSize(new Dimension(0,30));table.setTableHeader(header);
         TableCellRenderer normal=header.getDefaultRenderer();header.setDefaultRenderer((grid,value,selected,focus,row,column)->{
-            int index=table.convertColumnIndexToModel(column);return normal.getTableCellRendererComponent(grid,value+(filters.containsKey(index)?"  ●▾":"  ▾"),selected,focus,row,column);
+            int index=table.convertColumnIndexToModel(column);Component component=normal.getTableCellRendererComponent(grid,value,selected,focus,row,column);
+            if(component instanceof JLabel label){
+                Icon filter=IconFactory.of(IconFactory.Kind.FILTER,14,filters.containsKey(index)?IconFactory.CYAN:IconFactory.SLATE);
+                label.setIcon(new HeaderFilterIcon(label.getIcon(),filter));label.setHorizontalTextPosition(SwingConstants.LEFT);label.setIconTextGap(7);
+            }
+            return component;
         });
         UiLanguage.tooltip(header,UiLanguage.key("Clic para seleccionar la columna. Pulsa ▾ para filtrar; clic derecho muestra más acciones."));
         header.addMouseListener(new MouseAdapter(){private void popup(MouseEvent event){if(event.isPopupTrigger()){selectColumn(header.columnAtPoint(event.getPoint()));menu(true).show(header,event.getX(),event.getY());}}public void mousePressed(MouseEvent e){popup(e);}public void mouseReleased(MouseEvent e){popup(e);}});
+    }
+    /** Keeps the look-and-feel sort indicator and adds a permanent filter button. */
+    private record HeaderFilterIcon(Icon sort,Icon filter) implements Icon{
+        public int getIconWidth(){return (sort==null?0:sort.getIconWidth()+4)+filter.getIconWidth();}
+        public int getIconHeight(){return Math.max(sort==null?0:sort.getIconHeight(),filter.getIconHeight());}
+        public void paintIcon(Component component,Graphics graphics,int x,int y){
+            int offset=0;if(sort!=null){sort.paintIcon(component,graphics,x,y+(getIconHeight()-sort.getIconHeight())/2);offset=sort.getIconWidth()+4;}
+            filter.paintIcon(component,graphics,x+offset,y+(getIconHeight()-filter.getIconHeight())/2);
+        }
     }
     private void selectColumn(int column){if(column<0)return;table.setColumnSelectionInterval(column,column);if(table.getRowCount()>0)table.setRowSelectionInterval(0,table.getRowCount()-1);}
     private void installPopup(){
