@@ -39,6 +39,7 @@ public final class CompletionInteractionTest {
                 editor.getActionMap().get("completion-tab").actionPerformed(new java.awt.event.ActionEvent(editor,0,"tab"));
                 if(!editor.getText().contains("AS v\t WHERE"))throw new AssertionError("Tab without completion must indent");
                 checkColumnAcceptance(panel, editor, popup, list, model);
+                checkAutomaticAlias(panel,editor,list,model,accept);
                 checkEscape(panel, editor, popup);
                 editor.setText("");
                 editor.getDocument().insertString(0, "select ", null);
@@ -51,6 +52,17 @@ public final class CompletionInteractionTest {
                 throw new RuntimeException(error);
             }
         });
+    }
+
+    private static void checkAutomaticAlias(QueryPanel panel,SqlEditorPane editor,JList<String> list,DefaultListModel<String> model,Method accept)throws Exception{
+        @SuppressWarnings("unchecked") java.util.Set<String> columns=field(panel,"columnWords",java.util.Set.class);
+        @SuppressWarnings("unchecked") java.util.Map<String,String> insertions=field(panel,"columnInsertions",java.util.Map.class);
+        String label="id_empresa  ·  bm_venta (v)";columns.clear();columns.add(label);insertions.clear();insertions.put(label,"v.id_empresa");model.clear();model.addElement(label);list.setSelectedIndex(0);
+        editor.setText("SELECT * FROM bm_venta AS v WHERE id_");editor.setCaretPosition(editor.getDocument().getLength());accept.invoke(panel);
+        if(!editor.getText().equals("SELECT * FROM bm_venta AS v WHERE v.id_empresa"))throw new AssertionError("Single-table alias was not inserted: "+editor.getText());
+        String other="nombre  ·  clientes (c)";columns.add(other);insertions.put(other,"c.nombre");model.clear();model.addElement(label);model.addElement(other);list.setSelectedIndex(1);
+        editor.setText("SELECT * FROM bm_venta v JOIN clientes c ON v.id_cliente=c.id WHERE nom");editor.setCaretPosition(editor.getDocument().getLength());accept.invoke(panel);
+        if(!editor.getText().endsWith("WHERE c.nombre"))throw new AssertionError("Selected multi-table alias was not inserted: "+editor.getText());
     }
 
     private static void checkColumnAcceptance(QueryPanel panel, SqlEditorPane editor, JPopupMenu popup,

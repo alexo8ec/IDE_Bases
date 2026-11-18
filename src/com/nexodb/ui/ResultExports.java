@@ -10,9 +10,12 @@ import static com.nexodb.util.I18n.tr;
 /** Export the exact loaded snapshot; never re-executes the source query. */
 final class ResultExports {
     private ResultExports(){}
-    static JButton button(Component owner,Supplier<QueryResult> result,String name,Consumer<String> status){
+    static JButton button(Component owner,String name,Consumer<DataExporter.Format> action){
         JButton button=UiLanguage.button("Exportar…");button.setName("result-export");
-        button.addActionListener(e->{JPopupMenu menu=new JPopupMenu();for(var format:DataExporter.Format.values()){JMenuItem item=new JMenuItem(format.toString()+"…");item.addActionListener(a->write(owner,result.get(),name,format,status));menu.add(item);}menu.show(button,0,button.getHeight());});return button;
+        button.addActionListener(e->{JPopupMenu menu=new JPopupMenu();for(var format:DataExporter.Format.values()){JMenuItem item=new JMenuItem(format.toString()+"…");item.addActionListener(a->action.accept(format));menu.add(item);}menu.show(button,0,button.getHeight());});return button;
+    }
+    static JButton button(Component owner,Supplier<QueryResult> result,String name,Consumer<String> status){
+        return button(owner,name,format->write(owner,result.get(),name,format,status));
     }
     static void write(Component owner,QueryResult result,String name,DataExporter.Format format,Consumer<String> status){
         if(!result.hasRows())return;var request=ExportChooser.choose(owner,name,format);if(request==null)return;

@@ -58,9 +58,7 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
                 truncated = true;
                 break;
             }
-            List<Object> row = new ArrayList<>(columnCount);
-            for (int i = 1; i <= columnCount; i++) row.add(displayValue(readValue(resultSet, metadata, i)));
-            rows.add(row);
+            rows.add(readDisplayRow(resultSet,metadata));
         }
         return new QueryResult(List.copyOf(columns), List.copyOf(rows), -1, 0, truncated,null,origins,jdbcTypes,0);
     }
@@ -85,6 +83,11 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
     public int visibleColumnCount(){return columns.size()-hiddenColumns;}
 
     public boolean hasRows() { return !columns.isEmpty(); }
+    static List<Object> readDisplayRow(ResultSet resultSet,ResultSetMetaData metadata)throws SQLException{
+        int count=metadata.getColumnCount();List<Object> row=new ArrayList<>(count);
+        for(int i=1;i<=count;i++)row.add(displayValue(readValue(resultSet,metadata,i)));
+        return Collections.unmodifiableList(row);
+    }
     private static String base(ResultSetMetaData metadata,String method,int column,String fallback){
         // PostgreSQL exposes physical origins separately from aliases through its metadata extension.
         try{return (String)metadata.getClass().getMethod(method,int.class).invoke(metadata,column);}catch(ReflectiveOperationException|SecurityException unavailable){return fallback;}

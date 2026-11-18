@@ -99,7 +99,8 @@ public final class QueryPanel extends JPanel {
     private SqlColumnCompletion columnCompletion;
     private SqlJoinCompletion joinCompletion;
     private final java.util.Map<String,String> joinInsertions=new java.util.LinkedHashMap<>();
-    private SwingWorker<List<String>,Void> columnWorker;
+    private final java.util.Map<String,String> columnInsertions=new java.util.LinkedHashMap<>();
+    private SwingWorker<List<SqlColumnCompletion.Suggestion>,Void> columnWorker;
     private final Set<String> columnWords = new LinkedHashSet<>();
     private long completionGeneration, completionCatalogGeneration;
     private QueryResultPanel.ColumnEditor columnEditor;
@@ -216,7 +217,7 @@ public final class QueryPanel extends JPanel {
         if(columnWorker!=null)columnWorker.cancel(true);
         columnCompletion=session==null?null:new SqlColumnCompletion(session);
         joinCompletion=session==null?null:new SqlJoinCompletion(session);joinInsertions.clear();
-        columnWords.clear();tableWords.clear();completionWords.clear();addSqlKeywords();completionPopup.setVisible(false);
+        columnWords.clear();columnInsertions.clear();tableWords.clear();completionWords.clear();addSqlKeywords();completionPopup.setVisible(false);
         if (session == null) {
             UiLanguage.text(state, UiLanguage.key("Sin conexión"));
             database.removeAllItems();
@@ -651,6 +652,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void cancelSql() {
+        if(outputTabs.getSelectedComponent() instanceof QueryResultPanel panel&&panel.canCancel()){panel.cancelOperation();return;}
         if (worker == null || worker.isDone() || session == null) return;
         try {
             session.cancel();
@@ -691,7 +693,7 @@ public final class QueryPanel extends JPanel {
     }
 
     private void exportData() {
-        if(outputTabs.getSelectedComponent() instanceof QueryResultPanel panel)currentResult=panel.result();
+        if(outputTabs.getSelectedComponent() instanceof QueryResultPanel panel){panel.exportData();return;}
         if (currentResult == null || !currentResult.hasRows()) return;
         String tableName = outputTabs.getTitleAt(outputTabs.getSelectedIndex());
         ExportChooser.Request request = ExportChooser.choose(this, tableName);
@@ -822,7 +824,8 @@ public final class QueryPanel extends JPanel {
         boolean connected = session != null && session.isOpen();
         boolean running = savingResult || queryRunning || externalBusy>0;
         execute.setEnabled(connected && !running);
-        cancel.setEnabled(connected && !savingResult && queryRunning);
+        boolean resultCancelable=outputTabs.getSelectedComponent() instanceof QueryResultPanel panel&&panel.canCancel();
+        cancel.setEnabled(connected&&(queryRunning&&!savingResult||resultCancelable));
         boolean manual = connected && !autoCommit.isSelected();
         commit.setEnabled(manual && !running);
         rollback.setEnabled(manual && !running);
@@ -980,7 +983,7 @@ public final class QueryPanel extends JPanel {
         if (session == null || selectedDatabase == null || selectedDatabase.isBlank()) return;
         JdbcSession target = session;
         long request=++completionCatalogGeneration;
-        completionGeneration++;columnWords.clear();tableWords.clear();completionWords.clear();addSqlKeywords();
+        completionGeneration++;columnWords.clear();columnInsertions.clear();tableWords.clear();completionWords.clear();addSqlKeywords();
         for(int i=1;i<database.getItemCount();i++)completionWords.add(database.getItemAt(i));
         if(columnCompletion!=null)columnCompletion.clear();
         boolean postgres = target.profile().type() == com.nexodb.model.DatabaseType.POSTGRESQL;
@@ -1030,7 +1033,7 @@ public final class QueryPanel extends JPanel {
         if (!SqlColumnCompletion.inCode(text.substring(0,caret)) || !forced && !joinPosition && filterPrefix.length() < 2 && !token.contains(".")) { completionPopup.setVisible(false);completionGeneration++;return; }
         boolean tablePosition=Pattern.compile("(?is)\\b(?:FROM|JOIN|UPDATE|INTO)\\s+[^\\s,()]*$").matcher(text.substring(0,caret)).find();
         boolean qualified=token.contains(".")&&!tablePosition;
-        columnWords.clear();joinInsertions.clear();renderCompletions(filterPrefix,List.of(),qualified);
+        columnWords.clear();columnInsertions.clear();joinInsertions.clear();renderCompletions(filterPrefix,List.of(),qualified);
         if(tablePosition){for(int i=completionModel.size()-1;i>=0;i--)if(!tableWords.contains(completionModel.get(i)))completionModel.remove(i);if(completionModel.isEmpty())completionPopup.setVisible(false);else showCompletionList();}
         if(joinPosition&&joinCompletion!=null){
             long request=++completionGeneration;JdbcSession target=session;SqlJoinCompletion provider=joinCompletion;String db=activeDatabase();
@@ -1044,10 +1047,10 @@ public final class QueryPanel extends JPanel {
         String qualifier=qualified?token.substring(0,token.lastIndexOf('.')):"";
         List<String> known=List.copyOf(completionWords);
         columnWorker=new SwingWorker<>(){
-            protected List<String> doInBackground()throws Exception{return provider.columns(statement,qualifier,db,known);}
+            protected List<SqlColumnCompletion.Suggestion> doInBackground()throws Exception{return provider.suggestions(statement,qualifier,db,known);}
             protected void done(){
                 if(isCancelled()||request!=completionGeneration||session!=target||caret!=editor.getCaretPosition()||!text.equals(completionText())||!editor.isFocusOwner())return;
-                try{List<String> columns=get();columnWords.clear();columnWords.addAll(columns);renderCompletions(filterPrefix,columns,qualified);}catch(Exception ignored){}
+                try{List<SqlColumnCompletion.Suggestion> suggestions=get();List<String> labels=suggestions.stream().map(SqlColumnCompletion.Suggestion::label).toList();columnWords.clear();columnWords.addAll(labels);columnInsertions.clear();for(var suggestion:suggestions)columnInsertions.put(suggestion.label(),suggestion.insertion());renderCompletions(filterPrefix,labels,qualified);}catch(Exception ignored){}
             }
         };
         columnWorker.execute();
@@ -1137,9 +1140,9 @@ public final class QueryPanel extends JPanel {
         int tail = token.lastIndexOf('.') + 1;
         int replaceLength = token.length() - tail;
         boolean column=columnWords.contains(selected);
-        String insertion = !column && selected.contains(".") && token.contains(".") ? selected.substring(selected.lastIndexOf('.') + 1) : selected;
+        String insertion = column?columnInsertions.getOrDefault(selected,selected):!column && selected.contains(".") && token.contains(".") ? selected.substring(selected.lastIndexOf('.') + 1) : selected;
         String typed=token.substring(tail);
-        if(column&&columnCompletion!=null&&(!insertion.matches("[\\p{L}_$][\\p{L}\\p{N}_$]*")||sqlKeywords.contains(insertion.toUpperCase(Locale.ROOT))||typed.startsWith("`")||typed.startsWith("\"")||typed.startsWith("[")))insertion=columnCompletion.identifier(insertion);
+        if(column&&columnCompletion!=null){int dot=insertion.lastIndexOf('.');String prefix=dot<0?"":insertion.substring(0,dot+1),field=dot<0?insertion:insertion.substring(dot+1);if(!field.matches("[\\p{L}_$][\\p{L}\\p{N}_$]*")||sqlKeywords.contains(field.toUpperCase(Locale.ROOT))||typed.startsWith("`")||typed.startsWith("\"")||typed.startsWith("["))insertion=prefix+columnCompletion.identifier(field);}
         replaceCompletion(caret-replaceLength,caret,insertion);
     }
 

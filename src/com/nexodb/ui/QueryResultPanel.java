@@ -1,6 +1,7 @@
 package com.nexodb.ui;
 
 import com.nexodb.db.*;
+import com.nexodb.util.DataExporter;
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
@@ -61,6 +62,7 @@ final class QueryResultPanel extends JPanel {
     private final Consumer<JTable> resize;
     private final ResultGridActions grid;
     private Runnable exportAction;
+    private SwingWorker<Long,Long> exportWorker;
     private boolean available, saving, pendingCommit, stale;
     private List<ForeignKeyLookup.Reference> references=List.of();
     private final JButton referenceButton=UiLanguage.button("Ver referencia");
@@ -129,8 +131,8 @@ final class QueryResultPanel extends JPanel {
             filter.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){private void changed(){scheduleServerView(grid.viewState());}public void insertUpdate(javax.swing.event.DocumentEvent e){changed();}public void removeUpdate(javax.swing.event.DocumentEvent e){changed();}public void changedUpdate(javax.swing.event.DocumentEvent e){changed();}});
             UiLanguage.tooltip(filter,UiLanguage.key("Busca en todo el resultado; el filtro se ejecuta en la base de datos."));
         }
-        grid.exportAction(format->ResultExports.write(this,model.snapshot(),target==null?"resultado":target.qualifiedTable(),format,changed));
-        toolbar.add(ResultExports.button(this,model::snapshot,target==null?"resultado":target.qualifiedTable(),changed));
+        grid.exportAction(this::exportResult);
+        toolbar.add(ResultExports.button(this,target==null?"resultado":target.qualifiedTable(),this::exportResult));
         grid.editingActions(new ResultGridActions.EditingActions(this::editSelectedCell,()->insertRow(false),this::deleteRows,this::save,this::requestDiscard,this::setSelectionValue,this::pasteSelectionValue,()->insertRow(true),()->{if(exportAction!=null)exportAction.run();},this::canWrite,this::hasChanges,this::canEditSelectedCell,()->origin.profile().type()!=com.nexodb.model.DatabaseType.SQLITE,()->exportAction!=null));
         grid.referenceAction(()->openReference(table.getSelectedRow(),table.getSelectedColumn()),()->table.getSelectedColumn()>=0&&hasReference(table.convertColumnIndexToModel(table.getSelectedColumn())));
         referenceButton.setName("query-reference");referenceButton.setIcon(IconFactory.of(IconFactory.Kind.KEY,16));referenceButton.addActionListener(e->openReference(table.getSelectedRow(),table.getSelectedColumn()));toolbar.add(referenceButton);
@@ -182,6 +184,26 @@ final class QueryResultPanel extends JPanel {
     void setRenderMillis(long value){renderMillis=Math.max(0,value);updateCount();}
     void resetReadOnly(){finishEditing();edit.setSelected(false);updateActions();}
     void setExportAction(Runnable action){exportAction=action;}
+    boolean canCancel(){return exportWorker!=null&&!exportWorker.isDone();}
+    void cancelOperation(){if(!canCancel())return;exportWorker.cancel(true);try{origin.cancel();}catch(java.sql.SQLException ignored){}changed.accept(tr("Exportación cancelada"));}
+    void exportData(){exportResult(null);}
+    private void exportResult(DataExporter.Format initial){
+        String name=target==null?"resultado":target.qualifiedTable();QueryResult snapshot=model.snapshot();
+        boolean full=pageable&&!hasChanges()&&(serverView||pagingRequested||limit==Integer.MAX_VALUE||snapshot.truncated());
+        if(!full){ResultExports.write(this,snapshot,name,initial==null?DataExporter.Format.CSV:initial,changed);return;}
+        ExportChooser.Request request=initial==null?ExportChooser.choose(this,name):ExportChooser.choose(this,name,initial);if(request==null)return;
+        String exportSql=viewSql;List<Object> parameters=List.copyOf(viewParameters);
+        exportWorker=new SwingWorker<Long,Long>(){
+            protected Long doInBackground()throws Exception{
+                return DataExporter.writeStreaming(request.path(),request.format(),name,writer->origin.streamResult(exportSql,parameters,Long.MAX_VALUE,new JdbcSession.ResultStream(){
+                    public void start(List<String> columns,List<Integer> types)throws Exception{writer.start(columns);}
+                    public void row(List<Object> values)throws Exception{writer.row(values);}
+                },rows->{if(!isCancelled())publish(rows);}));
+            }
+            protected void process(List<Long> values){if(!values.isEmpty())changed.accept(tr("Exportando ")+values.get(values.size()-1)+tr(" filas…"));}
+            protected void done(){try{if(isCancelled()){changed.accept(tr("Exportación cancelada"));return;}long rows=get();changed.accept(request.format()+tr(" exportado · ")+rows+tr(" filas · ")+request.path().getFileName());}catch(Exception error){if(!isCancellation(error))showError(root(error),"No se pudo exportar");}finally{exportWorker=null;end();}}
+        };start();UiLanguage.text(status,UiLanguage.key("Exportando resultado completo…"));exportWorker.execute();
+    }
     void setColumnEditor(ColumnEditor editor){
         if(editor!=null&&target!=null)grid.columnEditor((column,delete)->{
             if(!available||saving||!confirmDiscard()||column<0||column>=target.columns().size())return;

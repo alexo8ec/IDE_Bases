@@ -7,6 +7,7 @@ import com.nexodb.db.QueryEditSupport.Token;
 
 /** Bounded, short-lived column metadata cache; intended for background use only. */
 public final class SqlColumnCompletion {
+    public record Suggestion(String label,String insertion,String column,String table,String alias) {}
     private static final Set<String> CLAUSES=Set.of("WHERE","JOIN","LEFT","RIGHT","INNER","OUTER","CROSS","FULL","ON","SET","VALUES","ORDER","GROUP","HAVING","LIMIT","OFFSET","UNION","RETURNING","FETCH","FOR");
     private record Source(List<Token> parts,String alias) { String table(){return parts.get(parts.size()-1).value();} }
     private record Cached(long time,List<String> columns) {}
@@ -18,6 +19,9 @@ public final class SqlColumnCompletion {
     public String identifier(String name){return quote+name.replace(quote,quote+quote)+quote;}
 
     public List<String> columns(String sql,String qualifier,String database,Collection<String> knownTables)throws SQLException {
+        return suggestions(sql,qualifier,database,knownTables).stream().map(Suggestion::column).distinct().toList();
+    }
+    public List<Suggestion> suggestions(String sql,String qualifier,String database,Collection<String> knownTables)throws SQLException {
         if(session==null||!session.isOpen())return List.of();
         List<Source> sources=sources(sql);
         if(!qualifier.isBlank()) {
@@ -29,8 +33,13 @@ public final class SqlColumnCompletion {
                 if(!parts.isEmpty())sources=List.of(new Source(parts,""));
             }
         }
-        Set<String> result=new LinkedHashSet<>();
-        for(Source source:sources)result.addAll(read(source,database));
+        boolean explicit=!qualifier.isBlank();List<Suggestion> result=new ArrayList<>();Set<String> labels=new LinkedHashSet<>();
+        for(Source source:sources)for(String column:read(source,database)){
+            String prefix=source.alias().isBlank()?(sources.size()>1?source.table():""):source.alias();
+            String insertion=explicit||prefix.isBlank()?column:prefix+"."+column;
+            String label=explicit||prefix.isBlank()?column:column+"  ·  "+source.table()+" ("+prefix+")";
+            if(labels.add(label))result.add(new Suggestion(label,insertion,column,source.table(),prefix));
+        }
         return List.copyOf(result);
     }
     private List<String> read(Source source,String database)throws SQLException {

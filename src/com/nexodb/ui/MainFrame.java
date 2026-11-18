@@ -1456,28 +1456,30 @@ public final class MainFrame extends JFrame {
 
     private void exportTable(JdbcSession target, SchemaItem table) {
         if (target == null || !target.isOpen()) return;
-        JSpinner limit = new JSpinner(new SpinnerNumberModel(10000, 1, 1000000, 1000));
+        JSpinner limit = new JSpinner(new SpinnerNumberModel(0, 0, Integer.MAX_VALUE, 1000));
         JPanel options = new JPanel(new BorderLayout(8, 8));
-        options.add(UiLanguage.text(new JLabel(tr("Máximo de filas que se exportarán:")), UiLanguage.key("Máximo de filas que se exportarán:")), BorderLayout.NORTH);
+        options.add(UiLanguage.text(new JLabel(tr("Máximo de filas (0 = todas):")), UiLanguage.key("Máximo de filas (0 = todas):")), BorderLayout.NORTH);
         options.add(limit, BorderLayout.CENTER);
         if (JOptionPane.showConfirmDialog(this, options, tr("Exportar ") + table.name(),
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         ExportChooser.Request request = ExportChooser.choose(this, table.name());
         if (request == null) return;
-        int maxRows = ((Number) limit.getValue()).intValue();
+        long maxRows = ((Number) limit.getValue()).longValue();
         String qualified = qualifiedName(target, table);
         setBusy(true);
         setStatus(new Object[]{UiLanguage.key("Exportando "), table.name(), "…"});
-        new SwingWorker<Integer, Void>() {
-            @Override protected Integer doInBackground() throws Exception {
-                QueryResult result = target.execute("SELECT * FROM " + qualified, maxRows);
-                DataExporter.write(result, request.path(), request.format(), qualified);
-                return result.rows().size();
+        new SwingWorker<Long, Long>() {
+            @Override protected Long doInBackground() throws Exception {
+                return DataExporter.writeStreaming(request.path(),request.format(),qualified,writer->target.streamResult("SELECT * FROM "+qualified,List.of(),maxRows==0?Long.MAX_VALUE:maxRows,new JdbcSession.ResultStream(){
+                    public void start(List<String> columns,List<Integer> types)throws Exception{writer.start(columns);}
+                    public void row(List<Object> values)throws Exception{writer.row(values);}
+                },rows->{if(!isCancelled())publish(rows);}));
             }
+            @Override protected void process(List<Long> values){if(!values.isEmpty())setStatus(new Object[]{UiLanguage.key("Exportando "),table.name(),UiLanguage.key(" · "),values.get(values.size()-1),UiLanguage.key(" filas…")});}
             @Override protected void done() {
                 setBusy(false);
                 try {
-                    int rows = get();
+                    long rows = get();
                     setStatus(new Object[]{(request.format()), UiLanguage.key(" exportado · "), rows, UiLanguage.key(" filas · "), request.path().getFileName()});
                 } catch (Exception error) {
                     showError(tr("No se pudo exportar la tabla"), rootCause(error));

@@ -117,6 +117,8 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de paginacion fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.ResultQueryTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de filtros y orden global fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.StreamingExportTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de exportacion incremental fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.QueryPagingUiTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de controles de paginacion fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ResultCellMetadataIntegrationTest

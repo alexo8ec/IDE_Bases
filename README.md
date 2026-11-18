@@ -1,6 +1,15 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.43**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.44**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Exportación incremental y prefijos SQL — 0.18.44
+
+- Las exportaciones de resultados virtuales vuelven a ejecutar de forma segura el `SELECT` completo y escriben cada fila directamente al archivo. Ya no se limitan a la página visible ni necesitan cargar todo el resultado en memoria.
+- CSV, TSV, TXT, JSON, XML, HTML, SQL y Excel se generan incrementalmente. Se conservan los filtros, el orden y los parámetros preparados activos; la barra de estado informa las filas procesadas y la operación se puede cancelar.
+- El archivo se construye primero en una ubicación temporal y solo reemplaza al destino cuando termina correctamente. Si la base, el disco o el usuario interrumpen el proceso, se elimina el temporal y se conserva intacto cualquier archivo anterior.
+- La exportación directa de una tabla usa `0 = todas` como valor predeterminado y también transmite las filas por bloques, por lo que admite volúmenes grandes sin agotar la memoria.
+- Cuando una consulta usa un alias, el autocompletado inserta automáticamente el prefijo, por ejemplo `v.id_empresa`. Si participan varias tablas, la ventana identifica cada sugerencia con su tabla y alias para elegir la columna correcta.
+- Las pruebas verifican 25.005 filas más allá de la primera página, parámetros preparados, progreso, recuperación atómica ante errores y selección de alias entre varias tablas.
 
 ## Filtros y orden global en resultados virtuales — 0.18.43
 

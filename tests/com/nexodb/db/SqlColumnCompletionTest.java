@@ -26,11 +26,16 @@ public final class SqlColumnCompletionTest {
         equal(List.of("id","full name"),provider.columns("people.","people","db1",List.of("people")));equal(1,reads.get());
         equal(List.of(),provider.columns("SELECT p. FROM people p","other","db1",List.of()));equal(1,reads.get());
         equal(List.of("item_id"),provider.columns("SELECT b. FROM db1.people a JOIN db2.items b ON a.id=b.item_id","b","db1",List.of()));equal(2,reads.get());
+        var automatic=provider.suggestions("SELECT * FROM people p WHERE fu","","db1",List.of());
+        equal(new SqlColumnCompletion.Suggestion("full name  ·  people (p)","p.full name","full name","people","p"),automatic.get(1));
+        var multiple=provider.suggestions("SELECT * FROM people p JOIN db2.items i ON p.id=i.item_id WHERE id","","db1",List.of());
+        equal(true,multiple.stream().anyMatch(value->value.label().equals("id  ·  people (p)")&&value.insertion().equals("p.id")));
+        equal(true,multiple.stream().anyMatch(value->value.label().equals("item_id  ·  items (i)")&&value.insertion().equals("i.item_id")));
         equal(List.of("strange"),provider.columns("SELECT t. FROM db1.`odd_%` t","t","db1",List.of()));equal(3,reads.get());
         equal("`full name`",provider.identifier("full name"));equal("`a``b`",provider.identifier("a`b"));
         provider.columns("SELECT * FROM people WHERE id=1","","db2",List.of());equal(4,reads.get());
         provider.clear();provider.columns("SELECT * FROM people","","db1",List.of());equal(5,reads.get());
         equal(false,SqlColumnCompletion.inCode("SELECT 'FROM people"));equal(false,SqlColumnCompletion.inCode("SELECT /* unfinished"));
-        System.out.println("SqlColumnCompletionTest: OK (aliases, tables, schemas, escaped names, cache reuse, invalidation and database isolation)");
+        System.out.println("SqlColumnCompletionTest: OK (automatic aliases, multi-table labels, schemas, escaping, cache and database isolation)");
     }
 }

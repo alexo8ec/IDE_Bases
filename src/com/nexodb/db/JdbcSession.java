@@ -17,10 +17,15 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Arrays;
 import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 public final class JdbcSession implements AutoCloseable {
     public record DriverCheck(boolean available, File file, String detail) {}
+    public interface ResultStream {
+        void start(List<String> columns,List<Integer> jdbcTypes)throws Exception;
+        void row(List<Object> values)throws Exception;
+    }
 
     private final ConnectionProfile profile;
     private final Connection connection;
@@ -424,6 +429,30 @@ public final class JdbcSession implements AutoCloseable {
                     return result.withTiming(timing(started,serverMillis,fetchMillis,metadataMillis));
                 }
                 return executeEnrichedPage(statement,enrichment,pageSize,page.nativeOffset()?0:offset,started,serverMillis,metadataMillis);
+            }
+        }finally{activeStatement=null;}
+      }
+    }
+
+    /** Executes one read-only result forward-only and releases every row after the consumer writes it. */
+    public long streamResult(String sql,List<?> parameters,long maxRows,ResultStream stream,LongConsumer progress)throws Exception{
+      if(!QueryPaging.supported(sql))throw new SQLException("La sentencia no es un SELECT exportable de forma segura.");
+      synchronized(connection){
+        try(PreparedStatement statement=connection.prepareStatement(sql,ResultSet.TYPE_FORWARD_ONLY,ResultSet.CONCUR_READ_ONLY)){
+            activeStatement=statement;statement.setMaxRows(maxRows<=0||maxRows==Long.MAX_VALUE?0:(int)Math.min(Integer.MAX_VALUE,maxRows));
+            try{statement.setFetchDirection(ResultSet.FETCH_FORWARD);}catch(SQLFeatureNotSupportedException|AbstractMethodError ignored){}
+            statement.setFetchSize(500);for(int i=0;i<parameters.size();i++)statement.setObject(i+1,parameters.get(i));
+            if(!statement.execute())throw new SQLException("La consulta no devolvió filas exportables.");
+            try(ResultSet result=statement.getResultSet()){
+                ResultSetMetaData metadata=result.getMetaData();int count=metadata.getColumnCount();List<String> columns=new ArrayList<>(count);List<Integer> types=new ArrayList<>(count);
+                for(int i=1;i<=count;i++){String label=metadata.getColumnLabel(i);columns.add(label==null||label.isBlank()?metadata.getColumnName(i):label);types.add(metadata.getColumnType(i));}
+                stream.start(List.copyOf(columns),List.copyOf(types));long rows=0;
+                while(result.next()){
+                    if(Thread.currentThread().isInterrupted())throw new InterruptedException("Exportación cancelada.");
+                    stream.row(QueryResult.readDisplayRow(result,metadata));rows++;if(progress!=null&&(rows==1||rows%500==0))progress.accept(rows);
+                    if(maxRows>0&&rows>=maxRows)break;
+                }
+                if(progress!=null)progress.accept(rows);return rows;
             }
         }finally{activeStatement=null;}
       }
