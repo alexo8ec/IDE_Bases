@@ -74,6 +74,8 @@ if ($LASTEXITCODE -ne 0) { throw 'La prueba de exportacion de datos fallo.' }
 if ($LASTEXITCODE -ne 0) { throw 'La prueba del gestor de adaptadores JDBC fallo.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.update.UpdateServiceTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del actualizador fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.update.PackagedVersionTest (Join-Path $projectRoot 'build\nexodb-studio.jar')
+if ($LASTEXITCODE -ne 0) { throw 'La versión incorporada en el paquete no coincide con VERSION.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.AppearanceTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de idiomas y temas fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.SqlLineNumbersTest

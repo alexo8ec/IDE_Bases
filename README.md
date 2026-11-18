@@ -1,6 +1,12 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.40**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.41**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Actualización que conserva la versión instalada — 0.18.41
+
+- La versión mostrada por la aplicación y utilizada para buscar actualizaciones ya no está escrita manualmente en el código: la compilación la genera siempre desde el archivo único `VERSION`.
+- El JAR incorpora esa versión como recurso y como atributo de su manifiesto. La compilación se detiene si `VERSION` no es válido y las pruebas abren el JAR final para comprobar que sus tres valores coincidan.
+- Se corrige el ciclo de 0.18.40 que instalaba los archivos nuevos pero continuaba identificándose como 0.18.39, por lo que volvía a ofrecer la misma actualización al reiniciar.
 
 ## Diagnóstico de rendimiento por etapas — 0.18.40
 

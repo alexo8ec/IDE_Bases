@@ -1,6 +1,6 @@
 {
-  "version": "0.18.40",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.40-win64.zip",
-  "sha256": "6dc500c9fc429f22eec76b2ad73a555224c1baa24ce29af4bb4bef80d5794049",
-  "notes": "AdisDB 0.18.40: diagnóstico de rendimiento por etapas para distinguir servidor, lectura de filas, metadatos e interfaz."
+  "version": "0.18.41",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.41-win64.zip",
+  "sha256": "8db06dda9b7e5cd084de06c38252e7678dbb9b3f0aad5a66c70dfe8e80eb8e35",
+  "notes": "AdisDB 0.18.41: corrige la versión incorporada para que la actualización se aplique una sola vez y sea reconocida al reiniciar."
 }

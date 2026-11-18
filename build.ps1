@@ -7,6 +7,8 @@ $classesRoot = Join-Path $buildRoot 'classes'
 $jarPath = Join-Path $buildRoot 'nexodb-studio.jar'
 $bundledDriversRoot = Join-Path $buildRoot 'drivers'
 $bundledLibrariesRoot = Join-Path $buildRoot 'lib'
+$version = (Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'VERSION')).Trim()
+if ($version -notmatch '^[0-9]+(?:\.[0-9]+){1,3}$') { throw "VERSION no contiene una versión válida: $version" }
 
 if (Test-Path $classesRoot) {
     Remove-Item -LiteralPath $classesRoot -Recurse -Force
@@ -68,11 +70,15 @@ if ($LASTEXITCODE -ne 0) { throw 'La compilacion fallo.' }
 if (Test-Path -LiteralPath $resourceRoot) {
     Copy-Item -Path (Join-Path $resourceRoot '*') -Destination $classesRoot -Recurse -Force
 }
+$versionResource = Join-Path $classesRoot 'com\nexodb\version.txt'
+New-Item -ItemType Directory -Path (Split-Path -Parent $versionResource) -Force | Out-Null
+[System.IO.File]::WriteAllText($versionResource,$version,[System.Text.UTF8Encoding]::new($false))
 
 $manifestPath = Join-Path $buildRoot 'MANIFEST.MF'
 @(
     'Manifest-Version: 1.0'
     'Main-Class: com.nexodb.App'
+    "Implementation-Version: $version"
     'Class-Path: lib/flatlaf-3.7.2.jar lib/flatlaf-extras-3.7.2.jar lib/jsvg-2.1.0.jar lib/jsch-2.28.0.jar lib/waffle-jna-3.6.0.jar lib/jna-5.18.1.jar lib/jna-platform-5.18.1.jar lib/slf4j-api-2.0.17.jar lib/caffeine-3.2.3.jar lib/checker-qual-3.53.1.jar'
     ''
 ) | Set-Content -LiteralPath $manifestPath -Encoding ascii
