@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: creación visual de tablas con panel avanzado y ENUM/SET, conservación del formulario ante errores, refresco inmediato y relaciones visibles con modificación recuperable."
+    notes = "AdisDB ${version}: el asistente convierte lenguaje natural en SQL según la conexión y base activas; los ENUM/SET de tablas existentes se editan visualmente con valores ordenados."
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $distRoot 'update-manifest.json') -Encoding utf8
 Write-Host "Aplicacion portable lista: $appRoot\AdisDB.exe"

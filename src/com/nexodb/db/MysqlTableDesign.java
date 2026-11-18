@@ -95,6 +95,29 @@ public final class MysqlTableDesign {
         }return "";
     }
     public static String literal(String value,boolean noBackslash){return "'"+(noBackslash?value:value.replace("\\","\\\\")).replace("'","''")+"'";}
+    public static List<String> enumValues(String length,boolean noBackslash){
+        String source=Objects.toString(length,"").trim();List<String> values=new ArrayList<>();int i=0;
+        while(i<source.length()){
+            while(i<source.length()&&Character.isWhitespace(source.charAt(i)))i++;
+            if(i>=source.length()||source.charAt(i)!='\'')throw new IllegalArgumentException(tr("No se pudieron interpretar los valores ENUM/SET."));
+            i++;StringBuilder value=new StringBuilder();boolean closed=false;
+            while(i<source.length()){
+                char ch=source.charAt(i++);
+                if(ch=='\''&&i<source.length()&&source.charAt(i)=='\''){value.append('\'');i++;continue;}
+                if(ch=='\''){closed=true;break;}
+                if(ch=='\\'&&!noBackslash&&i<source.length()){char escaped=source.charAt(i++);value.append(switch(escaped){case '0'->'\0';case 'b'->'\b';case 'n'->'\n';case 'r'->'\r';case 't'->'\t';case 'Z'->'\u001a';default->escaped;});continue;}
+                value.append(ch);
+            }
+            if(!closed)throw new IllegalArgumentException(tr("No se pudieron interpretar los valores ENUM/SET."));values.add(value.toString());
+            while(i<source.length()&&Character.isWhitespace(source.charAt(i)))i++;if(i<source.length()){if(source.charAt(i)!=',')throw new IllegalArgumentException(tr("No se pudieron interpretar los valores ENUM/SET."));i++;}
+        }
+        return List.copyOf(values);
+    }
+    public static String enumLength(List<String> values,boolean noBackslash){
+        if(values==null||values.isEmpty())throw new IllegalArgumentException(tr("Agrega al menos un valor para ENUM/SET."));Set<String> unique=new HashSet<>();List<String> result=new ArrayList<>();
+        for(String raw:values){String value=Objects.toString(raw,"");if(value.chars().anyMatch(ch->ch==0||ch=='\n'||ch=='\r'))throw new IllegalArgumentException(tr("Los valores ENUM/SET no pueden contener saltos de línea."));if(!unique.add(value))throw new IllegalArgumentException(tr("No repitas valores en ENUM/SET."));result.add(literal(value,noBackslash));}
+        return String.join(",",result);
+    }
     private static void fragment(String value,boolean noBackslash,boolean allowComma){
         if(value.isBlank())return;char quoted=0;int depth=0;for(int i=0;i<value.length();i++){char ch=value.charAt(i);if(quoted!=0){if(ch=='\\'&&!noBackslash&&quoted!='`'){i++;continue;}if(ch==quoted){if(i+1<value.length()&&value.charAt(i+1)==quoted)i++;else quoted=0;}continue;}if(ch=='\''||ch=='"'||ch=='`'){quoted=ch;continue;}if(ch=='(')depth++;if(ch==')'&&--depth<0)throw new IllegalArgumentException(tr("Expresión SQL no válida."));if(ch==';'||ch==','&&depth==0&&!allowComma||ch=='#'||ch=='/'&&i+1<value.length()&&value.charAt(i+1)=='*'||ch=='-'&&i+1<value.length()&&value.charAt(i+1)=='-')throw new IllegalArgumentException(tr("La expresión no puede contener otra sentencia ni comentarios."));}if(quoted!=0||depth!=0)throw new IllegalArgumentException(tr("Expresión SQL no válida."));
     }

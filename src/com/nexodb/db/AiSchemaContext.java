@@ -12,11 +12,42 @@ public final class AiSchemaContext {
     }
     private record Source(List<QueryEditSupport.Token> parts) {}
     private record Site(String catalog,String schema,String table) {}
-    private static final int MAX_TABLES=20,MAX_COLUMNS=300,MAX_INDEX_ROWS=500,MAX_TEXT=100_000;
+    private static final int MAX_TABLES=20,MAX_COLUMNS=300,MAX_INDEX_ROWS=500,MAX_TEXT=100_000,MAX_OBJECT_NAMES=1_500;
+    private static final Set<String> REQUEST_STOP_WORDS=Set.of("a","al","con","de","del","el","en","la","las","lo","los","me","para","por","que","se","sin","un","una","y","the","from","get","give","list","of","show","with");
+    private static final Map<String,List<String>> REQUEST_SYNONYMS=Map.ofEntries(
+        Map.entry("usuario",List.of("user","users","usuario","usuarios")),Map.entry("usuarios",List.of("user","users","usuario","usuarios")),
+        Map.entry("cliente",List.of("client","clients","customer","customers","cliente","clientes")),Map.entry("clientes",List.of("client","clients","customer","customers","cliente","clientes")),
+        Map.entry("venta",List.of("sale","sales","venta","ventas")),Map.entry("ventas",List.of("sale","sales","venta","ventas")),
+        Map.entry("factura",List.of("bill","bills","invoice","invoices","factura","facturas")),Map.entry("facturas",List.of("bill","bills","invoice","invoices","factura","facturas")),
+        Map.entry("producto",List.of("product","products","producto","productos")),Map.entry("productos",List.of("product","products","producto","productos")),
+        Map.entry("pedido",List.of("order","orders","pedido","pedidos")),Map.entry("pedidos",List.of("order","orders","pedido","pedidos")),
+        Map.entry("paciente",List.of("patient","patients","paciente","pacientes")),Map.entry("pacientes",List.of("patient","patients","paciente","pacientes")),
+        Map.entry("doctor",List.of("doctor","doctors","medico","medicos")),Map.entry("medico",List.of("doctor","doctors","medico","medicos"))
+    );
     private AiSchemaContext() {}
 
     public static String header(JdbcSession session,String database) {
         return "Motor: "+(session==null?"no especificado":session.profile().type().displayName())+"\nBase seleccionada: "+Objects.toString(database,"")+"\n";
+    }
+    /** Builds bounded context for a natural-language request without reading table rows. */
+    public static Snapshot readForRequest(JdbcSession session,String database,String request)throws SQLException,InterruptedException {
+        if(session==null||!session.isOpen())return new Snapshot(header(session,database)+"Sin conexión activa. Selecciona una base antes de generar SQL.",0,0,0,List.of("Sin conexión activa."));
+        List<SchemaMetadataReader.DbObject> objects=SchemaMetadataReader.listObjects(session,database).stream()
+            .sorted(Comparator.comparing(SchemaMetadataReader.DbObject::name,String.CASE_INSENSITIVE_ORDER)).toList();
+        Set<String> terms=requestTerms(request);List<SchemaMetadataReader.DbObject> ranked=new ArrayList<>(objects);
+        ranked.sort(Comparator.<SchemaMetadataReader.DbObject>comparingInt(value->requestScore(value.name(),terms)).reversed().thenComparing(SchemaMetadataReader.DbObject::name,String.CASE_INSENSITIVE_ORDER));
+        List<SchemaMetadataReader.DbObject> selected=ranked.stream().filter(value->requestScore(value.name(),terms)>0).limit(MAX_TABLES).toList();
+        if(selected.isEmpty())selected=ranked.stream().limit(Math.min(8,ranked.size())).toList();
+        StringBuilder lookup=new StringBuilder();for(var object:selected)lookup.append("SELECT * FROM ").append(quote(object.name(),session.profile().type())).append(";\n");
+        Snapshot detail=read(session,database,lookup.toString());StringBuilder text=new StringBuilder(header(session,database));
+        text.append("Objetos disponibles en la base (tabla/vista; úsalo para elegir nombres reales):\n");
+        int visible=Math.min(objects.size(),MAX_OBJECT_NAMES);for(int i=0;i<visible;i++)text.append("  ").append(objects.get(i).type()).append(' ').append(objects.get(i).name()).append('\n');
+        List<String> warnings=new ArrayList<>(detail.warnings());
+        if(objects.size()>visible)warnings.add("Lista de objetos limitada a "+MAX_OBJECT_NAMES+" de "+objects.size()+".");
+        text.append("\nDetalle de los objetos más relacionados con la solicitud:\n");
+        String detailed=detail.text();int afterHeader=detailed.indexOf('\n');text.append(afterHeader>=0?detailed.substring(afterHeader+1):detailed);
+        if(text.length()>MAX_TEXT){text.setLength(MAX_TEXT);warnings.add("El contexto para lenguaje natural fue truncado a 100.000 caracteres.");}
+        return new Snapshot(text.toString(),detail.tables(),detail.columns(),detail.indexes(),warnings);
     }
     public static Snapshot read(JdbcSession session,String database,String sql)throws SQLException,InterruptedException {
         StringBuilder text=new StringBuilder(header(session,database));List<String> warnings=new ArrayList<>();
@@ -91,6 +122,20 @@ public final class AiSchemaContext {
         }
         return new Site(catalog,schema,table);
     }
+    private static Set<String> requestTerms(String request){
+        Set<String> terms=new LinkedHashSet<>();String normalized=normalize(request);
+        for(String value:normalized.split("[^a-z0-9]+"))if(value.length()>1&&!REQUEST_STOP_WORDS.contains(value)){
+            terms.add(value);if(value.endsWith("es")&&value.length()>4)terms.add(value.substring(0,value.length()-2));else if(value.endsWith("s")&&value.length()>3)terms.add(value.substring(0,value.length()-1));
+            terms.addAll(REQUEST_SYNONYMS.getOrDefault(value,List.of()));
+        }return terms;
+    }
+    private static int requestScore(String name,Set<String> terms){
+        String normalized=normalize(name),compact=normalized.replaceAll("[^a-z0-9]","");int score=0;
+        for(String term:terms){String clean=normalize(term).replaceAll("[^a-z0-9]","");if(clean.length()<2)continue;if(compact.equals(clean))score+=40;else if(normalized.matches(".*(^|[^a-z0-9])"+java.util.regex.Pattern.quote(clean)+"([^a-z0-9]|$).*$"))score+=18;else if(compact.contains(clean))score+=6;}
+        return score;
+    }
+    private static String normalize(String value){return java.text.Normalizer.normalize(Objects.toString(value,"").toLowerCase(Locale.ROOT),java.text.Normalizer.Form.NFD).replaceAll("\\p{M}+","");}
+    private static String quote(String name,DatabaseType type){String value=Objects.toString(name,"");if(type==DatabaseType.MYSQL||type==DatabaseType.MARIADB)return "`"+value.replace("`","``")+"`";if(type==DatabaseType.SQLSERVER)return "["+value.replace("]","]]")+"]";return "\""+value.replace("\"","\"\"")+"\"";}
     private static List<Source> sources(String sql) {
         var tokens=QueryEditSupport.tokenize(sql);Map<String,Source> sources=new LinkedHashMap<>();Set<Integer> fromDepth=new HashSet<>();Set<String> ctes=new HashSet<>();int depth=0;
         for(int i=0;i<tokens.size();i++) {

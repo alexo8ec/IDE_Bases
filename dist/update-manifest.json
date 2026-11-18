@@ -1,6 +1,6 @@
 {
-  "version": "0.18.34",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.34-win64.zip",
-  "sha256": "58c9d1c10d87e46f5f98ad0b30aa6e948cf5b906cf78db55a03235e237fa793b",
-  "notes": "AdisDB 0.18.34: creación visual de tablas con panel avanzado y ENUM/SET, conservación del formulario ante errores, refresco inmediato y relaciones visibles con modificación recuperable."
+  "version": "0.18.35",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.35-win64.zip",
+  "sha256": "c90202be7fef0d446ae2ea56e840f2cd9803afde714ce232c6855ba61fdf38b6",
+  "notes": "AdisDB 0.18.35: el asistente convierte lenguaje natural en SQL según la conexión y base activas; los ENUM/SET de tablas existentes se editan visualmente con valores ordenados."
 }

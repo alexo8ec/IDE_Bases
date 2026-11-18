@@ -1,6 +1,12 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.34**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.35**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Lenguaje natural y edición de ENUM/SET — 0.18.35
+
+- En **Asistente de IA → Generar consulta** se escribe directamente lo que se necesita en lenguaje natural. Antes de enviar, AdisDB toma la conexión y la base seleccionadas en ese momento, lee únicamente metadatos y prepara un contexto limitado con tablas, vistas, columnas, claves e índices relevantes para que el proveedor genere SQL del dialecto correcto.
+- Si se cambia de conexión, base o descripción, el contexto anterior se invalida y se actualiza automáticamente al generar. La pestaña de SQL queda como referencia opcional; en los modos de optimización continúa siendo el SQL de entrada. La propuesta nunca se ejecuta automáticamente: primero se muestra para revisión y puede abrirse en una consulta nueva.
+- Al modificar una columna `ENUM` o `SET` en una tabla MySQL/MariaDB existente, el botón **Modificar**, el doble clic y el menú contextual abren una ventana para agregar, reemplazar, eliminar, subir y bajar valores. AdisDB interpreta correctamente comas, comillas y barras existentes, conserva el borrador y genera la definición segura solo al guardar la estructura.
 
 ## Diseñador visual de tablas — 0.18.34
 

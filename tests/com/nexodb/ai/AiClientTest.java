@@ -37,6 +37,7 @@ public final class AiClientTest {
             equal(0,redirected.get());
             for(String url:List.of("http://external.example/chat","https://user:password@example.com/chat","https://example.com/chat?key=secret"))try{new AiConfig(AiConfig.Provider.COMPATIBLE,URI.create(url),"model");throw new AssertionError("Unsafe endpoint accepted");}catch(IllegalArgumentException expected){}
             var tailscale=new AiConfig(AiConfig.Provider.VICKY,URI.create(AiConfig.Provider.VICKY.defaultEndpoint()),"");equal("vicky-core",tailscale.model());
+            String naturalPrompt=AiClient.prompt(AiClient.Task.GENERATE,"Obtén los usuarios activos","","Motor: MySQL\nBase seleccionada: aitrol_db\nTABLE users\n  estado TINYINT","");contains(naturalPrompt,"lenguaje natural");contains(naturalPrompt,"Base seleccionada: aitrol_db");contains(naturalPrompt,"sin ejecutarlo");
             try{AiClient.prompt(AiClient.Task.GENERATE,"x".repeat(200001),"","","");throw new AssertionError("Unbounded context accepted");}catch(IllegalArgumentException expected){}
         }finally{server.stop(0);}
         System.out.println("AiClientTest: OK (local HTTP contract, Unicode, SQL extraction, Responses/store=false, selected model, no tools, endpoint validation, no redirects or credential disclosure)");

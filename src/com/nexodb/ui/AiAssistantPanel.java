@@ -22,6 +22,7 @@ public final class AiAssistantPanel extends JPanel {
     private final JLabel status=new JLabel(" ");
     private final JLabel contextStatus=UiLanguage.label("Contexto manual: revisa motor, columnas e índices antes de enviar.");
     private final JTextArea preview=new JTextArea(),diagnostics=new JTextArea();
+    private final JTabbedPane inputs=new JTabbedPane();
     private final JButton refreshContext=UiLanguage.button("Actualizar contexto de tablas");
     private final JButton send=UiLanguage.button("Generar propuesta"),cancel=UiLanguage.button("Cancelar"),open=UiLanguage.button("Abrir SQL en consulta nueva");
     private final Consumer<String> openSql;
@@ -29,7 +30,9 @@ public final class AiAssistantPanel extends JPanel {
     private SwingWorker<AiClient.Answer,Void> worker;
     private String secretEndpoint="";
     private JdbcSession contextSource;private String contextDatabase="",contextSql="";
+    private Supplier<ContextSelection> contextResolver;
     private SwingWorker<AiSchemaContext.Snapshot,Void> contextWorker;
+    private boolean pendingSendAfterContext;
     private boolean disposed;
     private final javax.swing.Timer previewTimer=new javax.swing.Timer(200,e->updatePreview());
     public AiAssistantPanel(String initialSql,String context,Consumer<String> openSql) {
@@ -39,8 +42,8 @@ public final class AiAssistantPanel extends JPanel {
         JPanel settings=new JPanel(new GridLayout(0,1,3,3));JPanel p=new JPanel(new com.nexodb.reporting.ui.WrapLayout());p.add(UiLanguage.label("Proveedor:"));p.add(provider);p.add(UiLanguage.label("Modelo:"));p.add(model);settings.add(p);
         p=new JPanel(new com.nexodb.reporting.ui.WrapLayout());p.add(new JLabel("Endpoint:"));p.add(endpoint);p.add(UiLanguage.label("Clave API:"));p.add(key);settings.add(p);
         p=new JPanel(new com.nexodb.reporting.ui.WrapLayout());remember.setEnabled(SecretStore.isSupported());p.add(remember);JButton save=UiLanguage.button("Guardar configuración");save.addActionListener(e->saveSettings());p.add(save);settings.add(p);add(settings,BorderLayout.NORTH);
-        JPanel request=new JPanel(new BorderLayout(5,5));JPanel mode=new JPanel(new BorderLayout());mode.add(task,BorderLayout.WEST);mode.add(new JScrollPane(instruction));JPanel requestTop=new JPanel(new BorderLayout(4,4));requestTop.add(mode);JPanel contextBar=new JPanel(new BorderLayout(8,0));contextBar.add(refreshContext,BorderLayout.WEST);contextBar.add(contextStatus);requestTop.add(contextBar,BorderLayout.SOUTH);request.add(requestTop,BorderLayout.NORTH);
-        JTabbedPane inputs=new JTabbedPane();UiLanguage.addTab(inputs,"SQL de entrada",null,new JScrollPane(sql));UiLanguage.addTab(inputs,"Contexto de esquema",null,new JScrollPane(schema));UiLanguage.addTab(inputs,"Plan de ejecución",null,new JScrollPane(plan));UiLanguage.addTab(inputs,"Solicitud a enviar",null,new JScrollPane(preview));request.add(inputs);
+        JPanel request=new JPanel(new BorderLayout(5,5));JPanel mode=new JPanel(new BorderLayout(8,0));mode.add(task,BorderLayout.WEST);mode.add(new JScrollPane(instruction));JPanel requestTop=new JPanel(new BorderLayout(4,4));requestTop.add(mode);JPanel contextBar=new JPanel(new BorderLayout(8,0));contextBar.add(refreshContext,BorderLayout.WEST);contextBar.add(contextStatus);requestTop.add(contextBar,BorderLayout.SOUTH);request.add(requestTop,BorderLayout.NORTH);
+        UiLanguage.addTab(inputs,"SQL existente (opcional)",null,new JScrollPane(sql));UiLanguage.addTab(inputs,"Contexto de esquema",null,new JScrollPane(schema));UiLanguage.addTab(inputs,"Plan de ejecución",null,new JScrollPane(plan));UiLanguage.addTab(inputs,"Solicitud a enviar",null,new JScrollPane(preview));request.add(inputs);
         JTabbedPane outputs=new JTabbedPane();UiLanguage.addTab(outputs,"Explicación y recomendaciones",null,new JScrollPane(answer));UiLanguage.addTab(outputs,"SQL propuesto",null,new JScrollPane(proposal));UiLanguage.addTab(outputs,"Diagnóstico",null,new JScrollPane(diagnostics));
         preview.setName("ai-request-preview");diagnostics.setName("ai-request-diagnostics");for(JTextArea area:java.util.List.of(preview,diagnostics)){area.setEditable(false);area.setLineWrap(true);area.setWrapStyleWord(true);area.setFont(new Font(Font.MONOSPACED,Font.PLAIN,12));}
         refreshContext.setEnabled(false);refreshContext.addActionListener(e->refreshSchema());contextStatus.setName("ai-context-status");
@@ -51,26 +54,49 @@ public final class AiAssistantPanel extends JPanel {
         endpoint.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){private void changed(){if(!endpoint.getText().equals(secretEndpoint)){key.setText("");secretEndpoint="";}}public void insertUpdate(javax.swing.event.DocumentEvent e){changed();}public void removeUpdate(javax.swing.event.DocumentEvent e){changed();}public void changedUpdate(javax.swing.event.DocumentEvent e){}});
         previewTimer.setRepeats(false);var listener=new javax.swing.event.DocumentListener(){private void changed(){previewTimer.restart();}public void insertUpdate(javax.swing.event.DocumentEvent e){changed();}public void removeUpdate(javax.swing.event.DocumentEvent e){changed();}public void changedUpdate(javax.swing.event.DocumentEvent e){changed();}};
         for(var document:java.util.List.of(sql.getDocument(),schema.getDocument(),plan.getDocument(),instruction.getDocument(),endpoint.getDocument(),model.getDocument()))document.addDocumentListener(listener);
-        sql.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){private void changed(){if(contextSource!=null&&!contextSql.equals(sql.getText()))contextStatus.setText(tr("El SQL cambió. Actualiza el contexto de sus tablas antes de enviar."));}public void insertUpdate(javax.swing.event.DocumentEvent e){changed();}public void removeUpdate(javax.swing.event.DocumentEvent e){changed();}public void changedUpdate(javax.swing.event.DocumentEvent e){changed();}});
-        task.addActionListener(e->updatePreview());provider.addActionListener(e->updatePreview());updatePreview();
+        var contextListener=new javax.swing.event.DocumentListener(){private void changed(){markContextStale();}public void insertUpdate(javax.swing.event.DocumentEvent e){changed();}public void removeUpdate(javax.swing.event.DocumentEvent e){changed();}public void changedUpdate(javax.swing.event.DocumentEvent e){changed();}};
+        sql.getDocument().addDocumentListener(contextListener);instruction.getDocument().addDocumentListener(contextListener);
+        task.addActionListener(e->{updateTaskMode();updatePreview();});provider.addActionListener(e->updatePreview());updateTaskMode();updatePreview();
         status.setText(tr("Se enviarán la solicitud, el SQL y el contexto visibles al endpoint elegido. No se envían filas de resultados automáticamente."));loadSavedKey();
     }
+    public record ContextSelection(JdbcSession session,String database) {}
     public void setContextSource(JdbcSession session,String database){contextSource=session;contextDatabase=Objects.toString(database,"");refreshContext.setEnabled(session!=null);if(session!=null)refreshSchema();}
+    public void setContextResolver(Supplier<ContextSelection> resolver){contextResolver=resolver;resolveContextSelection();}
+    private void resolveContextSelection(){
+        if(contextResolver==null)return;ContextSelection selected=contextResolver.get();if(selected==null)return;
+        JdbcSession next=selected.session();String database=Objects.toString(selected.database(),"");
+        if(next!=contextSource||!database.equals(contextDatabase)){contextSource=next;contextDatabase=database;contextSql="";schema.setText(AiSchemaContext.header(next,database));contextStatus.setText(tr("Base activa: ")+database+tr(". Actualiza el contexto antes de generar SQL."));}
+        refreshContext.setEnabled(contextReady());
+    }
+    private boolean contextReady(){return contextSource!=null&&contextSource.isOpen()&&(!contextDatabase.isBlank()||contextSource.profile().type()==com.nexodb.model.DatabaseType.H2||contextSource.profile().type()==com.nexodb.model.DatabaseType.SQLITE);}
+    private boolean generateMode(){return task.getSelectedItem()==AiClient.Task.GENERATE;}
+    private String contextInput(){return generateMode()?instruction.getText():sql.getText();}
+    private String contextFingerprint(){return task.getSelectedItem()+"\n"+contextDatabase+"\n"+contextInput();}
+    private void markContextStale(){
+        if(contextSource==null)return;boolean relevant=generateMode()?instruction.getDocument().getLength()>0:sql.getDocument().getLength()>0;
+        if(relevant&&!contextSql.equals(contextFingerprint()))contextStatus.setText(generateMode()?tr("La descripción cambió. El contexto se actualizará con la base seleccionada al generar."):tr("El SQL cambió. Actualiza el contexto de sus tablas antes de enviar."));
+    }
+    private void updateTaskMode(){
+        boolean generate=generateMode();inputs.setTitleAt(0,tr(generate?"SQL existente (opcional)":"SQL de entrada"));
+        instruction.setBorder(BorderFactory.createTitledBorder(tr(generate?"Describe en lenguaje natural la consulta que necesitas":"Indica qué deseas revisar o mejorar")));
+        refreshContext.setText(tr(generate?"Actualizar contexto de la base":"Actualizar contexto de tablas"));markContextStale();
+    }
     private void refreshSchema(){
-        if(contextSource==null||disposed)return;if(contextWorker!=null)contextWorker.cancel(true);
-        JdbcSession source=contextSource;String input=sql.getText(),database=contextDatabase,before=schema.getText();
-        refreshContext.setEnabled(false);send.setEnabled(false);contextStatus.setText(tr("Leyendo columnas, claves e índices de las tablas del SQL…"));
+        resolveContextSelection();if(!contextReady()||disposed){pendingSendAfterContext=false;status.setText(tr("Selecciona una conexión y una base de datos antes de generar SQL."));return;}if(contextWorker!=null)contextWorker.cancel(true);
+        JdbcSession source=contextSource;String input=contextInput(),fingerprint=contextFingerprint(),database=contextDatabase,before=schema.getText();boolean natural=generateMode();
+        refreshContext.setEnabled(false);send.setEnabled(false);contextStatus.setText(tr(natural?"Leyendo objetos y columnas de la base seleccionada…":"Leyendo columnas, claves e índices de las tablas del SQL…"));
         contextWorker=new SwingWorker<>(){
-            protected AiSchemaContext.Snapshot doInBackground()throws Exception{return AiSchemaContext.read(source,database,input);}
+            protected AiSchemaContext.Snapshot doInBackground()throws Exception{return natural?AiSchemaContext.readForRequest(source,database,input):AiSchemaContext.read(source,database,input);}
             protected void done(){
                 if(disposed||contextWorker!=this)return;refreshContext.setEnabled(true);send.setEnabled(worker==null||worker.isDone());
                 if(isCancelled())return;
-                try{var snapshot=get();if(!input.equals(sql.getText())){contextStatus.setText(tr("El SQL cambió durante la lectura. Actualiza el contexto."));return;}
-                    contextSql=input;boolean manual=!before.equals(schema.getText());if(!manual){schema.setText(snapshot.text());schema.setCaretPosition(0);}contextStatus.setText(manual?tr("Se conservó el contexto editado manualmente."):source.profile().type()+" · "+snapshot.summary());contextStatus.setToolTipText(String.join(" | ",snapshot.warnings()));
+                try{var snapshot=get();if(!fingerprint.equals(contextFingerprint())){pendingSendAfterContext=false;contextStatus.setText(tr(natural?"La descripción cambió durante la lectura. Vuelve a generar.":"El SQL cambió durante la lectura. Actualiza el contexto."));return;}
+                    contextSql=fingerprint;boolean manual=!before.equals(schema.getText());if(!manual){schema.setText(snapshot.text());schema.setCaretPosition(0);}contextStatus.setText(manual?tr("Se conservó el contexto editado manualmente."):source.profile().type()+" · "+database+" · "+snapshot.summary());contextStatus.setToolTipText(String.join(" | ",snapshot.warnings()));
                     diagnostics.setText("Lectura de metadatos: "+snapshot.summary()+"\n"+String.join("\n",snapshot.warnings())+"\n\nRevisa Contexto de esquema y Solicitud a enviar antes de generar la propuesta.");
-                    status.setText(tr("Contexto actualizado. Revisa el esquema visible antes de enviar."));updatePreview();
-                }catch(Exception error){contextSql=input;contextStatus.setText(tr("No se pudo cargar el esquema. Revisa Diagnóstico o incorpora el contexto manualmente."));showError(error);}
+                    status.setText(tr("Contexto actualizado para ")+database+".");updatePreview();if(pendingSendAfterContext){pendingSendAfterContext=false;SwingUtilities.invokeLater(thisPanel()::send);}
+                }catch(Exception error){pendingSendAfterContext=false;contextSql=fingerprint;contextStatus.setText(tr("No se pudo cargar el esquema. Revisa Diagnóstico o incorpora el contexto manualmente."));showError(error);}
             }
+            private AiAssistantPanel thisPanel(){return AiAssistantPanel.this;}
         };contextWorker.execute();
     }
     private void updatePreview(){if(disposed)return;try{preview.setText(AiClient.preview(config(),(AiClient.Task)task.getSelectedItem(),instruction.getText(),sql.getText(),schema.getText(),plan.getText()));}catch(Exception error){preview.setText(tr("No se puede preparar la solicitud: ")+error.getMessage());}preview.setCaretPosition(0);}
@@ -88,7 +114,8 @@ public final class AiAssistantPanel extends JPanel {
     private void send(){
         if(!LicenseGate.ensure(this)||worker!=null&&!worker.isDone())return;
         if(contextWorker!=null&&!contextWorker.isDone())return;
-        if(contextSource!=null&&!contextSql.equals(sql.getText())){refreshSchema();status.setText(tr("Actualizando el contexto del SQL. Revisa el esquema y vuelve a generar la propuesta."));return;}
+        resolveContextSelection();if(generateMode()&&instruction.getText().isBlank()){showError(new IllegalArgumentException(tr("Describe en lenguaje natural la consulta que necesitas.")));return;}
+        if(contextSource!=null&&!contextSql.equals(contextFingerprint())){pendingSendAfterContext=true;refreshSchema();status.setText(tr("Actualizando el contexto de la base seleccionada antes de generar la consulta…"));return;}
         AiConfig config;try{config=config();}catch(Exception error){showError(error);return;}
         char[] password=key.getPassword();AiClient.Task operation=(AiClient.Task)task.getSelectedItem();String request=instruction.getText(),sqlInput=sql.getText(),schemaInput=schema.getText(),planInput=plan.getText();
         String sentPreview;try{sentPreview=AiClient.preview(config,operation,request,sqlInput,schemaInput,planInput);}catch(Exception error){Arrays.fill(password,'\0');showError(error);return;}

@@ -20,7 +20,10 @@ public final class MysqlTableDesignTest {
         equal(true,MysqlTableDesign.columnSql(column("v","DECIMAL","12,2","1.25",""),false).contains("DECIMAL(12,2)"));
         equal(true,MysqlTableDesign.columnSql(added,false).contains("DEFAULT 'a; b'"));
         equal("'a''b\\\\c'",MysqlTableDesign.literal("a'b\\c",false));equal("'a''b\\c'",MysqlTableDesign.literal("a'b\\c",true));
-        System.out.println("MysqlTableDesignTest: OK (quoted commas/keywords/defaults, generated expressions, safe insertion/rename around exotic columns, expression boundaries and SQL-mode quoting)");
+        List<String> enumItems=List.of("PENDIENTE","a,b","it's","slash\\value");String enumLength=MysqlTableDesign.enumLength(enumItems,false);equal(enumItems,MysqlTableDesign.enumValues(enumLength,false));equal(enumItems,MysqlTableDesign.enumValues(MysqlTableDesign.enumLength(enumItems,true),true));
+        equal(true,MysqlTableDesign.columnSql(column("estado","ENUM",enumLength,"'PENDIENTE'",""),false).contains("ENUM('PENDIENTE','a,b','it''s','slash\\\\value')"));
+        for(List<String> bad:List.<List<String>>of(List.of(),List.of("A","A"),List.of("salto\nde línea"))){boolean denied=false;try{MysqlTableDesign.enumLength(bad,false);}catch(IllegalArgumentException expected){denied=true;}equal(true,denied);}
+        System.out.println("MysqlTableDesignTest: OK (quoted commas/keywords/defaults, visual ENUM/SET round trip, generated expressions, safe insertion/rename around exotic columns, expression boundaries and SQL-mode quoting)");
     }
     private static MysqlTableDesign.Column column(String name,String type,String length,String def,String unsupported){return new MysqlTableDesign.Column(name,type,length,false,false,false,false,def,"","","","","","",false,unsupported);}
     private static void equal(Object a,Object b){if(!Objects.equals(a,b))throw new AssertionError(a+" != "+b);}

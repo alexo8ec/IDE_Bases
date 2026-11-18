@@ -424,8 +424,9 @@ public final class MainFrame extends JFrame {
     private void openAi(String input,String plan){
         if(!LicenseGate.ensure(this))return;JdbcSession origin=queryPanel.currentSession()!=null?queryPanel.currentSession():session;
         String database=queryPanel.currentSession()==origin?queryPanel.activeDatabase():origin==null?"":origin.profile().database();
-        var panel=new AiAssistantPanel(input,AiSchemaContext.header(origin,database),sql->{if(origin!=null&&origin.isOpen())activateSession(origin);if(queryPanel.openNewQuery(sql))workspaceTabs.setSelectedIndex(0);});
+        var panel=new AiAssistantPanel(input,AiSchemaContext.header(origin,database),sql->{JdbcSession selected=queryPanel.currentSession()!=null?queryPanel.currentSession():session;if(selected!=null&&selected.isOpen())activateSession(selected);if(queryPanel.openNewQuery(sql))workspaceTabs.setSelectedIndex(0);});
         panel.setContextSource(origin,database);
+        panel.setContextResolver(()->{JdbcSession selected=queryPanel.currentSession()!=null?queryPanel.currentSession():session;String active=selected==queryPanel.currentSession()?queryPanel.activeDatabase():selected==null?"":selected.profile().database();return new AiAssistantPanel.ContextSelection(selected,active);});
         if(!plan.isBlank())panel.setPlanContext(plan);addToolTab(tr("Asistente de IA"),panel);
     }
     private void openPlan(){
