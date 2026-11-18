@@ -8,6 +8,9 @@ import java.util.*;
 import javax.imageio.ImageIO;
 import java.awt.print.*;
 import java.awt.image.BufferedImage;
+import javax.print.attribute.standard.MediaSizeName;
+import javax.print.attribute.standard.Media;
+import javax.print.attribute.standard.OrientationRequested;
 import static com.nexodb.reporting.ReportDesign.*;
 
 public final class ReportingTest {
@@ -48,6 +51,12 @@ public final class ReportingTest {
         var landscapeDesign=new ReportDesign(design.title(),true,design.headerHeight(),design.footer(),design.accent(),design.sourceColumns(),design.columns(),design.groups(),design.blocks());var landscapeLayout=ReportLayout.build(ReportPlan.build(landscapeDesign,data));
         if(ReportRenderer.image(layout,0,1).getHeight()<=ReportRenderer.image(layout,0,1).getWidth())throw new AssertionError("Portrait preview lost its orientation");
         if(ReportRenderer.image(landscapeLayout,0,1).getWidth()<=ReportRenderer.image(landscapeLayout,0,1).getHeight())throw new AssertionError("Landscape preview lost its orientation");
+        var portraitAttributes=ReportPrintSupport.attributes(design);var landscapeAttributes=ReportPrintSupport.attributes(landscapeDesign);
+        equal(MediaSizeName.ISO_A4,portraitAttributes.get(Media.class));equal(OrientationRequested.PORTRAIT,portraitAttributes.get(OrientationRequested.class));
+        equal(MediaSizeName.ISO_A4,landscapeAttributes.get(Media.class));equal(OrientationRequested.LANDSCAPE,landscapeAttributes.get(OrientationRequested.class));
+        Path landscapePdf=folder.resolve("landscape.pdf");ReportPdfWriter.write(landscapeLayout,landscapePdf);
+        String landscapePdfSource=new String(Files.readAllBytes(landscapePdf),java.nio.charset.StandardCharsets.ISO_8859_1);
+        if(!landscapePdfSource.contains("/MediaBox [0 0 842 595]"))throw new AssertionError("Landscape PDF page is not physically landscape");
         String longText="Detalle largo con espacios y números 1234567890. ".repeat(250);
         var longData=new ReportData("Texto largo",List.of("Descripción"),List.of(List.of(longText)),false);var longPlan=ReportPlan.build(ReportDesign.create(longData),longData);var longLayout=ReportLayout.build(longPlan);
         if(longLayout.pages().size()<2)throw new AssertionError("Long cells must paginate");

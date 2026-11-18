@@ -1,6 +1,12 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.35**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.36**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Impresión horizontal fiel a la vista previa — 0.18.36
+
+- La orientación del reporte se envía ahora a la impresora como una propiedad real del trabajo de impresión.
+- Al elegir **Horizontal**, tanto una impresora física como **Microsoft Print to PDF** reciben una página A4 apaisada, sin girar el contenido dentro de una hoja vertical.
+- La orientación elegida en el cuadro de impresión también se respeta al generar el trabajo final.
 
 ## Lenguaje natural y edición de ENUM/SET — 0.18.35
 

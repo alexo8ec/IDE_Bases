@@ -196,11 +196,12 @@ public final class ReportDesignerPanel extends JPanel {
     }
     private void print() {
         if(layout==null||layout.plan().design()!=design){state.setText("Espera a que termine de actualizar la vista previa.");return;}
-        ReportLayout snapshot=layout;PrinterJob job=PrinterJob.getPrinterJob();PageFormat format=job.defaultPage();format.setOrientation(design.landscape()?PageFormat.LANDSCAPE:PageFormat.PORTRAIT);format=job.validatePage(format);format.setOrientation(design.landscape()?PageFormat.LANDSCAPE:PageFormat.PORTRAIT);
-        job.setJobName(design.title());job.setPrintable(ReportRenderer.printable(snapshot),format);
-        if(job.printDialog()) {
+        ReportLayout snapshot=layout;PrinterJob job=PrinterJob.getPrinterJob();var attributes=ReportPrintSupport.attributes(design);
+        job.setJobName(design.title());job.setPrintable(ReportRenderer.printable(snapshot),ReportPrintSupport.pageFormat(job,attributes));
+        if(job.printDialog(attributes)) {
+            job.setPrintable(ReportRenderer.printable(snapshot),ReportPrintSupport.pageFormat(job,attributes));
             printing=true;sync();state.setText("Imprimiendo "+snapshot.pages().size()+" página"+(snapshot.pages().size()==1?"":"s")+"…");
-            new SwingWorker<Void,Void>(){protected Void doInBackground()throws Exception{job.print();return null;}protected void done(){printing=false;sync();try{get();status.accept("Reporte enviado a la impresora.");state.setText("Impresión terminada.");}catch(Exception error){error(root(error));}}}.execute();
+            new SwingWorker<Void,Void>(){protected Void doInBackground()throws Exception{job.print(attributes);return null;}protected void done(){printing=false;sync();try{get();status.accept("Reporte enviado a la impresora.");state.setText("Impresión terminada.");}catch(Exception error){error(root(error));}}}.execute();
         }
     }
     private final class ColumnModel extends AbstractTableModel {

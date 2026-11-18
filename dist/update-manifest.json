@@ -1,6 +1,6 @@
-{
-  "version": "0.18.35",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.35-win64.zip",
-  "sha256": "c90202be7fef0d446ae2ea56e840f2cd9803afde714ce232c6855ba61fdf38b6",
-  "notes": "AdisDB 0.18.35: el asistente convierte lenguaje natural en SQL según la conexión y base activas; los ENUM/SET de tablas existentes se editan visualmente con valores ordenados."
+﻿{
+    "version":  "0.18.36",
+    "downloadUrl":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.36-win64.zip",
+    "sha256":  "89cb02bb79d563490ab232cdb8d5c8a116a920cd9c9eb16f98bd7710406528f5",
+    "notes":  "AdisDB 0.18.36: la impresion respeta la orientacion horizontal del reporte y crea paginas A4 apaisadas, incluida la salida de Microsoft Print to PDF."
 }
