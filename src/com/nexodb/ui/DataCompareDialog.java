@@ -16,12 +16,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -40,7 +43,9 @@ public final class DataCompareDialog extends JDialog {
     private final JCheckBox ignoreLobs = UiLanguage.text(new JCheckBox(tr("Ignorar columnas BLOB/CLOB"), true), UiLanguage.key("Ignorar columnas BLOB/CLOB"));
     private final JSpinner maxRows = new JSpinner(new SpinnerNumberModel(5000, 1, 1_000_000, 1000));
     private final JButton chooseTables = UiLanguage.text(new JButton(tr("Seleccionar tablas…"), IconFactory.of(IconFactory.Kind.TABLE, 16)), UiLanguage.key("Seleccionar tablas…"));
+    private final JButton configureMapping = UiLanguage.text(new JButton(tr("Mapear columnas y claves…"), IconFactory.of(IconFactory.Kind.KEY, 16)), UiLanguage.key("Mapear columnas y claves…"));
     private final Set<String> selectedTables = new LinkedHashSet<>();
+    private final Map<String, TableMapping> mappings = new LinkedHashMap<>();
     private boolean tableSelectionConfigured;
     private final DefaultTableModel model = new DefaultTableModel(
             new Object[]{tr("Tabla"), tr("Estado"), tr("Origen"), tr("Destino"), tr("Faltan"), tr("Adicionales"), tr("Modificadas"), tr("Detalle")}, 0) {
@@ -158,7 +163,10 @@ public final class DataCompareDialog extends JDialog {
         c.gridx = 4; c.weightx = 1; endpoints.add(maxRows, c);
         c.gridx = 0; c.gridy = 3; c.gridwidth = 5; c.weightx = 1;
         chooseTables.addActionListener(e -> chooseTables());
-        endpoints.add(chooseTables, c);
+        configureMapping.addActionListener(e -> configureMapping());
+        JPanel tableActions = new JPanel(new GridLayout(1, 2, 8, 0));
+        tableActions.add(chooseTables); tableActions.add(configureMapping);
+        endpoints.add(tableActions, c);
         sourceConnection.addActionListener(e -> { loadDatabases(sourceSession(), source, true); });
         targetConnection.addActionListener(e -> { loadDatabases(targetSession(), target, false); });
         includeViews.addActionListener(e -> selectionChanged());
@@ -193,10 +201,11 @@ public final class DataCompareDialog extends JDialog {
     }
     private void updateActions() {
         boolean ready = sourceDatabases.ready() && targetDatabases.ready() && !comparing && !choosing;
-        compare.setEnabled(ready); chooseTables.setEnabled(ready);
+        compare.setEnabled(ready); chooseTables.setEnabled(ready); configureMapping.setEnabled(ready);
     }
     private void selectionChanged() {
         selectionRevision++; comparison = null; comparisonTarget = null;
+        mappings.clear(); updateMappingCaption();
         generate.setEnabled(false); saveScript.setEnabled(false); scriptPreview.setText("");
         choices.tables(selectedTables, tableSelectionConfigured, includeViews.isSelected());
         updateActions();
@@ -215,7 +224,7 @@ public final class DataCompareDialog extends JDialog {
         }
         Options options = new Options(ignoreCase.isSelected(), trimText.isSelected(), nullEqualsEmpty.isSelected(),
                 ignoreLobs.isSelected(), includeViews.isSelected(), ((Number) maxRows.getValue()).intValue(), tableFilter.getText().trim(),
-                Set.copyOf(selectedTables), tableSelectionConfigured);
+                Set.copyOf(selectedTables), tableSelectionConfigured, Map.copyOf(mappings));
         long request = selectionRevision;
         comparing = true; updateActions(); generate.setEnabled(false); model.setRowCount(0);
         saveScript.setEnabled(false); scriptPreview.setText(""); outputTabs.setSelectedIndex(0);
@@ -257,7 +266,78 @@ public final class DataCompareDialog extends JDialog {
         worker.execute();
     }
 
-    private Comparison buildComparison(JdbcSession sourceSession, String sourceDb, JdbcSession targetSession, String targetDb, Options options,
+    private void configureMapping() {
+        JdbcSession sourceSession = sourceSession(), targetSession = targetSession();
+        String sourceDb = (String) source.getSelectedItem(), targetDb = (String) target.getSelectedItem();
+        if (sourceSession == null || targetSession == null || sourceDb == null || targetDb == null) return;
+        long request = selectionRevision; choosing = true; updateActions();
+        progress.setIndeterminate(true); progress.setString(tr("Buscando tablas compatibles…")); progress.setVisible(true);
+        new SwingWorker<List<TablePair>, Void>() {
+            @Override protected List<TablePair> doInBackground() throws Exception {
+                Map<String,String> left=tableNames(sourceSession,sourceDb,includeViews.isSelected());
+                Map<String,String> right=tableNames(targetSession,targetDb,includeViews.isSelected());
+                return left.entrySet().stream().filter(e->right.containsKey(e.getKey()))
+                        .filter(e->!tableSelectionConfigured||selectedTables.contains(e.getKey()))
+                        .map(e->new TablePair(e.getKey(),e.getValue(),right.get(e.getKey())))
+                        .sorted(Comparator.comparing(TablePair::source,String.CASE_INSENSITIVE_ORDER)).toList();
+            }
+            @Override protected void done(){
+                choosing=false;updateActions();progress.setVisible(false);progress.setIndeterminate(false);
+                if(disposed||request!=selectionRevision)return;
+                try{
+                    List<TablePair> pairs=get();
+                    if(pairs.isEmpty()){JOptionPane.showMessageDialog(DataCompareDialog.this,tr("No hay tablas equivalentes disponibles para configurar."),tr("Mapeo de columnas"),JOptionPane.INFORMATION_MESSAGE);return;}
+                    TablePair pair=(TablePair)JOptionPane.showInputDialog(DataCompareDialog.this,tr("Selecciona la tabla cuyo mapeo deseas configurar:"),tr("Mapeo de columnas y claves"),JOptionPane.PLAIN_MESSAGE,IconFactory.of(IconFactory.Kind.KEY,24),pairs.toArray(),pairs.get(0));
+                    if(pair!=null)loadMappingEditor(sourceSession,sourceDb,targetSession,targetDb,pair,request);
+                }catch(Exception error){JOptionPane.showMessageDialog(DataCompareDialog.this,rootCause(error).getMessage(),tr("No se pudo preparar el mapeo"),JOptionPane.ERROR_MESSAGE);}
+            }
+        }.execute();
+    }
+
+    private void loadMappingEditor(JdbcSession sourceSession,String sourceDb,JdbcSession targetSession,String targetDb,TablePair pair,long request){
+        choosing=true;updateActions();progress.setIndeterminate(true);progress.setString(tr("Leyendo columnas y claves…"));progress.setVisible(true);
+        new SwingWorker<MappingDraft,Void>(){
+            @Override protected MappingDraft doInBackground()throws Exception{return new MappingDraft(pair,columns(sourceSession,sourceDb,pair.source(),false),columns(targetSession,targetDb,pair.target(),false),primaryKeys(sourceSession,sourceDb,pair.source()),primaryKeys(targetSession,targetDb,pair.target()),mappings.get(pair.key()));}
+            @Override protected void done(){choosing=false;updateActions();progress.setVisible(false);progress.setIndeterminate(false);if(disposed||request!=selectionRevision)return;try{showMappingEditor(get());}catch(Exception error){JOptionPane.showMessageDialog(DataCompareDialog.this,rootCause(error).getMessage(),tr("No se pudieron leer las columnas"),JOptionPane.ERROR_MESSAGE);}}
+        }.execute();
+    }
+
+    private void showMappingEditor(MappingDraft draft){
+        DefaultTableModel mappingModel=new DefaultTableModel(new Object[]{tr("Comparar"),tr("Columna de origen"),tr("Tipo de origen"),tr("Columna de destino"),tr("Tipo de destino"),tr("Clave")},0){
+            @Override public Class<?> getColumnClass(int column){return column==0||column==5?Boolean.class:String.class;}
+            @Override public boolean isCellEditable(int row,int column){return column==0||column==3||column==5;}
+        };
+        Map<String,ColumnMeta> targetByName=new LinkedHashMap<>();for(ColumnMeta column:draft.targetColumns())targetByName.put(column.name().toLowerCase(Locale.ROOT),column);
+        Map<String,ColumnMapping> configured=new HashMap<>();if(draft.current()!=null)for(ColumnMapping mapping:draft.current().columns())configured.put(mapping.source().toLowerCase(Locale.ROOT),mapping);
+        for(ColumnMeta sourceColumn:draft.sourceColumns()){
+            ColumnMapping saved=configured.get(sourceColumn.name().toLowerCase(Locale.ROOT));
+            ColumnMeta targetColumn=saved==null?autoTarget(sourceColumn,draft.targetColumns()):targetByName.get(saved.target().toLowerCase(Locale.ROOT));
+            boolean included=targetColumn!=null;
+            boolean key=saved!=null?saved.key():included&&containsIgnoreCase(draft.sourceKeys(),sourceColumn.name())&&containsIgnoreCase(draft.targetKeys(),targetColumn.name());
+            mappingModel.addRow(new Object[]{included,sourceColumn.name(),sourceColumn.typeName(),included?targetColumn.name():"",included?targetColumn.typeName():"",key});
+        }
+        JTable grid=new JTable(mappingModel);grid.setRowHeight(26);grid.setAutoCreateRowSorter(true);JComboBox<String> targets=new JComboBox<>();targets.addItem("");for(ColumnMeta column:draft.targetColumns())targets.addItem(column.name());grid.getColumnModel().getColumn(3).setCellEditor(new DefaultCellEditor(targets));
+        mappingModel.addTableModelListener(e->{if(e.getColumn()!=3||e.getFirstRow()<0||e.getFirstRow()>=mappingModel.getRowCount())return;String selected=String.valueOf(mappingModel.getValueAt(e.getFirstRow(),3));ColumnMeta column=targetByName.get(selected.toLowerCase(Locale.ROOT));mappingModel.setValueAt(column==null?"":column.typeName(),e.getFirstRow(),4);mappingModel.setValueAt(column!=null,e.getFirstRow(),0);if(column==null)mappingModel.setValueAt(false,e.getFirstRow(),5);});
+        JLabel help=new JLabel("<html>"+tr("Relaciona columnas aunque tengan nombres diferentes. Marca una o varias columnas Clave que identifiquen cada fila de forma única.")+"<br>"+tr("Las columnas sin Comparar se omiten del análisis y del script de sincronización.")+"</html>");
+        JPanel content=new JPanel(new BorderLayout(8,8));content.add(help,BorderLayout.NORTH);content.add(new JScrollPane(grid));content.setPreferredSize(new Dimension(920,480));
+        while(true){
+            int answer=JOptionPane.showConfirmDialog(this,content,tr("Mapeo: ")+draft.pair().source()+" → "+draft.pair().target(),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
+            if(answer!=JOptionPane.OK_OPTION)return;if(grid.isEditing())grid.getCellEditor().stopCellEditing();
+            try{
+                List<ColumnMapping> selected=new ArrayList<>();Set<String> destinations=new HashSet<>();int keys=0;
+                for(int row=0;row<mappingModel.getRowCount();row++)if(Boolean.TRUE.equals(mappingModel.getValueAt(row,0))){String sourceName=String.valueOf(mappingModel.getValueAt(row,1)),targetName=String.valueOf(mappingModel.getValueAt(row,3)).trim();boolean key=Boolean.TRUE.equals(mappingModel.getValueAt(row,5));if(targetName.isBlank())throw new IllegalArgumentException(tr("Cada columna incluida necesita una columna de destino."));if(!destinations.add(targetName.toLowerCase(Locale.ROOT)))throw new IllegalArgumentException(tr("Una columna de destino no puede utilizarse dos veces."));selected.add(new ColumnMapping(sourceName,targetName,key));if(key)keys++;}
+                if(selected.isEmpty())throw new IllegalArgumentException(tr("Selecciona al menos una columna para comparar."));if(keys==0)throw new IllegalArgumentException(tr("Selecciona al menos una columna Clave."));
+                mappings.put(draft.pair().key(),new TableMapping(draft.pair().source(),draft.pair().target(),List.copyOf(selected)));updateMappingCaption();selectionRevision++;comparison=null;comparisonTarget=null;generate.setEnabled(false);saveScript.setEnabled(false);scriptPreview.setText("");status.setText(tr("Mapeo guardado para ")+draft.pair().source()+tr(". Pulsa Comparar datos para aplicarlo."));return;
+            }catch(IllegalArgumentException error){JOptionPane.showMessageDialog(this,error.getMessage(),tr("Mapeo incompleto"),JOptionPane.WARNING_MESSAGE);}
+        }
+    }
+
+    private void updateMappingCaption(){UiLanguage.text(configureMapping,UiLanguage.key(mappings.isEmpty()?"Mapear columnas y claves…":"Mapeos personalizados: "),mappings.isEmpty()?"":mappings.size());}
+    private static ColumnMeta autoTarget(ColumnMeta source,List<ColumnMeta> targets){for(ColumnMeta target:targets)if(target.name().equalsIgnoreCase(source.name()))return target;String canonical=canonical(source.name());for(ColumnMeta target:targets)if(canonical(target.name()).equals(canonical))return target;return null;}
+    private static boolean containsIgnoreCase(List<String> values,String expected){return values.stream().anyMatch(value->value.equalsIgnoreCase(expected));}
+    private static String canonical(String value){return value.replaceAll("[^\\p{L}\\p{N}]","").toLowerCase(Locale.ROOT);}
+
+    Comparison buildComparison(JdbcSession sourceSession, String sourceDb, JdbcSession targetSession, String targetDb, Options options,
                                        java.util.function.IntConsumer progressConsumer) throws SQLException {
         Map<String, String> sourceTables = tableNames(sourceSession, sourceDb, options.includeViews());
         Map<String, String> targetTables = tableNames(targetSession, targetDb, options.includeViews());
@@ -307,32 +387,38 @@ public final class DataCompareDialog extends JDialog {
                                          Options options, StringBuilder script) throws SQLException {
         List<ColumnMeta> sourceColumns = columns(sourceSession, sourceDb, sourceTable, options.ignoreLobs());
         List<ColumnMeta> targetColumns = columns(targetSession, targetDb, targetTable, options.ignoreLobs());
+        TableMapping configured=options.mappings().get(sourceTable.toLowerCase(Locale.ROOT));
         Map<String, ColumnMeta> targetByName = new HashMap<>();
         for (ColumnMeta column : targetColumns) targetByName.put(column.name().toLowerCase(Locale.ROOT), column);
-        List<ColumnMeta> common = sourceColumns.stream()
-                .filter(column -> targetByName.containsKey(column.name().toLowerCase(Locale.ROOT))).toList();
         List<String> sourcePk = primaryKeys(sourceSession, sourceDb, sourceTable);
         List<String> targetPk = primaryKeys(targetSession, targetDb, targetTable);
-        Set<String> commonNames = new LinkedHashSet<>();
-        for (ColumnMeta column : common) commonNames.add(column.name().toLowerCase(Locale.ROOT));
-        if (sourcePk.isEmpty() || !lower(sourcePk).equals(lower(targetPk)) || !commonNames.containsAll(lower(sourcePk))) {
-            return new TableDifference(sourceTable, tr("Sin clave compatible"), -1, -1, 0, 0, 0,
-                    tr("Se necesita la misma clave primaria en origen y destino"), List.of());
+        Map<String,ColumnMeta> sourceByName=new HashMap<>();for(ColumnMeta column:sourceColumns)sourceByName.put(column.name().toLowerCase(Locale.ROOT),column);
+        List<ColumnPair> pairs=new ArrayList<>();
+        if(configured!=null){
+            for(ColumnMapping mapping:configured.columns()){ColumnMeta left=sourceByName.get(mapping.source().toLowerCase(Locale.ROOT)),right=targetByName.get(mapping.target().toLowerCase(Locale.ROOT));if(left!=null&&right!=null)pairs.add(new ColumnPair(left,right,mapping.key()));}
+        }else{
+            boolean compatible=!sourcePk.isEmpty()&&lower(sourcePk).equals(lower(targetPk));
+            for(ColumnMeta column:sourceColumns){ColumnMeta target=targetByName.get(column.name().toLowerCase(Locale.ROOT));if(target!=null)pairs.add(new ColumnPair(column,target,compatible&&containsIgnoreCase(sourcePk,column.name())));}
         }
-        if (common.isEmpty()) return new TableDifference(sourceTable, tr("Sin columnas comunes"), -1, -1, 0, 0, 0, tr("No se puede comparar"), List.of());
-
-        TableData left = readRows(sourceSession, sourceDb, sourceTable, common, sourcePk, options);
-        TableData right = readRows(targetSession, targetDb, targetTable, common, sourcePk, options);
+        List<String> sourceKeys=pairs.stream().filter(ColumnPair::key).map(pair->pair.source().name()).toList();
+        List<String> targetKeys=pairs.stream().filter(ColumnPair::key).map(pair->pair.target().name()).toList();
+        if (pairs.isEmpty()) return new TableDifference(sourceTable, tr("Sin columnas comunes"), -1, -1, 0, 0, 0, tr("No se puede comparar"), List.of());
+        if(sourceKeys.isEmpty()) {
+            return new TableDifference(sourceTable, tr("Sin clave compatible"), -1, -1, 0, 0, 0,
+                    tr("Se necesita una clave compatible; usa Mapear columnas y claves"), List.of());
+        }
+        TableData left = readRows(sourceSession, sourceDb, sourceTable, pairs.stream().map(ColumnPair::source).toList(), sourceKeys, options);
+        TableData right = readRows(targetSession, targetDb, targetTable, pairs.stream().map(ColumnPair::target).toList(), targetKeys, options);
         int missing = 0, extra = 0, changed = 0;
         List<String> details = new ArrayList<>();
         for (Map.Entry<RowKey, RowData> entry : left.rows().entrySet()) {
             RowData targetRow = right.rows().get(entry.getKey());
             if (targetRow == null) {
                 missing++; if (details.size() < 100) details.add(tr("Falta en destino: ") + entry.getKey().display());
-                appendInsert(script, targetSession, targetDb, targetTable, common, entry.getValue());
+                appendInsert(script, targetSession, targetDb, targetTable, pairs, entry.getValue());
             } else if (!entry.getValue().normalized().equals(targetRow.normalized())) {
                 changed++; if (details.size() < 100) details.add(tr("Modificada: ") + entry.getKey().display());
-                appendUpdate(script, targetSession, targetDb, targetTable, common, sourcePk, entry.getValue());
+                appendUpdate(script, targetSession, targetDb, targetTable, pairs, entry.getValue());
             }
         }
         for (RowKey key : right.rows().keySet()) {
@@ -342,7 +428,7 @@ public final class DataCompareDialog extends JDialog {
         }
         String state = missing == 0 && extra == 0 && changed == 0
                 ? (left.truncated() || right.truncated() ? tr("Parcial") : tr("Igual")) : tr("Diferente");
-        String note = (left.truncated() || right.truncated()) ? tr("Límite alcanzado; comparación parcial") : common.size() + tr(" columnas comparadas");
+        String note = (left.truncated() || right.truncated()) ? tr("Límite alcanzado; comparación parcial") : pairs.size() + tr(" columnas comparadas")+(configured==null?"":tr(" · mapeo personalizado"));
         return new TableDifference(sourceTable, state, left.rows().size(), right.rows().size(), missing, extra, changed, note, details);
     }
 
@@ -354,7 +440,7 @@ public final class DataCompareDialog extends JDialog {
             while (rs.next()) {
                 int type = rs.getInt("DATA_TYPE");
                 if (ignoreLarge && isLargeType(type)) continue;
-                columns.add(new ColumnMeta(rs.getString("COLUMN_NAME"), type));
+                columns.add(new ColumnMeta(rs.getString("COLUMN_NAME"), type, Objects.toString(rs.getString("TYPE_NAME"),jdbcTypeName(type))));
             }
         }
         return columns;
@@ -404,21 +490,20 @@ public final class DataCompareDialog extends JDialog {
         return new TableData(rows, truncated);
     }
 
-    private void appendInsert(StringBuilder sql, JdbcSession endpoint, String database, String table, List<ColumnMeta> columns, RowData row) {
+    private void appendInsert(StringBuilder sql, JdbcSession endpoint, String database, String table, List<ColumnPair> columns, RowData row) {
         sql.append("INSERT INTO ").append(qualified(endpoint, database, table)).append(" (")
-                .append(columns.stream().map(c -> quote(endpoint, c.name())).collect(java.util.stream.Collectors.joining(", ")))
+                .append(columns.stream().map(c -> quote(endpoint, c.target().name())).collect(java.util.stream.Collectors.joining(", ")))
                 .append(") VALUES (")
-                .append(columns.stream().map(c -> literal(row.raw().get(c.name().toLowerCase(Locale.ROOT))))
+                .append(columns.stream().map(c -> literal(row.raw().get(c.source().name().toLowerCase(Locale.ROOT))))
                         .collect(java.util.stream.Collectors.joining(", "))).append(");\n");
     }
 
-    private void appendUpdate(StringBuilder sql, JdbcSession endpoint, String database, String table, List<ColumnMeta> columns,
-                              List<String> primaryKeys, RowData row) {
-        Set<String> keyNames = new LinkedHashSet<>(lower(primaryKeys));
-        String assignments = columns.stream().filter(c -> !keyNames.contains(c.name().toLowerCase(Locale.ROOT)))
-                .map(c -> quote(endpoint, c.name()) + "=" + literal(row.raw().get(c.name().toLowerCase(Locale.ROOT))))
+    private void appendUpdate(StringBuilder sql, JdbcSession endpoint, String database, String table, List<ColumnPair> columns,
+                              RowData row) {
+        String assignments = columns.stream().filter(c -> !c.key())
+                .map(c -> quote(endpoint, c.target().name()) + "=" + literal(row.raw().get(c.source().name().toLowerCase(Locale.ROOT))))
                 .collect(java.util.stream.Collectors.joining(", "));
-        String where = primaryKeys.stream().map(key -> quote(endpoint, key) + "=" + literal(row.raw().get(key.toLowerCase(Locale.ROOT))))
+        String where = columns.stream().filter(ColumnPair::key).map(c -> quote(endpoint, c.target().name()) + "=" + literal(row.raw().get(c.source().name().toLowerCase(Locale.ROOT))))
                 .collect(java.util.stream.Collectors.joining(" AND "));
         if (!assignments.isBlank()) sql.append("UPDATE ").append(qualified(endpoint, database, table)).append(" SET ")
                 .append(assignments).append(" WHERE ").append(where).append(";\n");
@@ -545,6 +630,7 @@ public final class DataCompareDialog extends JDialog {
         if (value instanceof Clob clob) return "CLOB:" + clob.length();
         return value;
     }
+    private static String jdbcTypeName(int type){try{return JDBCType.valueOf(type).getName();}catch(Exception ignored){return "JDBC "+type;}}
     private static String literal(Object value) {
         if (value == null) return "NULL";
         if (value instanceof Number) return value.toString();
@@ -556,16 +642,24 @@ public final class DataCompareDialog extends JDialog {
     private static Throwable rootCause(Throwable error) { Throwable cause = error; while (cause.getCause() != null) cause = cause.getCause(); return cause; }
 
     private enum NullValue { INSTANCE }
-    private record Options(boolean ignoreCase, boolean trimText, boolean nullEqualsEmpty, boolean ignoreLobs,
+    static record Options(boolean ignoreCase, boolean trimText, boolean nullEqualsEmpty, boolean ignoreLobs,
                            boolean includeViews, int maxRows, String tableFilter, Set<String> selectedTables,
-                           boolean tableSelectionConfigured) {}
-    private record ColumnMeta(String name, int sqlType) {}
-    private record RowKey(List<Object> values, String display) {}
+                           boolean tableSelectionConfigured,Map<String,TableMapping> mappings) {}
+    static record ColumnMeta(String name, int sqlType,String typeName) {}
+    static record ColumnPair(ColumnMeta source,ColumnMeta target,boolean key) {}
+    static record ColumnMapping(String source,String target,boolean key) {}
+    static record TableMapping(String sourceTable,String targetTable,List<ColumnMapping> columns) {}
+    private record TablePair(String key,String source,String target){@Override public String toString(){return source.equals(target)?source:source+" → "+target;}}
+    private record MappingDraft(TablePair pair,List<ColumnMeta> sourceColumns,List<ColumnMeta> targetColumns,List<String> sourceKeys,List<String> targetKeys,TableMapping current) {}
+    private record RowKey(List<Object> values, String display) {
+        @Override public boolean equals(Object other){return other instanceof RowKey key&&values.equals(key.values);}
+        @Override public int hashCode(){return values.hashCode();}
+    }
     private record RowData(Map<String, Object> raw, List<Object> normalized) {}
     private record TableData(Map<RowKey, RowData> rows, boolean truncated) {}
-    private record TableDifference(String table, String status, int sourceRows, int targetRows, int missing,
+    static record TableDifference(String table, String status, int sourceRows, int targetRows, int missing,
                                    int extra, int changed, String detail, List<String> details) {}
-    private record Comparison(List<TableDifference> tables, String script) {}
+    static record Comparison(List<TableDifference> tables, String script) {}
     private record SessionOption(JdbcSession session) {
         @Override public String toString() {
             String host = session.profile().host();

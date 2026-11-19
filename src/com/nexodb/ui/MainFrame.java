@@ -64,6 +64,7 @@ public final class MainFrame extends JFrame {
     private final JLabel status = UiLanguage.text(new JLabel(tr("Listo")), UiLanguage.key("Listo"));
     private final JProgressBar busyBar = new SmoothProgressBar();
     private final QueryPanel queryPanel = new QueryPanel(this::setStatus, this::setBusy);
+    private final JTabbedPane navigator = new JTabbedPane();
     private final JTabbedPane workspaceTabs = new JTabbedPane();
     private final JButton connectButton = UiLanguage.text(new JButton(tr("Conectar")), UiLanguage.key("Conectar"));
     private final JButton disconnectButton = UiLanguage.text(new JButton(tr("Desconectar")), UiLanguage.key("Desconectar"));
@@ -136,7 +137,6 @@ public final class MainFrame extends JFrame {
         JPanel root = new JPanel(new BorderLayout());
         root.add(buildMainToolbar(), BorderLayout.NORTH);
 
-        JTabbedPane navigator = new JTabbedPane();
         UiLanguage.addTab(navigator, new Object[]{UiLanguage.key("Conexiones")}, IconFactory.of(IconFactory.Kind.CONNECTIONS), buildProfilesPanel());
         UiLanguage.addTab(navigator, new Object[]{UiLanguage.key("Objetos")}, IconFactory.of(IconFactory.Kind.OBJECTS), buildObjectsPanel());
         navigator.putClientProperty("JTabbedPane.tabType", "card");
@@ -808,6 +808,7 @@ public final class MainFrame extends JFrame {
         JdbcSession open = sessions.get(profile.id());
         if (open != null && open.isOpen()) {
             activateSession(open);
+            showObjectsAfterConnection();
             setStatus(new Object[]{UiLanguage.key("Conexión activa: "), profile.name()});
             return;
         }
@@ -920,6 +921,7 @@ public final class MainFrame extends JFrame {
                     }
                     if(rememberSshAfterSuccess){try{secretStore.save(SshConfig.secretId(profile.id()),savedSshCandidate);}catch(Exception error){JOptionPane.showMessageDialog(MainFrame.this,"La conexión se abrió, pero Windows no pudo proteger la contraseña SSH.\n"+rootCause(error).getMessage(),"Contraseña SSH no guardada",JOptionPane.WARNING_MESSAGE);}}
                     activateSession(next);
+                    showObjectsAfterConnection();
                     setStatus(new Object[]{UiLanguage.key("Conectado a "), next.connection().getMetaData().getDatabaseProductName()});
                     refreshConnectionObjects(next);
                 } catch (Exception ex) {
@@ -936,6 +938,11 @@ public final class MainFrame extends JFrame {
                 }
             }
         }.execute();
+    }
+
+    /** Keeps the successful connection flow focused on the objects it just loaded. */
+    void showObjectsAfterConnection() {
+        if (navigator.getTabCount() > 1) navigator.setSelectedIndex(1);
     }
 
     private void disconnect() {

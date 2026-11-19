@@ -110,6 +110,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de seleccion persistente fallaron.
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de resultado de conexion fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.ComparisonWindowTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de casillas en la ventana de comparacion fallo.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp "$testClasspath;$projectRoot/build/h2-test.jar" com.nexodb.ui.AdvancedDataCompareTest
+if ($LASTEXITCODE -ne 0) { throw 'La prueba de mapeo avanzado de datos fallo.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.QueryEditSqlTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de consultas editables fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.SqlColumnCompletionTest

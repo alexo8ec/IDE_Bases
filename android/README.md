@@ -2,13 +2,13 @@
 
 ## Descargar e instalar
 
-La versión Android actual es **0.14.6**. El APK firmado se genera en
-[`dist/AdisDB-0.14.6-android.apk`](../dist/AdisDB-0.14.6-android.apk).
+La versión Android actual es **0.18.25**. El APK firmado se genera en
+[`dist/AdisDB-0.18.25-android.apk`](../dist/AdisDB-0.18.25-android.apk).
 No se necesita Java ni un ordenador encendido para utilizarla.
 
 Después de publicar los archivos en la rama `main`, la descarga es:
 
-https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.14.6-android.apk
+https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.25-android.apk
 
 1. Descarga el APK en el teléfono y ábrelo desde Descargas.
 2. Si Android lo solicita, permite instalar aplicaciones desde ese navegador o gestor de archivos.
@@ -16,6 +16,10 @@ https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.14.6-and
 4. Crea una conexión con un servidor accesible desde el teléfono. La dirección `localhost` corresponde al teléfono, no al ordenador.
 
 Requiere Android 8.0 o posterior y Android System WebView actualizado. El APK es universal para las arquitecturas del dispositivo, sin bibliotecas nativas específicas de CPU.
+
+## Compilación sincronizada — 0.18.25
+
+El APK se reconstruye y firma junto con AdisDB 0.18.52 de escritorio. Conserva conexiones, licencia, consultas y la identidad de actualización. La comparación avanzada de datos con mapeo de columnas continúa en escritorio; Android mantiene comparación de esquemas y las herramientas móviles indicadas abajo.
 
 ## Icono de AdisDB — 0.14.6
 

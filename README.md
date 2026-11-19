@@ -1,6 +1,16 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.51**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.52**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.25**.
+
+## Migración y comparación avanzada 1A — 0.18.52
+
+- **Comparar datos** incorpora **Mapear columnas y claves** por tabla. Permite relacionar columnas con nombres diferentes, excluir campos y elegir una clave simple o compuesta aunque las claves primarias del origen y destino no tengan el mismo nombre.
+- El mapeo propone coincidencias exactas y también nombres equivalentes que solo difieren en guiones o separadores. Antes de guardar valida que ninguna columna destino se utilice dos veces y que exista al menos una clave.
+- La comparación usa los valores de las claves, no sus etiquetas, por lo que `id` en origen puede corresponder correctamente con `codigo` en destino. La vista previa genera `INSERT` y `UPDATE` usando los nombres reales del destino.
+- No se ejecutan cambios automáticamente: el script continúa abriéndose en el editor o guardándose como archivo para revisión. Si no se configura un mapeo, se conserva íntegramente el comportamiento automático anterior.
+- Después de una conexión exitosa, AdisDB cambia automáticamente de **Conexiones** a **Objetos** para mostrar inmediatamente las bases y objetos de la instancia activa. Una conexión cancelada o fallida no cambia la pestaña.
+- El manual y los componentes comunes mejoran el contraste del modo oscuro: artículos, ejemplos, diagramas, formularios, tablas, listas y mensajes toman sus colores del tema activo y se actualizan al cambiar la apariencia.
+- Se añadió una prueba real con dos bases aisladas, columnas renombradas, una fila faltante, una adicional y una modificada. El APK Android 0.18.25 se reconstruye y firma junto con esta entrega; la comparación avanzada de datos continúa siendo una herramienta de escritorio.
 
 ## Manual detallado y observabilidad mejorada — 0.18.51
 

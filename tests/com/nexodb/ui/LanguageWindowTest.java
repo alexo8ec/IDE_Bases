@@ -56,6 +56,12 @@ public final class LanguageWindowTest {
                     equal("Archivo", menu.getMenu(0).getText()); equal("Conectar", connect.getText()); equal("Nueva conexión", dialog.getTitle());
                     equal(sql, editor.getText()); equal(listeners, connect.getActionListeners().length);
                     render(frame, "language-es.png");
+                    JTabbedPane navigator=field(frame,"navigator",JTabbedPane.class);navigator.setSelectedIndex(0);frame.showObjectsAfterConnection();equal(1,navigator.getSelectedIndex());
+                    PreferencesDialog.apply("es", "dark");
+                    HelpManualPanel manual=new HelpManualPanel();field(frame,"workspaceTabs",JTabbedPane.class).addTab("Manual de uso",manual);field(frame,"workspaceTabs",JTabbedPane.class).setSelectedComponent(manual);frame.validate();
+                    JEditorPane manualPage=field(manual,"page",JEditorPane.class);if(brightness(manualPage.getBackground())>110||brightness(manualPage.getForeground())<160)throw new AssertionError("Manual dark-mode contrast is insufficient");
+                    String html=manualPage.getText().toLowerCase();if(html.contains("background: #edf7f5")||html.contains("background:#edf7f5"))throw new AssertionError("Manual retained a light-only example background");
+                    render(frame,"manual-dark.png");PreferencesDialog.apply("es","light");
                 } catch (Exception error) { throw new RuntimeException(error); }
                 finally { dialog.dispose(); frame.dispose(); }
             });
@@ -73,6 +79,7 @@ public final class LanguageWindowTest {
         Files.createDirectories(Path.of("build/previews")); ImageIO.write(image, "png", Path.of("build/previews", file).toFile());
     }
     private static void equal(Object a, Object b) { if (!Objects.equals(a,b)) throw new AssertionError("Expected ["+a+"] got ["+b+"]"); }
+    private static int brightness(Color color){return (color.getRed()*299+color.getGreen()*587+color.getBlue()*114)/1000;}
     private static JMenu menu(JMenuBar bar,String title){for(int i=0;i<bar.getMenuCount();i++)if(bar.getMenu(i).getText().equals(title))return bar.getMenu(i);throw new AssertionError("Missing menu "+title);}
     private static <T> T field(Object target, String name, Class<T> type) throws Exception { Field field=target.getClass().getDeclaredField(name); field.setAccessible(true); return type.cast(field.get(target)); }
 }
