@@ -1,6 +1,6 @@
 {
-  "version": "0.18.53",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.53-win64.zip",
-  "sha256": "70cf4762b566dde53ba54c7e8c59c4c5ad7d770379be56d3cb97cc398d420693",
-  "notes": "AdisDB 0.18.53: JOIN editables desde sus líneas, actualización del esquema sin vaciar el lienzo, prueba de 15 días y comparación de datos por streaming."
+  "version": "0.18.54",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.54-win64.zip",
+  "sha256": "ce8439b06f6154d3a663e89ea86c36b87e4543705c4086bfb2684feefdf31111",
+  "notes": "AdisDB 0.18.54: proyectos SQL organizados, edición segura y control de cambios Git local con diferencias, preparación, commits e historial. Mantiene la prueba de 15 días por instalación."
 }

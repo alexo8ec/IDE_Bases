@@ -1,6 +1,15 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.53**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.26**.
+La versión actual de escritorio es **0.18.54**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.27**.
+
+## Proyectos SQL, Git y control de cambios — 0.18.54
+
+- **Archivo › Nuevo proyecto SQL** crea un espacio organizado para scripts, y **Abrir proyecto SQL** recupera un proyecto existente sin ejecutar su contenido.
+- El explorador del proyecto permite crear carpetas y archivos SQL, renombrar, eliminar archivos locales y abrir un script en el editor principal. Los guardados son atómicos y avisan si otro programa modificó el archivo antes de sobrescribirlo.
+- Cada proyecto puede inicializar su propio repositorio Git. Desde AdisDB se puede preparar un archivo o todos los cambios, retirar un archivo del área preparada, configurar una identidad local y crear commits descriptivos.
+- Las pestañas **Cambios Git** e **Historial Git** muestran diferencias y hasta cien commits sin almacenar credenciales ni ejecutar SQL. Las rutas se validan para impedir salir de la carpeta del proyecto o modificar la carpeta interna de Git.
+- El manual integrado incluye un capítulo completo con organización recomendada, flujo editar → guardar → revisar → preparar → commit y la diferencia entre historial Git y respaldo de datos.
+- Se conservan la prueba de 15 días por instalación y la activación obligatoria después del vencimiento. Las pruebas automatizadas verifican licencia, rutas seguras, Git real, guardado, modo oscuro y apertura en el editor SQL.
 
 ## JOIN visual, recarga estable, prueba de 15 días y comparación por streaming — 0.18.53
 

@@ -1,8 +1,8 @@
 {
-  "version": "0.18.26",
-  "versionCode": 1826,
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.26-android.apk",
-  "sha256": "7bd54fde18059e70ede37fa4ef9b01c416cfcc581ed68269195a53cb68d7f896",
-  "size": 7105495,
-  "notes": "AdisDB Android 0.18.26: compilacion firmada y sincronizada con la entrega empresarial. Conserva conexiones, consultas, licencia, firma e identificador de la aplicacion."
+  "version": "0.18.27",
+  "versionCode": 1827,
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.27-android.apk",
+  "sha256": "ae958fe06576d5ae730f13742d05052741b14c3556d62f590a397850c1116e01",
+  "size": 7105491,
+  "notes": "AdisDB Android 0.18.27: compilacion firmada y sincronizada con la entrega empresarial. Conserva conexiones, consultas, licencia, firma e identificador de la aplicacion."
 }

@@ -17,6 +17,8 @@ import com.nexodb.util.SecretStore;
 import com.nexodb.util.DataExporter;
 import com.nexodb.util.StoredObjectFormatStore;
 import com.nexodb.util.BackgroundOperations;
+import com.nexodb.util.AppSettings;
+import com.nexodb.tools.SqlProjectService;
 
 import javax.swing.*;
 import javax.imageio.ImageIO;
@@ -35,6 +37,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -308,6 +311,9 @@ public final class MainFrame extends JFrame {
         file.add(toolMenuItem("Guardar consulta SQL…",IconFactory.Kind.SAVE,KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK,()->queryPanel.saveSqlFile(false)));
         file.add(toolMenuItem("Guardar SQL como…",IconFactory.Kind.SAVE,KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK,()->queryPanel.saveSqlFile(true)));
         file.addSeparator();
+        file.add(toolMenuItem("Nuevo proyecto SQL…",IconFactory.Kind.ADD,0,0,()->openSqlProject(true)));
+        file.add(toolMenuItem("Abrir proyecto SQL…",IconFactory.Kind.FOLDER,0,0,()->openSqlProject(false)));
+        file.addSeparator();
         file.add(exit);
 
         JMenu edit=UiLanguage.text(new JMenu(tr("Editar")),UiLanguage.key("Editar"));
@@ -417,6 +423,11 @@ public final class MainFrame extends JFrame {
     private void openOperations(){for(Component component:workspaceTabs.getComponents())if(component instanceof BackgroundOperationsPanel){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Operaciones en segundo plano"),new BackgroundOperationsPanel());}
     private void openServerMonitor(){if(session==null||!session.isOpen()){JOptionPane.showMessageDialog(this,tr("Conecta una instancia primero."));return;}for(Component component:workspaceTabs.getComponents())if(component instanceof ServerMonitorPanel monitor&&monitor.origin()==session){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Monitor del servidor")+" · "+session.profile().name(),new ServerMonitorPanel(session));}
     private void openAudit(){for(Component component:workspaceTabs.getComponents())if(component instanceof AuditPanel){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Auditoría local"),new AuditPanel());}
+    private void openSqlProject(boolean create){
+        if(!LicenseGate.ensure(this))return;JFileChooser chooser=new JFileChooser();chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);chooser.setDialogTitle(tr(create?"Selecciona la carpeta donde crear el proyecto":"Abrir proyecto SQL"));String last=AppSettings.get("sqlProject.lastPath","");if(!last.isBlank()){Path previous=Path.of(last),folder=Files.isDirectory(previous)?previous:previous.getParent();if(folder!=null&&Files.isDirectory(folder))chooser.setCurrentDirectory(folder.toFile());}
+        if(chooser.showOpenDialog(this)!=JFileChooser.APPROVE_OPTION)return;Path selected=chooser.getSelectedFile().toPath();try{SqlProjectService service;if(create){String name=JOptionPane.showInputDialog(this,tr("Nombre del proyecto SQL:"),"proyecto-sql");if(name==null)return;name=name.trim();if(name.isBlank()||name.contains("/")||name.contains("\\"))throw new java.io.IOException(tr("Escribe un nombre de proyecto sin rutas."));Path root=selected.resolve(name);if(nonEmptyDirectory(root))throw new java.io.IOException(tr("La carpeta del proyecto ya existe y no está vacía."));service=SqlProjectService.create(root,name);}else service=SqlProjectService.open(selected);for(Component component:workspaceTabs.getComponents())if(component instanceof SqlProjectPanel project&&project.root().equals(service.root())){workspaceTabs.setSelectedComponent(component);return;}SqlProjectPanel panel=new SqlProjectPanel(service,path->{workspaceTabs.setSelectedIndex(0);queryPanel.openSqlPath(path);});addToolTab(tr("Proyecto SQL")+" · "+service.name(),panel);AppSettings.put("sqlProject.lastPath",service.root().toString());}catch(Exception error){JOptionPane.showMessageDialog(this,error.getMessage(),tr("Proyecto SQL"),JOptionPane.ERROR_MESSAGE);}
+    }
+    private static boolean nonEmptyDirectory(Path path)throws java.io.IOException{if(!Files.isDirectory(path))return false;try(var entries=Files.list(path)){return entries.findAny().isPresent();}}
     private void openManual(){for(Component component:workspaceTabs.getComponents())if(component instanceof HelpManualPanel){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Manual de uso"),new HelpManualPanel());}
     private void updateOperationsIndicator(){if(!SwingUtilities.isEventDispatchThread()){SwingUtilities.invokeLater(this::updateOperationsIndicator);return;}int active=BackgroundOperations.activeCount(),queued=BackgroundOperations.queuedCount();operationsButton.setText(Integer.toString(active));UiLanguage.tooltip(operationsButton,UiLanguage.caption(active==0?tr("Sin operaciones en segundo plano"):tr("Operaciones activas: ")+active+(queued>0?tr(" · En espera: ")+queued:"")));}
     private boolean requireDatabase(){if(!LicenseGate.ensure(this))return false;if(session==null||!session.isOpen()||queryPanel.activeDatabase().isBlank()){JOptionPane.showMessageDialog(this,tr("Conecta y selecciona una base de datos primero."));return false;}return true;}
@@ -1540,7 +1551,7 @@ public final class MainFrame extends JFrame {
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
         UiLanguage.tooltip(close, UiLanguage.key("Cerrar pestaña"));
-        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();if(component instanceof ServerMonitorPanel monitor)monitor.disposePanel();if(component instanceof AuditPanel audit)audit.disposePanel();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
+        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof SqlProjectPanel project&&!project.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();if(component instanceof ServerMonitorPanel monitor)monitor.disposePanel();if(component instanceof AuditPanel audit)audit.disposePanel();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
         tab.add(close);
         return tab;
     }
@@ -1756,6 +1767,7 @@ public final class MainFrame extends JFrame {
     private void exitApplication() {
         if(!canCloseStoredWorkspaces())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;
+        for(Component component:workspaceTabs.getComponents())if(component instanceof SqlProjectPanel project&&!project.canClose())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report&&!report.canClose())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;
         if(!queryPanel.confirmDiscardResults())return;

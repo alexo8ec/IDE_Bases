@@ -126,6 +126,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del lector de archivos SQL fallaro
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de archivos SQL y deshacer/rehacer fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.licensing.LicenseTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de licencias y autoridad cifrada fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.tools.SqlProjectServiceTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de proyectos SQL y Git fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.SqlProjectPanelTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de la interfaz de proyectos SQL fallaron.' }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.AiSchemaContextTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del contexto de esquema para IA fallaron.' }

@@ -113,7 +113,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: JOIN editables desde sus líneas, actualización del esquema sin vaciar el lienzo, prueba de 15 días y comparación de datos por streaming."
+    notes = "AdisDB ${version}: proyectos SQL organizados, edición segura y control de cambios Git local con diferencias, preparación, commits e historial. Mantiene la prueba de 15 días por instalación."
 }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path $distRoot 'update-manifest.json'),($manifest | ConvertTo-Json),$utf8NoBom)
