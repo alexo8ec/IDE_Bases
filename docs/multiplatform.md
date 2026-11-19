@@ -1,6 +1,6 @@
 # Distribución para Windows, Linux, macOS y Android
 
-AdisDB utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas. La integración de Vicky se publica primero como 0.18.3 para Windows x64; los paquetes 0.18.2 de Linux y macOS continúan disponibles hasta su siguiente compilación nativa.
+AdisDB utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, el editor, los temas y los idiomas comparten el mismo código en los tres sistemas. La entrega 0.18.58 publica Windows x64, Linux x64/ARM64 y macOS Intel/Apple Silicon en el mismo canal estable.
 
 ## Archivos disponibles
 
@@ -11,11 +11,11 @@ Los ejecutables están sin firma comercial: la distribución macOS firmada queda
 | Sistema | Archivo | Instalación |
 | --- | --- | --- |
 | Android 8.0+ | [AdisDB-0.14.6-android.apk](../dist/AdisDB-0.14.6-android.apk) | Abrir la APK en el teléfono; [guía móvil](../android/README.md) |
-| Windows x64 | [AdisDB-0.18.3.exe](../dist/installer/AdisDB-0.18.3.exe) | Ejecutar el instalador |
-| Debian/Ubuntu x64 | [AdisDB-0.18.2-linux-x64.deb](../dist/AdisDB-0.18.2-linux-x64.deb) | `sudo apt install ./AdisDB-0.18.2-linux-x64.deb` |
-| Debian/Ubuntu ARM64 | [AdisDB-0.18.2-linux-arm64.deb](../dist/AdisDB-0.18.2-linux-arm64.deb) | `sudo apt install ./AdisDB-0.18.2-linux-arm64.deb` |
-| macOS Intel | [AdisDB-0.18.2-macos-x64.zip](../dist/AdisDB-0.18.2-macos-x64.zip) | Extraer el ZIP y abrir `Instalar AdisDB.command` |
-| macOS Apple Silicon | [AdisDB-0.18.2-macos-arm64.zip](../dist/AdisDB-0.18.2-macos-arm64.zip) | Extraer el ZIP y abrir `Instalar AdisDB.command` |
+| Windows x64 | [AdisDB-0.18.58.exe](../dist/installer/AdisDB-0.18.58.exe) | Ejecutar el instalador |
+| Debian/Ubuntu x64 | [AdisDB-0.18.58-linux-x64.deb](../dist/AdisDB-0.18.58-linux-x64.deb) | `sudo apt install ./AdisDB-0.18.58-linux-x64.deb` |
+| Debian/Ubuntu ARM64 | [AdisDB-0.18.58-linux-arm64.deb](../dist/AdisDB-0.18.58-linux-arm64.deb) | `sudo apt install ./AdisDB-0.18.58-linux-arm64.deb` |
+| macOS Intel | [AdisDB-0.18.58-macos-x64.zip](../dist/AdisDB-0.18.58-macos-x64.zip) | Extraer el ZIP y abrir `Instalar AdisDB.command` |
+| macOS Apple Silicon | [AdisDB-0.18.58-macos-arm64.zip](../dist/AdisDB-0.18.58-macos-arm64.zip) | Extraer el ZIP y abrir `Instalar AdisDB.command` |
 
 En macOS también puedes arrastrar `AdisDB.app` a Aplicaciones. El comando instala en `~/Applications`. La aplicación no tiene firma Developer ID ni notarización; macOS puede solicitar autorización para abrirla. Estos ZIP contienen una aplicación macOS y su instalador por usuario; no son DMG ni PKG.
 
@@ -96,7 +96,7 @@ python3 tools/create-update-manifest.py \
 
 Ajusta los nombres a los archivos reales; los nombres DEB/RPM dependen de `jpackage`. El generador admite también `--linux-arm64`, `--macos-x64` y `--windows-arm64`, sin suponer que existen. Conserva los campos Windows de primer nivel para clientes antiguos. Publica el manifiesto junto con los paquetes en un servidor HTTPS accesible sin iniciar sesión. Las instalaciones nuevas seleccionan exclusivamente su plataforma.
 
-Windows mantiene el actualizador de reemplazo para el portable instalado. En Linux/macOS se descarga y verifica el paquete correspondiente, y se abre con el instalador del sistema sin cerrar la sesión de AdisDB. Cierra AdisDB antes de completar una instalación que reemplace sus archivos.
+Windows mantiene el actualizador de reemplazo para el portable instalado. En macOS 0.18.58 o posterior, una instalación por usuario en `~/Applications/AdisDB.app` también se reemplaza automáticamente: se espera el cierre, se conserva una copia temporal para recuperación, se instala el `.app` validado y se vuelve a abrir. La licencia, conexiones, preferencias y borradores permanecen en `~/Library/Application Support/AdisDB` y no forman parte del reemplazo. Si la carpeta no es escribible, se abre el ZIP verificado para instalación manual. Linux abre el paquete correspondiente con el instalador del sistema.
 
 ## Verificación de esta entrega
 

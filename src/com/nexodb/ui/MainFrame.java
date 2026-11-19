@@ -370,7 +370,8 @@ public final class MainFrame extends JFrame {
         power.add(toolMenuItem("Comparación visual de datos…",IconFactory.Kind.TABLE,KeyEvent.VK_Q,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,this::compareData));
         power.add(toolMenuItem("Sincronizar esquemas…",IconFactory.Kind.COMPARE,KeyEvent.VK_Q,KeyEvent.CTRL_DOWN_MASK,this::compareSchemas));power.addSeparator();
         power.add(toolMenuItem("Importar datos externos…",IconFactory.Kind.DATABASE,KeyEvent.VK_O,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,this::importExternal));
-        power.add(toolMenuItem("Calidad, enmascaramiento y datos de prueba",IconFactory.Kind.SEARCH,0,0,this::openDataQuality));power.addSeparator();
+        power.add(toolMenuItem("Calidad, enmascaramiento y datos de prueba",IconFactory.Kind.SEARCH,0,0,this::openDataQuality));
+        power.add(toolMenuItem("Diccionario de datos",IconFactory.Kind.SCHEMA,0,0,this::openDataDictionary));power.addSeparator();
         power.add(toolMenuItem("Programar consultas y reportes…",IconFactory.Kind.SQL,KeyEvent.VK_N,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openTasks(com.nexodb.db.ScheduledTasks.Kind.REPORT)));
         power.add(toolMenuItem("Respaldos programados…",IconFactory.Kind.SAVE,KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openTasks(com.nexodb.db.ScheduledTasks.Kind.BACKUP)));
         power.add(toolMenuItem("Tareas programadas…",IconFactory.Kind.SETTINGS,0,0,()->openTasks(null)));power.addSeparator();
@@ -428,6 +429,9 @@ public final class MainFrame extends JFrame {
         if(!requireDatabase())return;if(session.profile().type()==DatabaseType.MONGODB||session.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(this,tr("Esta herramienta requiere un motor relacional reconocido."));return;}String database=queryPanel.activeDatabase();
         for(Component component:workspaceTabs.getComponents())if(component instanceof DataQualityPanel panel&&panel.origin()==session&&panel.database().equalsIgnoreCase(database)){workspaceTabs.setSelectedComponent(component);return;}
         addToolTab(tr("Calidad de datos")+" · "+database,new DataQualityPanel(session,database));
+    }
+    private void openDataDictionary(){
+        if(!requireDatabase())return;if(session.profile().type()==DatabaseType.MONGODB||session.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(this,tr("El diccionario requiere un motor relacional reconocido."));return;}JdbcSession origin=session;String database=queryPanel.activeDatabase();for(Component component:workspaceTabs.getComponents())if(component instanceof DataDictionaryPanel panel&&panel.origin()==origin&&panel.database().equalsIgnoreCase(database)){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Diccionario de datos")+" · "+database,new DataDictionaryPanel(origin,database,item->openTable(origin,item,TableWorkbenchPanel.COLUMNS),()->{activateSession(origin);queryPanel.selectDatabase(database);openQueryTool("designer");}));
     }
     private void openSqlProject(boolean create){
         if(!LicenseGate.ensure(this))return;JFileChooser chooser=new JFileChooser();chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);chooser.setDialogTitle(tr(create?"Selecciona la carpeta donde crear el proyecto":"Abrir proyecto SQL"));String last=AppSettings.get("sqlProject.lastPath","");if(!last.isBlank()){Path previous=Path.of(last),folder=Files.isDirectory(previous)?previous:previous.getParent();if(folder!=null&&Files.isDirectory(folder))chooser.setCurrentDirectory(folder.toFile());}
@@ -1557,7 +1561,7 @@ public final class MainFrame extends JFrame {
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
         UiLanguage.tooltip(close, UiLanguage.key("Cerrar pestaña"));
-        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof SqlProjectPanel project&&!project.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof DataQualityPanel quality)quality.disposePanel();if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();if(component instanceof ServerMonitorPanel monitor)monitor.disposePanel();if(component instanceof AuditPanel audit)audit.disposePanel();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
+        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof SqlProjectPanel project&&!project.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof DataQualityPanel quality)quality.disposePanel();if(component instanceof DataDictionaryPanel dictionary)dictionary.disposePanel();if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();if(component instanceof ServerMonitorPanel monitor)monitor.disposePanel();if(component instanceof AuditPanel audit)audit.disposePanel();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
         tab.add(close);
         return tab;
     }
@@ -1779,6 +1783,7 @@ public final class MainFrame extends JFrame {
         if(!queryPanel.confirmDiscardResults())return;
         if(!queryPanel.saveDraftBeforeClose())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof DataQualityPanel quality)quality.disposePanel();
+        for(Component component:workspaceTabs.getComponents())if(component instanceof DataDictionaryPanel dictionary)dictionary.disposePanel();
         closeAllSessions();
         for(Component component:workspaceTabs.getComponents())if(component instanceof StoredProcedureDebugPanel debug)debug.dispose();
         for(Component component:workspaceTabs.getComponents())if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report)report.dispose();

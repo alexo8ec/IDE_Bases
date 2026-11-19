@@ -41,6 +41,28 @@ if ($LASTEXITCODE -ne 0) { throw 'Falló la entrega de Android.' }
 & (Join-Path $root 'tools\verify-windows.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Falló la verificación de Windows.' }
 
+# Linux y macOS se generan con runtimes oficiales ya verificados para cada CPU.
+# Los ZIP macOS conservan permisos Unix y contienen AdisDB.app completo para la actualización interna.
+& python (Join-Path $root 'tools\package-platforms.py') --offline `
+    --platform linux-x64 --platform linux-arm64 --platform macos-x64 --platform macos-arm64
+if ($LASTEXITCODE -ne 0) { throw 'Falló la entrega de Linux/macOS.' }
+$windowsPackage = Join-Path $root "dist\AdisDB-$desktopVersion-win64.zip"
+$linuxIntelPackage = Join-Path $root "dist\AdisDB-$desktopVersion-linux-x64.deb"
+$linuxArmPackage = Join-Path $root "dist\AdisDB-$desktopVersion-linux-arm64.deb"
+$macIntelPackage = Join-Path $root "dist\AdisDB-$desktopVersion-macos-x64.zip"
+$macArmPackage = Join-Path $root "dist\AdisDB-$desktopVersion-macos-arm64.zip"
+& python (Join-Path $root 'tools\create-update-manifest.py') `
+    --base-url $DownloadBaseUrl `
+    --windows-x64 $windowsPackage `
+    --linux-x64 $linuxIntelPackage `
+    --linux-arm64 $linuxArmPackage `
+    --macos-x64 $macIntelPackage `
+    --macos-arm64 $macArmPackage `
+    --notes "AdisDB ${desktopVersion}: diccionario de datos empresarial, paquetes Linux/macOS por arquitectura y actualización automática segura para macOS."
+if ($LASTEXITCODE -ne 0) { throw 'No se pudo generar el manifiesto multiplataforma.' }
+& python (Join-Path $root 'tools\verify-platforms.py')
+if ($LASTEXITCODE -ne 0) { throw 'Falló la verificación cruzada de los paquetes Linux/macOS.' }
+
 $localProperties = Get-Content -LiteralPath (Join-Path $root 'android\local.properties') | Where-Object { $_ -like 'sdk.dir=*' } | Select-Object -First 1
 if (-not $localProperties) { throw 'android/local.properties no contiene sdk.dir.' }
 $sdk = $localProperties.Substring('sdk.dir='.Length).Replace('/', '\')
@@ -57,9 +79,15 @@ $manifest = Get-Content -LiteralPath (Join-Path $root 'dist\update-manifest.json
 if ($manifest.version -ne $desktopVersion -or -not $manifest.downloadUrl -or -not $manifest.sha256) {
     throw 'El manifiesto de escritorio no contiene versión, URL pública y SHA-256 coherentes.'
 }
+foreach ($platform in @('windows-x64', 'linux-x64', 'linux-arm64', 'macos-x64', 'macos-arm64')) {
+    $asset = $manifest.platforms.$platform
+    if (-not $asset -or -not $asset.downloadUrl -or $asset.sha256 -notmatch '^[0-9a-f]{64}$') {
+        throw "El manifiesto no contiene un paquete válido para $platform."
+    }
+}
 $mobile = Get-Content -LiteralPath (Join-Path $root 'dist\android-update-manifest.json') -Raw | ConvertFrom-Json
 if ($mobile.version -ne $androidVersion -or -not $mobile.downloadUrl -or -not $mobile.sha256) {
     throw 'El manifiesto Android no contiene versión, URL pública y SHA-256 coherentes.'
 }
 
-Write-Host "Entrega verificada: AdisDB $desktopVersion y Android $androidVersion."
+Write-Host "Entrega verificada: AdisDB $desktopVersion para Windows, Linux x64/ARM64 y macOS Intel/Apple Silicon; Android $androidVersion."

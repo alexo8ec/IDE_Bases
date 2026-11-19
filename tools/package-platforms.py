@@ -233,6 +233,8 @@ def main():
     global RELEASE
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--download-only',action='store_true'); parser.add_argument('--offline',action='store_true')
+    parser.add_argument('--platform', action='append', choices=sorted(PLATFORMS),
+                        help='Build only this platform; repeat to build more than one')
     args=parser.parse_args(); CACHE.mkdir(parents=True,exist_ok=True)
     catalog=CACHE/'catalog.json'
     if args.offline: assets=json.loads(catalog.read_text())
@@ -240,6 +242,10 @@ def main():
         RELEASE=read_json('https://api.github.com/repos/adoptium/temurin17-binaries/releases/latest')
         with ThreadPoolExecutor(max_workers=4) as pool: assets=list(pool.map(runtime,PLATFORMS))
         catalog.write_text(json.dumps(assets,indent=2)+'\n')
+    if args.platform:
+        selected=set(args.platform); assets=[asset for asset in assets if asset['platform'] in selected]
+        missing=selected-{asset['platform'] for asset in assets}
+        if missing: raise ValueError('Runtime catalog is missing: '+', '.join(sorted(missing)))
     if args.download_only: return
     version=(ROOT/'VERSION').read_text().strip()
     if not (ROOT/'build/nexodb-studio.jar').is_file(): raise ValueError('Compile the application first')

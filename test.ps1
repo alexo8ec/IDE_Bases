@@ -120,6 +120,10 @@ if ($LASTEXITCODE -ne 0) { throw 'La prueba de mapeo avanzado de datos fallo.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de perfil, enmascaramiento y datos de prueba fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp "$testClasspath;$projectRoot/build/h2-test.jar" com.nexodb.ui.DataQualityPanelTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas visuales del panel de calidad de datos fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp "$testClasspath;$projectRoot/build/h2-test.jar" com.nexodb.db.DataDictionaryServiceTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diccionario de datos fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp "$testClasspath;$projectRoot/build/h2-test.jar" com.nexodb.ui.DataDictionaryPanelTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas visuales del diccionario de datos fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.QueryEditSqlTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de consultas editables fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.SqlColumnCompletionTest

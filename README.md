@@ -1,6 +1,23 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.57**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.30**.
+La versión actual de escritorio es **0.18.58**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.31**.
+
+## Modelado avanzado y diccionario de datos — 0.18.58
+
+- **Herramientas avanzadas › Diccionario de datos** reúne tablas, vistas, columnas, tipos, tamaños, valores predeterminados y comentarios del esquema seleccionado sin consultar filas ni definiciones SQL de las vistas.
+- La carga inicial utiliza pocas lecturas de metadatos y funciona con esquemas grandes. Claves primarias, índices y relaciones se leen únicamente al seleccionar una tabla, evitando miles de llamadas innecesarias al servidor.
+- El buscador encuentra coincidencias por tabla, columna, tipo y comentario. La ficha seleccionada muestra comentarios, nulabilidad, autoincremento, claves, columnas de índices y acciones `ON UPDATE` / `ON DELETE` de cada relación.
+- Un doble clic abre la estructura real de la tabla y **Abrir en diagrama** continúa el modelado visual con el diseñador existente. Así, documentación, edición de estructura y diagrama permanecen conectados sin duplicar DDL.
+- Las exportaciones Markdown y CSV completan los detalles en una conexión auxiliar, muestran progreso en el panel central de operaciones, se pueden cancelar y escriben el archivo de forma atómica. No exportan filas, contraseñas, parámetros ni SQL de las vistas.
+- La interfaz funciona en modo oscuro e inglés, y el manual incorpora un capítulo paso a paso. Las pruebas reales verifican comentarios, PK, índices, claves foráneas, vistas, exportación completa y carga asíncrona.
+
+## Paquetes Linux/macOS y actualización automática — 0.18.58
+
+- El canal estable publica recursos distintos para Windows x64, Linux x64, Linux ARM64, macOS Intel y macOS Apple Silicon; cada instalación descarga únicamente el paquete de su sistema y arquitectura.
+- Los paquetes Linux son `.deb` autocontenidos con Java 17; los paquetes macOS son aplicaciones `.app` autocontenidas con el runtime nativo correspondiente.
+- Una copia instalada en `~/Applications/AdisDB.app` puede aplicar la actualización desde **Ayuda → Buscar actualizaciones**. AdisDB verifica HTTPS y SHA-256, espera el cierre, conserva temporalmente la aplicación anterior, instala la nueva y vuelve a abrirla.
+- El reemplazo no toca `~/Library/Application Support/AdisDB`: conexiones, licencia, preferencias, borradores y espacios recuperables permanecen intactos.
+- Si la aplicación está en una carpeta protegida o macOS no permite reemplazarla, AdisDB abre el ZIP verificado para completar la instalación manualmente. Los paquetes continúan sin firma Developer ID ni notarización mientras el distribuidor no disponga de esos certificados vigentes.
 
 ## Monitor histórico, deadlocks y replicación — 0.18.57
 
@@ -509,7 +526,7 @@ La distribución limita el heap a 256 MB y usa renderizado GDI por software para
 
 Para el usuario final, **Ayuda → Buscar actualizaciones** consulta el canal incorporado al generar el ejecutable. **Canal de actualizaciones (administrador)** solamente se usa para probar o reemplazar ese canal.
 
-El actualizador descarga el ZIP en segundo plano, compara su SHA-256 con el manifiesto y solo entonces permite instalarlo. La instalación se realiza después de cerrar AdisDB y la aplicación vuelve a abrirse.
+El actualizador descarga el paquete de la plataforma en segundo plano, compara su SHA-256 con el manifiesto y solo entonces permite instalarlo. En Windows y en instalaciones macOS por usuario, la instalación se realiza después de cerrar AdisDB y la aplicación vuelve a abrirse.
 
 `package.ps1` genera `dist\update-manifest.json` e incorpora el canal en el ejecutable cuando recibe la dirección pública:
 

@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
@@ -106,6 +107,10 @@ public final class UpdateService {
             java.awt.Desktop.getDesktop().open(zip.toFile());
             return;
         }
+        if (platformKey().startsWith("macos-")) {
+            launchMacInstaller(zip);
+            return;
+        }
         String executableProperty = System.getProperty("jpackage.app-path", "").trim();
         if (executableProperty.isBlank()) {
             throw new IllegalStateException("La actualización automática solo funciona desde la aplicación portable instalada.");
@@ -125,6 +130,30 @@ public final class UpdateService {
                 zip.toAbsolutePath().toString(),
                 installDirectory.toString(),
                 executable.toString()
+        ).start();
+    }
+
+    private void launchMacInstaller(Path zip) throws IOException {
+        Path application = currentMacApplication().orElseThrow(() ->
+                new IllegalStateException("No se pudo localizar AdisDB.app. Abre el paquete descargado para instalarlo manualmente."));
+        Path parent = application.getParent();
+        if (parent == null || !Files.isWritable(parent)) {
+            throw new IllegalStateException("macOS no permite reemplazar esta instalación sin autorización. Abre el paquete descargado y arrastra AdisDB.app a Aplicaciones.");
+        }
+        Path script = Files.createTempFile("adisdb-updater-", ".sh");
+        Files.writeString(script, macUpdaterScript(), StandardCharsets.UTF_8);
+        try {
+            Files.setPosixFilePermissions(script, java.util.Set.of(
+                    PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE));
+        } catch (UnsupportedOperationException ignored) {
+            // macOS admite permisos POSIX; este fallback mantiene comprobable el código en otros sistemas.
+        }
+        new ProcessBuilder(
+                "/bin/sh", script.toString(),
+                Long.toString(ProcessHandle.current().pid()),
+                zip.toAbsolutePath().normalize().toString(),
+                application.toString(),
+                script.toString()
         ).start();
     }
 
@@ -183,7 +212,41 @@ public final class UpdateService {
     }
 
     public static boolean canInstallInPlace() {
-        return platformKey().startsWith("windows-") && !System.getProperty("jpackage.app-path", "").isBlank();
+        String platform = platformKey();
+        if (platform.startsWith("windows-")) return !System.getProperty("jpackage.app-path", "").isBlank();
+        if (platform.startsWith("macos-")) {
+            return currentMacApplication().filter(path -> path.getParent() != null && Files.isWritable(path.getParent())).isPresent();
+        }
+        return false;
+    }
+
+    static java.util.Optional<Path> findMacApplication(Path location) {
+        if (location == null) return java.util.Optional.empty();
+        Path current = location.toAbsolutePath().normalize();
+        if (Files.isRegularFile(current)) current = current.getParent();
+        while (current != null) {
+            String name = current.getFileName() == null ? "" : current.getFileName().toString();
+            if (name.equalsIgnoreCase("AdisDB.app") || name.equalsIgnoreCase("NexoDB Studio.app")) {
+                return java.util.Optional.of(current);
+            }
+            current = current.getParent();
+        }
+        return java.util.Optional.empty();
+    }
+
+    private static java.util.Optional<Path> currentMacApplication() {
+        String packagedExecutable = System.getProperty("jpackage.app-path", "").trim();
+        if (!packagedExecutable.isBlank()) {
+            java.util.Optional<Path> found = findMacApplication(Path.of(packagedExecutable));
+            if (found.isPresent()) return found;
+        }
+        try {
+            URI source = UpdateService.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+            if ("file".equalsIgnoreCase(source.getScheme())) return findMacApplication(Path.of(source));
+        } catch (Exception ignored) {
+            // La instalación manual seguirá disponible si una política impide consultar CodeSource.
+        }
+        return java.util.Optional.empty();
     }
 
     public static String explainError(Throwable error) {
@@ -276,6 +339,47 @@ public final class UpdateService {
                     Remove-Item -LiteralPath $ZipPath -Force -ErrorAction SilentlyContinue
                     Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
                 }
+                """;
+    }
+
+    private static String macUpdaterScript() {
+        return """
+                #!/bin/sh
+                set -eu
+                process_id="$1"
+                package="$2"
+                application="$3"
+                updater="$4"
+                case "$application" in
+                  /*/AdisDB.app|/*/NexoDB\\ Studio.app) ;;
+                  *) printf '%s\n' 'Unsafe AdisDB application path' >&2; exit 2 ;;
+                esac
+                while /bin/kill -0 "$process_id" 2>/dev/null; do /bin/sleep 1; done
+                temporary_root=${TMPDIR:-/tmp}
+                stage=$(/usr/bin/mktemp -d "$temporary_root/AdisDB-update.XXXXXX")
+                backup="$(/usr/bin/dirname "$application")/.AdisDB-backup-$$.app"
+                installed=false
+                cleanup() {
+                  /bin/rm -rf "$stage" "$package" "$updater" 2>/dev/null || true
+                  if [ "$installed" = true ]; then
+                    /bin/rm -rf "$backup" 2>/dev/null || true
+                  elif [ ! -e "$application" ] && [ -e "$backup" ]; then
+                    /bin/mv "$backup" "$application" 2>/dev/null || true
+                  fi
+                }
+                trap cleanup EXIT HUP INT TERM
+                /usr/bin/ditto -x -k "$package" "$stage"
+                candidate="$stage/AdisDB.app"
+                [ -x "$candidate/Contents/MacOS/AdisDB" ] || { printf '%s\n' 'Invalid AdisDB macOS package' >&2; exit 3; }
+                [ ! -e "$backup" ] || { printf '%s\n' 'Unsafe existing updater backup' >&2; exit 4; }
+                /bin/mv "$application" "$backup"
+                if /bin/mv "$candidate" "$application"; then
+                  installed=true
+                  /usr/bin/open "$application"
+                else
+                  /bin/mv "$backup" "$application" 2>/dev/null || true
+                  exit 5
+                fi
                 """;
     }
 }

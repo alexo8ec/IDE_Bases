@@ -19,6 +19,11 @@ public final class UpdateServiceTest {
         equal("macos-arm64", UpdateService.platformKey("Mac OS X", "aarch64"));
         equal("linux-x64", UpdateService.platformKey("Linux", "x86_64"));
         equal("linux-arm64", UpdateService.platformKey("Linux", "arm64"));
+        equal(Path.of("/Users/test/Applications/AdisDB.app").toAbsolutePath().normalize(),
+                UpdateService.findMacApplication(Path.of("/Users/test/Applications/AdisDB.app/Contents/Resources/app/nexodb-studio.jar")).orElseThrow());
+        equal(Path.of("/Applications/NexoDB Studio.app").toAbsolutePath().normalize(),
+                UpdateService.findMacApplication(Path.of("/Applications/NexoDB Studio.app/Contents/MacOS/NexoDB Studio")).orElseThrow());
+        equal(true, UpdateService.findMacApplication(Path.of("/Users/test/not-adisdb/app.jar")).isEmpty());
         String checksum = "a".repeat(64);
         String manifest = """
             {"version":"1.2.3","notes":"English\\nEspa\\u00f1ol","platforms":{
@@ -58,7 +63,13 @@ public final class UpdateServiceTest {
             equal(before, tempUpdates());
         } finally { Files.deleteIfExists(source); }
         if(System.getProperty("os.name","").startsWith("Windows"))verifyRebrandUpdater();
-        System.out.println("UpdateServiceTest: OK (legacy/new manifests, hashes and NexoDB-to-AdisDB updater compatibility)");
+        verifyMacUpdater();
+        System.out.println("UpdateServiceTest: OK (multi-platform manifests, hashes and Windows/macOS in-place updaters)");
+    }
+    private static void verifyMacUpdater() throws Exception {
+        var method=UpdateService.class.getDeclaredMethod("macUpdaterScript");method.setAccessible(true);String script=(String)method.invoke(null);
+        for(String required:List.of("ditto -x -k","AdisDB.app/Contents/MacOS/AdisDB",".AdisDB-backup-","/usr/bin/open","/bin/kill -0"))if(!script.contains(required))throw new AssertionError("Missing safe macOS updater step: "+required);
+        if(script.contains("sudo")||script.contains("eval "))throw new AssertionError("The macOS updater must not elevate privileges or evaluate paths");
     }
     private static void verifyRebrandUpdater()throws Exception{
         Path root=Files.createTempDirectory("adisdb-updater-migration-").toAbsolutePath();Path install=Files.createDirectory(root.resolve("installed"));Path temporary=Files.createDirectory(root.resolve("temp"));Path old=install.resolve("NexoDB Studio.exe");Files.writeString(old,"legacy-launcher");
