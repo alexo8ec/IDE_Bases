@@ -22,6 +22,7 @@ public final class ServerActivity {
             String id=text(row,columns,"session_id"),user=text(row,columns,"user_name"),database=text(row,columns,"database_name"),state=text(row,columns,"state_name"),query=text(row,columns,"query_text"),blocked=text(row,columns,"blocked_by"),object=text(row,columns,"object_name"),transaction=text(row,columns,"transaction_state"),own=text(row,columns,"own_session");
             rows.add(new Session(id,user,database,state,number(text(row,columns,"elapsed_seconds")),query,blocked,object,transaction,"1".equals(own)||"true".equalsIgnoreCase(own)));
         }
+        if(type==DatabaseType.MYSQL||type==DatabaseType.MARIADB)rows=new ArrayList<>(ServerHealth.enrichMysqlWaits(session,rows));
         rows.sort(Comparator.comparingLong(Session::seconds).reversed());return new Snapshot(rows,result.truncated()?"Se alcanzó el límite configurado; aumenta el máximo para ver más sesiones.":"",(System.nanoTime()-started)/1_000_000L);
     }
 

@@ -56,6 +56,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de recuperacion del espacio de tra
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diagnostico automatico fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.ServerActivityTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del monitor de sesiones fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.ServerHealthTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de deadlocks y replicacion fallaron.' }
+& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.util.ServerMonitorHistoryTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del historial seguro del monitor fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.SchemaObjectListerTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de tablas del explorador fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.HelpManualPanelTest

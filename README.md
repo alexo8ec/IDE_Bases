@@ -1,6 +1,15 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.56**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.29**.
+La versión actual de escritorio es **0.18.57**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.30**.
+
+## Monitor histórico, deadlocks y replicación — 0.18.57
+
+- El monitor del servidor incorpora pestañas separadas para **Sesiones**, **Bloqueos y deadlocks**, **Replicación** e **Historial**, sin reemplazar los controles existentes para filtrar, cancelar consultas o cerrar sesiones.
+- MySQL y MariaDB enriquecen la lista de procesos con sus esperas reales mediante `performance_schema` y conservan un respaldo compatible con servidores anteriores. PostgreSQL, SQL Server y Oracle mantienen sus grafos nativos de bloqueo.
+- AdisDB distingue una cadena de espera de un ciclo de deadlock, muestra las sesiones implicadas y recomienda revisar primero la transacción bloqueadora. Las acciones administrativas continúan requiriendo permiso del servidor y confirmación.
+- El estado de replicación se consulta en modo informativo para MySQL/MariaDB, PostgreSQL, SQL Server y Oracle. Una cuenta sin privilegios no bloquea el resto del monitor: se muestra la limitación y las sesiones continúan disponibles.
+- El historial conserva hasta siete días y mil muestras agregadas por perfil, sustituyendo refrescos consecutivos muy cercanos. Solo guarda cantidades, duración máxima, retraso y estado: nunca SQL, usuarios, identificadores de sesión, bases, parámetros, datos ni credenciales.
+- Las nuevas pruebas verifican ciclos y falsas alarmas, consultas por motor, respaldo de esperas MySQL, aislamiento del historial por perfil y ausencia de campos sensibles.
 
 ## Calidad, enmascaramiento y datos de prueba — 0.18.56
 

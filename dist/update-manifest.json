@@ -1,6 +1,6 @@
 {
-  "version": "0.18.56",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.56-win64.zip",
-  "sha256": "d88ccaf539995f5c9c9978058b0ed8e437735cfab6639928cbad6621e000559b",
-  "notes": "AdisDB 0.18.56: perfil de calidad, enmascaramiento con vista previa y clave primaria, datos de prueba editables, transacciones seguras y auditoría sin valores sensibles."
+  "version": "0.18.57",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.57-win64.zip",
+  "sha256": "44a919352de0f3a4fc3cd191509f89e5cbe377ccbe5d5871e1a681bff1116dde",
+  "notes": "AdisDB 0.18.57: monitor histórico seguro, detección visual de bloqueos y ciclos de deadlock, estado de replicación y esperas reales de MySQL/MariaDB sin guardar SQL ni usuarios."
 }

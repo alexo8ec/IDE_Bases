@@ -121,7 +121,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: perfil de calidad, enmascaramiento con vista previa y clave primaria, datos de prueba editables, transacciones seguras y auditoría sin valores sensibles."
+    notes = "AdisDB ${version}: monitor histórico seguro, detección visual de bloqueos y ciclos de deadlock, estado de replicación y esperas reales de MySQL/MariaDB sin guardar SQL ni usuarios."
 }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path $distRoot 'update-manifest.json'),($manifest | ConvertTo-Json),$utf8NoBom)
