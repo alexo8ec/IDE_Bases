@@ -1,6 +1,13 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.58**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.31**.
+La versión actual de escritorio es **0.18.59**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Formulario de conexión estable en macOS — 0.18.59
+
+- Al escribir el nombre de una conexión y cambiar el motor, AdisDB conserva exactamente el nombre introducido por el usuario; las sugerencias como `MySQL local` solo cambian mientras el nombre siga siendo automático.
+- Antes de procesar el cambio de motor se confirma cualquier composición de texto pendiente del sistema de entrada de macOS, evitando que el último fragmento escrito se pierda al abrir el selector.
+- El formulario actualiza campos, puerto, controlador, TLS y URL sin ejecutar un `pack()` mientras el desplegable nativo está abierto. La ventana ya no se encoge, salta ni cambia de posición al elegir otro motor.
+- La misma protección se aplica al seleccionar un archivo SQLite: el archivo solo propone un nombre cuando el usuario aún no ha escrito uno propio.
 
 ## Modelado avanzado y diccionario de datos — 0.18.58
 

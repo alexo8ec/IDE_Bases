@@ -18,6 +18,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.ItemEvent;
+import java.awt.im.InputContext;
 import java.io.File;
 import java.util.Arrays;
 
@@ -75,6 +76,8 @@ public final class ConnectionDialog extends JDialog {
     private final boolean hadStoredSshPassword;
     private Result result;
     private boolean internalChange;
+    private boolean nameProgrammaticChange;
+    private boolean nameManuallyEdited;
     private DatabaseType currentEngine;
     private final java.util.Map<DatabaseType, EngineDraft> engineDrafts = new java.util.EnumMap<>(DatabaseType.class);
     private record EngineDraft(String host, int port, String database, String user, String url, String driverClass, String driverJar, TlsMode tls, AuthenticationMode authentication, boolean readOnly, boolean advanced) {}
@@ -102,9 +105,10 @@ public final class ConnectionDialog extends JDialog {
         if (profile == null) {
             type.setSelectedItem(DatabaseType.POSTGRESQL);
             applyPreset(true);
-            name.setText("PostgreSQL local");
+            setSuggestedName("PostgreSQL local");
         } else {
             populate(profile);
+            nameManuallyEdited = true;
         }
         rememberPassword.setSelected(hadStoredPassword);
         rememberSshPassword.setSelected(hadStoredSshPassword);
@@ -300,13 +304,22 @@ public final class ConnectionDialog extends JDialog {
     }
 
     private void bindActions() {
+        name.getDocument().addDocumentListener(new DocumentListener() {
+            private void changed() {
+                if (!internalChange && !nameProgrammaticChange) nameManuallyEdited = true;
+            }
+            @Override public void insertUpdate(DocumentEvent e) { changed(); }
+            @Override public void removeUpdate(DocumentEvent e) { changed(); }
+            @Override public void changedUpdate(DocumentEvent e) { changed(); }
+        });
         type.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED && !internalChange) {
+                commitPendingNameInput();
                 switchEngine((DatabaseType)e.getItem());
                 updateAuthenticationUi();
                 updateTlsUi();
                 updateSshUi();
-                pack();
+                refreshDialogLayout();
             }
         });
         authentication.addItemListener(e -> {
@@ -409,10 +422,35 @@ public final class ConnectionDialog extends JDialog {
                 headingIcon.setIcon(IconFactory.database(next,36));
             }
             password.setText(""); rememberPassword.setSelected(false);
-            if (name.getText().isBlank() || name.getText().matches("(PostgreSQL|SQLite|MySQL|MariaDB|H2|Oracle|SQL Server|MongoDB \\(Atlas SQL\\)|JDBC genérico) local")) name.setText(next.displayName() + " local");
+            if (!nameManuallyEdited) setSuggestedName(next.displayName() + " local");
             currentEngine = next;
             advancedToggle.setText(advancedToggle.isSelected() ? tr("Configuración avanzada   v") : tr("Configuración avanzada   >"));
         } finally { internalChange = false; }
+    }
+
+    private void commitPendingNameInput() {
+        InputContext context = name.getInputContext();
+        if (context != null) context.endComposition();
+    }
+
+    private void setSuggestedName(String value) {
+        nameProgrammaticChange = true;
+        try { name.setText(value); }
+        finally { nameProgrammaticChange = false; }
+    }
+
+    private void refreshDialogLayout() {
+        connectionTabs.revalidate();
+        getContentPane().revalidate();
+        repaint();
+        SwingUtilities.invokeLater(() -> {
+            if (!isDisplayable()) return;
+            Dimension preferred = getPreferredSize();
+            Dimension current = getSize();
+            if (preferred.width > current.width || preferred.height > current.height) {
+                setSize(Math.max(current.width, preferred.width), Math.max(current.height, preferred.height));
+            }
+        });
     }
 
     private void applyPreset(boolean force) {
@@ -495,7 +533,7 @@ public final class ConnectionDialog extends JDialog {
         if (!database.getText().isBlank()) chooser.setSelectedFile(new File(database.getText()));
         if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             File file = chooser.getSelectedFile(); database.setText(file.getAbsolutePath());
-            if (name.getText().isBlank() || name.getText().matches("(PostgreSQL|SQLite|MySQL|MariaDB|H2|Oracle|SQL Server) local")) name.setText(file.getName());
+            if (!nameManuallyEdited) setSuggestedName(file.getName());
         }
     }
 

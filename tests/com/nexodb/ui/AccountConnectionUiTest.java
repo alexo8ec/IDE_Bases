@@ -35,6 +35,14 @@ public final class AccountConnectionUiTest {
                 ConnectionDialog dialog=new ConnectionDialog(null,null);
                 try {
                     @SuppressWarnings("unchecked") JComboBox<DatabaseType> type=(JComboBox<DatabaseType>)field(dialog,"type");
+                    JTextField connectionName=(JTextField)field(dialog,"name");
+                    type.setSelectedItem(DatabaseType.MYSQL);
+                    if(!connectionName.getText().equals("MySQL local"))throw new AssertionError("Automatic engine name was not refreshed");
+                    connectionName.setText("Contabilidad principal");
+                    Dimension stableSize=dialog.getSize();
+                    type.setSelectedItem(DatabaseType.POSTGRESQL);
+                    if(!connectionName.getText().equals("Contabilidad principal"))throw new AssertionError("Changing engine overwrote the user connection name");
+                    if(dialog.getWidth()<stableSize.width||dialog.getHeight()<stableSize.height)throw new AssertionError("Changing engine shrank the dialog");
                     for(DatabaseType engine:DatabaseType.values()) {
                         type.setSelectedItem(engine);
                         boolean network=engine!=DatabaseType.SQLITE && engine!=DatabaseType.H2 && engine!=DatabaseType.GENERIC;
