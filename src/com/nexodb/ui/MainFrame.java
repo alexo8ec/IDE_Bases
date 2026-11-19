@@ -71,6 +71,8 @@ public final class MainFrame extends JFrame {
     private final JButton compareButton = UiLanguage.text(new JButton(tr("Comparar esquemas")), UiLanguage.key("Comparar esquemas"));
     private final JButton operationsButton = UiLanguage.text(new JButton(),UiLanguage.key("Operaciones en segundo plano"));
     private final BackgroundOperations.Listener operationsListener=this::updateOperationsIndicator;
+    private final com.nexodb.util.WorkspaceRecoveryStore workspaceRecovery=com.nexodb.util.WorkspaceRecoveryStore.configured();
+    private final Timer recoveryTimer;
     private final Map<String, JdbcSession> sessions = new LinkedHashMap<>();
     private JdbcSession session;
     private int busyDepth;
@@ -86,6 +88,7 @@ public final class MainFrame extends JFrame {
 
     public MainFrame() {
         super(com.nexodb.util.ProductBrand.TITLE);
+        recoveryTimer=new Timer(2_000,e->workspaceRecovery.checkpoint(session==null?"":session.profile().name(),queryPanel.activeDatabase(),BackgroundOperations.snapshots()));
         loadApplicationIcons();
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setMinimumSize(new Dimension(980, 680));
@@ -102,6 +105,7 @@ public final class MainFrame extends JFrame {
         scheduledTasks.setLicenseCheck(LicenseGate::licensed);
         setJMenuBar(buildMenu());
         setContentPane(buildContent());
+        var recovery=workspaceRecovery.start();recoveryTimer.start();
         BackgroundOperations.addListener(operationsListener);updateOperationsIndicator();
         UiDesign.enhance(this);
         configureProfiles();
@@ -109,6 +113,7 @@ public final class MainFrame extends JFrame {
         loadProfilesAsync();
         updateConnectionActions();
         scheduleAutomaticUpdateCheck();
+        if(recovery.unexpectedShutdown())SwingUtilities.invokeLater(()->{addToolTab(tr("Recuperación"),new WorkspaceRecoveryPanel(recovery));setStatus(tr("Se restauraron los borradores del cierre inesperado. Revisa las tareas interrumpidas."));});
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent e) { exitApplication(); }
         });
@@ -362,7 +367,9 @@ public final class MainFrame extends JFrame {
         power.add(toolMenuItem("Programar consultas y reportes…",IconFactory.Kind.SQL,KeyEvent.VK_N,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openTasks(com.nexodb.db.ScheduledTasks.Kind.REPORT)));
         power.add(toolMenuItem("Respaldos programados…",IconFactory.Kind.SAVE,KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openTasks(com.nexodb.db.ScheduledTasks.Kind.BACKUP)));
         power.add(toolMenuItem("Tareas programadas…",IconFactory.Kind.SETTINGS,0,0,()->openTasks(null)));power.addSeparator();
-        power.add(toolMenuItem("Operaciones en segundo plano",IconFactory.Kind.HISTORY,0,0,this::openOperations));power.addSeparator();
+        power.add(toolMenuItem("Operaciones en segundo plano",IconFactory.Kind.HISTORY,0,0,this::openOperations));
+        power.add(toolMenuItem("Monitor de sesiones y bloqueos",IconFactory.Kind.DATABASE,0,0,this::openServerMonitor));
+        power.add(toolMenuItem("Auditoría local segura",IconFactory.Kind.HISTORY,0,0,this::openAudit));power.addSeparator();
         power.add(toolMenuItem("Reconstruir autocompletado",IconFactory.Kind.REFRESH,0,0,()->{queryPanel.refreshCompletions();setStatus(tr("Autocompletado actualizado."));}));
 
         JMenu reporting=UiLanguage.text(new JMenu(),UiLanguage.key("Reportería"));
@@ -391,6 +398,7 @@ public final class MainFrame extends JFrame {
         help.addSeparator();
         help.add(about);
         help.add(toolMenuItem("Licencia de AdisDB…",IconFactory.Kind.KEY,0,0,()->LicenseGate.show(this)));
+        help.addSeparator();help.add(toolMenuItem("Manual de uso",IconFactory.Kind.INFO,KeyEvent.VK_F1,0,this::openManual));
         bar.add(file);
         bar.add(edit);
         bar.add(database);
@@ -407,6 +415,9 @@ public final class MainFrame extends JFrame {
     private JMenuItem toolMenuItem(String text,IconFactory.Kind icon,int key,int modifiers,Runnable action){JMenuItem item=UiLanguage.text(new JMenuItem(tr(text),IconFactory.of(icon,16)),UiLanguage.key(text));if(key!=0)item.setAccelerator(KeyStroke.getKeyStroke(key,modifiers));item.addActionListener(e->action.run());return item;}
     private void addToolTab(String title,JComponent panel){UiDesign.enhance(panel);workspaceTabs.addTab(title,IconFactory.of(panel instanceof VisualDatabasePanel?IconFactory.Kind.DIAGRAM:panel instanceof DataSearchPanel?IconFactory.Kind.SEARCH:panel instanceof ScheduledTasksPanel?IconFactory.Kind.EVENT:panel instanceof BackgroundOperationsPanel?IconFactory.Kind.HISTORY:IconFactory.Kind.SQL,16),panel);int index=workspaceTabs.indexOfComponent(panel);workspaceTabs.setTabComponentAt(index,closableTab(title,panel));workspaceTabs.setSelectedComponent(panel);}
     private void openOperations(){for(Component component:workspaceTabs.getComponents())if(component instanceof BackgroundOperationsPanel){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Operaciones en segundo plano"),new BackgroundOperationsPanel());}
+    private void openServerMonitor(){if(session==null||!session.isOpen()){JOptionPane.showMessageDialog(this,tr("Conecta una instancia primero."));return;}for(Component component:workspaceTabs.getComponents())if(component instanceof ServerMonitorPanel monitor&&monitor.origin()==session){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Monitor del servidor")+" · "+session.profile().name(),new ServerMonitorPanel(session));}
+    private void openAudit(){for(Component component:workspaceTabs.getComponents())if(component instanceof AuditPanel){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Auditoría local"),new AuditPanel());}
+    private void openManual(){for(Component component:workspaceTabs.getComponents())if(component instanceof HelpManualPanel){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Manual de uso"),new HelpManualPanel());}
     private void updateOperationsIndicator(){if(!SwingUtilities.isEventDispatchThread()){SwingUtilities.invokeLater(this::updateOperationsIndicator);return;}int active=BackgroundOperations.activeCount(),queued=BackgroundOperations.queuedCount();operationsButton.setText(Integer.toString(active));UiLanguage.tooltip(operationsButton,UiLanguage.caption(active==0?tr("Sin operaciones en segundo plano"):tr("Operaciones activas: ")+active+(queued>0?tr(" · En espera: ")+queued:"")));}
     private boolean requireDatabase(){if(!LicenseGate.ensure(this))return false;if(session==null||!session.isOpen()||queryPanel.activeDatabase().isBlank()){JOptionPane.showMessageDialog(this,tr("Conecta y selecciona una base de datos primero."));return false;}return true;}
     private void openQueryTool(String tool){
@@ -1245,16 +1256,9 @@ public final class MainFrame extends JFrame {
         }.execute();
     }
 
-    private List<SchemaItem> loadTables(JdbcSession target, SchemaItem parent, String tableType, SchemaItem.Kind kind) throws SQLException {
+    private List<SchemaItem> loadTables(JdbcSession target, SchemaItem parent, String tableType, SchemaItem.Kind kind) throws Exception {
         List<SchemaItem> items = new ArrayList<>();
-        try (ResultSet rs = target.connection().getMetaData().getTables(parent.catalog(), parent.schema(), "%", new String[]{tableType})) {
-            while (rs.next()) {
-                String name = rs.getString("TABLE_NAME");
-                String remarks = rs.getString("REMARKS");
-                items.add(new SchemaItem(kind, rs.getString("TABLE_CAT"), rs.getString("TABLE_SCHEM"), name, remarks));
-            }
-        }
-        items.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
+        try(JdbcSession.ReadLease lease=target.borrowReadOnly(10_000)){for(var object:com.nexodb.db.SchemaObjectLister.list(lease.session(),parent.catalog(),parent.schema(),kind==SchemaItem.Kind.VIEW))items.add(new SchemaItem(kind,object.catalog(),object.schema(),object.name(),object.remarks()));}
         return items;
     }
 
@@ -1529,7 +1533,7 @@ public final class MainFrame extends JFrame {
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
         UiLanguage.tooltip(close, UiLanguage.key("Cerrar pestaña"));
-        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
+        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();if(component instanceof ServerMonitorPanel monitor)monitor.disposePanel();if(component instanceof AuditPanel audit)audit.disposePanel();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
         tab.add(close);
         return tab;
     }
@@ -1754,6 +1758,9 @@ public final class MainFrame extends JFrame {
         for(Component component:workspaceTabs.getComponents())if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report)report.dispose();
         for(Component component:workspaceTabs.getComponents())if(component instanceof AiAssistantPanel ai)ai.dispose();
         for(Component component:workspaceTabs.getComponents())if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();
+        for(Component component:workspaceTabs.getComponents())if(component instanceof ServerMonitorPanel monitor)monitor.disposePanel();
+        for(Component component:workspaceTabs.getComponents())if(component instanceof AuditPanel audit)audit.disposePanel();
+        recoveryTimer.stop();workspaceRecovery.cleanShutdown();
         BackgroundOperations.removeListener(operationsListener);
         dispose();
     }

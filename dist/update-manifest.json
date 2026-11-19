@@ -1,6 +1,6 @@
 {
-  "version": "0.18.49",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.49-win64.zip",
-  "sha256": "001e9a5a356ec234ed143405556ff132d2ed897615910525e39ade71db44b2ed",
-  "notes": "AdisDB 0.18.49: prioridades interactivas, cola visible, cancelación de precargas obsoletas y límites globales y por conexión."
+  "version": "0.18.50",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.50-win64.zip",
+  "sha256": "6e825aad6d20840ed00537b3797bb5ac6927b3dfcbd66aff69c73af2cb66a074",
+  "notes": "AdisDB 0.18.50: monitor de sesiones y bloqueos, recuperación segura, diagnóstico de lentitud, límites adaptativos, auditoría local, manual integrado y corrección del explorador de tablas."
 }

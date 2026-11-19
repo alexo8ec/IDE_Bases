@@ -48,6 +48,18 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del disenador de reportes fallaron
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de mantenimiento de conexiones fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.util.BackgroundOperationsTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del control de operaciones en segundo plano fallaron.' }
+& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.util.AuditLogTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de auditoria local segura fallaron.' }
+& java '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.util.WorkspaceRecoveryStoreTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de recuperacion del espacio de trabajo fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.PerformanceDiagnosisTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diagnostico automatico fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.ServerActivityTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del monitor de sesiones fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.SchemaObjectListerTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de tablas del explorador fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.HelpManualPanelTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del manual integrado fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.BackgroundOperationsPanelTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del panel de operaciones en segundo plano fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.UserAdministrationTest

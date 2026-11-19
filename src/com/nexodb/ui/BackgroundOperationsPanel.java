@@ -25,27 +25,28 @@ final class BackgroundOperationsPanel extends JPanel {
     private final JSpinner concurrency=new JSpinner(new SpinnerNumberModel(BackgroundOperations.maxConcurrent(),1,8,1));
     private final JSpinner perConnection=new JSpinner(new SpinnerNumberModel(BackgroundOperations.maxPerConnection(),1,4,1));
     private final JSpinner timeout=new JSpinner(new SpinnerNumberModel(BackgroundOperations.timeoutSeconds(),5,3600,5));
+    private final JCheckBox adaptive=UiLanguage.text(new JCheckBox(),UiLanguage.key("Ajuste adaptativo"));
     private final Timer timer=new Timer(500,e->refresh());
     private final BackgroundOperations.Listener listener=this::refresh;
     private List<Snapshot> rows=List.of();
 
     BackgroundOperationsPanel(){
         super(new BorderLayout(8,8));setName("background-operations");setBorder(new EmptyBorder(10,10,10,10));
-        JToolBar actions=new JToolBar();actions.setFloatable(false);actions.add(cancel);actions.add(retry);actions.add(clear);actions.addSeparator();actions.add(new JLabel(tr("Máx. simultáneas: ")));actions.add(concurrency);actions.addSeparator();actions.add(new JLabel(tr("Por conexión: ")));actions.add(perConnection);actions.addSeparator();actions.add(new JLabel(tr("Tiempo máximo (s): ")));actions.add(timeout);JButton apply=UiLanguage.text(new JButton(tr("Aplicar límites"),IconFactory.of(IconFactory.Kind.SETTINGS,16)),UiLanguage.key("Aplicar límites"));actions.add(apply);actions.add(Box.createHorizontalGlue());actions.add(summary);add(actions,BorderLayout.NORTH);
+        adaptive.setSelected(BackgroundOperations.adaptiveEnabled());JToolBar actions=new JToolBar();actions.setFloatable(false);actions.add(cancel);actions.add(retry);actions.add(clear);actions.addSeparator();actions.add(new JLabel(tr("Máx. simultáneas: ")));actions.add(concurrency);actions.addSeparator();actions.add(new JLabel(tr("Por conexión: ")));actions.add(perConnection);actions.addSeparator();actions.add(new JLabel(tr("Tiempo máximo (s): ")));actions.add(timeout);actions.addSeparator();actions.add(adaptive);JButton apply=UiLanguage.text(new JButton(tr("Aplicar límites"),IconFactory.of(IconFactory.Kind.SETTINGS,16)),UiLanguage.key("Aplicar límites"));actions.add(apply);actions.add(Box.createHorizontalGlue());actions.add(summary);add(actions,BorderLayout.NORTH);
         table.setName("operations-table");table.setAutoCreateRowSorter(true);table.setRowHeight(27);table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);table.getSelectionModel().addListSelectionListener(e->updateActions());
         table.getColumnModel().getColumn(0).setPreferredWidth(180);table.getColumnModel().getColumn(3).setPreferredWidth(150);table.getColumnModel().getColumn(8).setPreferredWidth(260);add(new JScrollPane(table),BorderLayout.CENTER);
         JLabel privacy=new JLabel(tr("El historial permanece solo durante esta sesión y no almacena SQL, parámetros, resultados ni credenciales."));privacy.setIcon(IconFactory.of(IconFactory.Kind.INFO,15));add(privacy,BorderLayout.SOUTH);
         cancel.addActionListener(e->{Snapshot selected=selected();if(selected!=null)BackgroundOperations.cancel(selected.id());});
         retry.addActionListener(e->{Snapshot selected=selected();if(selected!=null)BackgroundOperations.retry(selected.id());});
         clear.addActionListener(e->BackgroundOperations.clearFinished());
-        apply.addActionListener(e->{try{BackgroundOperations.configure((Integer)concurrency.getValue(),(Integer)perConnection.getValue(),(Integer)timeout.getValue());refresh();}catch(IllegalStateException error){JOptionPane.showMessageDialog(this,error.getMessage(),tr("Preferencias"),JOptionPane.WARNING_MESSAGE);}});
+        apply.addActionListener(e->{try{BackgroundOperations.configure((Integer)concurrency.getValue(),(Integer)perConnection.getValue(),(Integer)timeout.getValue(),adaptive.isSelected());refresh();}catch(IllegalStateException error){JOptionPane.showMessageDialog(this,error.getMessage(),tr("Preferencias"),JOptionPane.WARNING_MESSAGE);}});
         BackgroundOperations.addListener(listener);timer.start();refresh();
     }
     void disposePanel(){timer.stop();BackgroundOperations.removeListener(listener);}
     private void refresh(){
         if(!SwingUtilities.isEventDispatchThread()){SwingUtilities.invokeLater(this::refresh);return;}long selectedId=selected()==null?-1:selected().id();rows=new ArrayList<>(BackgroundOperations.snapshots());model.setRowCount(0);int select=-1;
         for(int i=0;i<rows.size();i++){Snapshot item=rows.get(i);model.addRow(new Object[]{item.label(),kind(item),priority(item),item.connection(),state(item)+(item.queuePosition()>0?" · #"+item.queuePosition():""),TIME.format(item.queuedAt()),duration(item.elapsedMillis()),item.progress()<0?"—":item.progress()+"%",item.detail()});if(item.id()==selectedId)select=i;}
-        if(select>=0){int view=table.convertRowIndexToView(select);if(view>=0)table.setRowSelectionInterval(view,view);}summary.setText(tr("Activas: ")+BackgroundOperations.activeCount()+tr(" · En espera: ")+BackgroundOperations.queuedCount()+tr(" · Historial: ")+Math.max(0,rows.size()-BackgroundOperations.activeCount()));updateActions();
+        if(select>=0){int view=table.convertRowIndexToView(select);if(view>=0)table.setRowSelectionInterval(view,view);}summary.setText(tr("Activas: ")+BackgroundOperations.activeCount()+tr(" · En espera: ")+BackgroundOperations.queuedCount()+tr(" · Límite efectivo: ")+BackgroundOperations.effectiveMaxConcurrent()+tr(" · Historial: ")+Math.max(0,rows.size()-BackgroundOperations.activeCount()));updateActions();
     }
     private Snapshot selected(){int row=table.getSelectedRow();if(row<0)return null;int modelRow=table.convertRowIndexToModel(row);return modelRow>=0&&modelRow<rows.size()?rows.get(modelRow):null;}
     private void updateActions(){Snapshot item=selected();cancel.setEnabled(item!=null&&item.canCancel());retry.setEnabled(item!=null&&item.canRetry());clear.setEnabled(rows.stream().anyMatch(row->!row.active()));}

@@ -75,6 +75,9 @@ public final class BackgroundOperations {
     private static volatile int maxConcurrent=setting("background.maxConcurrent",4,1,8);
     private static volatile int maxPerConnection=setting("background.maxPerConnection",2,1,4);
     private static volatile int timeoutSeconds=setting("background.timeoutSeconds",120,5,3600);
+    private static volatile boolean adaptive=Boolean.parseBoolean(AppSettings.get("background.adaptive","true"));
+    private static volatile int effectiveConcurrent=maxConcurrent;
+    private static int successfulSinceAdjustment;
     private static int running;
 
     private BackgroundOperations(){}
@@ -93,10 +96,13 @@ public final class BackgroundOperations {
     public static int activeCount(){synchronized(LOCK){return (int)ENTRIES.values().stream().filter(Entry::active).count();}}
     public static int queuedCount(){synchronized(LOCK){return (int)ENTRIES.values().stream().filter(entry->entry.state==State.QUEUED).count();}}
     public static int maxConcurrent(){return maxConcurrent;}
+    public static int effectiveMaxConcurrent(){return effectiveConcurrent;}
     public static int maxPerConnection(){return maxPerConnection;}
     public static int timeoutSeconds(){return timeoutSeconds;}
+    public static boolean adaptiveEnabled(){return adaptive;}
     public static void configure(int concurrent,int timeout){configure(concurrent,maxPerConnection,timeout);}
-    public static void configure(int concurrent,int perConnection,int timeout){maxConcurrent=Math.max(1,Math.min(8,concurrent));maxPerConnection=Math.max(1,Math.min(4,perConnection));timeoutSeconds=Math.max(5,Math.min(3600,timeout));AppSettings.put("background.maxConcurrent",Integer.toString(maxConcurrent));AppSettings.put("background.maxPerConnection",Integer.toString(maxPerConnection));AppSettings.put("background.timeoutSeconds",Integer.toString(timeoutSeconds));synchronized(LOCK){LOCK.notifyAll();changed();}}
+    public static void configure(int concurrent,int perConnection,int timeout){configure(concurrent,perConnection,timeout,adaptive);}
+    public static void configure(int concurrent,int perConnection,int timeout,boolean adapt){maxConcurrent=Math.max(1,Math.min(8,concurrent));maxPerConnection=Math.max(1,Math.min(4,perConnection));timeoutSeconds=Math.max(5,Math.min(3600,timeout));adaptive=adapt;effectiveConcurrent=maxConcurrent;successfulSinceAdjustment=0;AppSettings.put("background.maxConcurrent",Integer.toString(maxConcurrent));AppSettings.put("background.maxPerConnection",Integer.toString(maxPerConnection));AppSettings.put("background.timeoutSeconds",Integer.toString(timeoutSeconds));AppSettings.put("background.adaptive",Boolean.toString(adaptive));synchronized(LOCK){LOCK.notifyAll();changed();}}
     public static void addListener(Listener listener){if(listener!=null)LISTENERS.addIfAbsent(listener);}
     public static void removeListener(Listener listener){LISTENERS.remove(listener);}
 
@@ -110,8 +116,15 @@ public final class BackgroundOperations {
 
     private static void scheduleTimeout(Entry entry){if(entry.timeoutSeconds<=0)return;entry.timeout=TIMER.schedule(()->{synchronized(LOCK){if(!entry.active())return;entry.timedOut=true;entry.detail="Se alcanzó el tiempo máximo configurado";cancel(entry,true);}},entry.timeoutSeconds,TimeUnit.SECONDS);}
     private static void cancel(Entry entry,boolean timeout){if(!entry.active())return;Runnable action=entry.cancel;finish(entry,timeout?State.TIMED_OUT:State.CANCELLED,timeout?"Se alcanzó el tiempo máximo configurado":"Cancelada por el usuario");if(action!=null)try{action.run();}catch(RuntimeException ignored){}}
-    private static void finish(Entry entry,State state,String detail){synchronized(LOCK){if(!entry.active())return;if(entry.timeout!=null)entry.timeout.cancel(false);entry.timeout=null;entry.state=state;entry.finishedAt=Instant.now();entry.progress=state==State.COMPLETED?100:entry.progress;entry.detail=safe(detail);if(entry.slot){entry.slot=false;running=Math.max(0,running-1);}LOCK.notifyAll();trim();changed();}}
-    private static boolean canStart(Entry entry){if(running>=maxConcurrent||runningFor(entry.connection)>=maxPerConnection)return false;return ENTRIES.values().stream().filter(candidate->candidate.state==State.QUEUED&&runningFor(candidate.connection)<maxPerConnection).min(Comparator.comparingInt((Entry candidate)->candidate.priority.ordinal()).thenComparingLong(candidate->candidate.id)).orElse(null)==entry;}
+    private static void finish(Entry entry,State state,String detail){synchronized(LOCK){if(!entry.active())return;if(entry.timeout!=null)entry.timeout.cancel(false);entry.timeout=null;entry.state=state;entry.finishedAt=Instant.now();entry.progress=state==State.COMPLETED?100:entry.progress;entry.detail=safe(detail);if(entry.slot){entry.slot=false;running=Math.max(0,running-1);}adapt(entry,state);LOCK.notifyAll();trim();changed();}}
+    private static boolean canStart(Entry entry){if(running>=effectiveConcurrent||runningFor(entry.connection)>=maxPerConnection)return false;return ENTRIES.values().stream().filter(candidate->candidate.state==State.QUEUED&&runningFor(candidate.connection)<maxPerConnection).min(Comparator.comparingInt((Entry candidate)->candidate.priority.ordinal()).thenComparingLong(candidate->candidate.id)).orElse(null)==entry;}
+    private static void adapt(Entry entry,State state){
+        if(!adaptive||entry.priority==Priority.SPECULATIVE)return;long free=memoryHeadroom();
+        if(free<96L*1024*1024){effectiveConcurrent=1;successfulSinceAdjustment=0;return;}
+        if(state==State.FAILED||state==State.TIMED_OUT){effectiveConcurrent=Math.max(1,effectiveConcurrent-1);successfulSinceAdjustment=0;return;}
+        if(state==State.COMPLETED&&entry.startedAt!=null&&Duration.between(entry.startedAt,entry.finishedAt).toMillis()<3_000){successfulSinceAdjustment++;if(successfulSinceAdjustment>=5&&free>256L*1024*1024){effectiveConcurrent=Math.min(maxConcurrent,effectiveConcurrent+1);successfulSinceAdjustment=0;}}
+    }
+    private static long memoryHeadroom(){Runtime runtime=Runtime.getRuntime();return Math.max(0,runtime.maxMemory()-(runtime.totalMemory()-runtime.freeMemory()));}
     private static long runningFor(String connection){return ENTRIES.values().stream().filter(candidate->candidate.slot&&candidate.state==State.RUNNING&&candidate.connection.equals(connection)).count();}
     private static int queuePosition(Entry entry){if(entry.state!=State.QUEUED)return 0;List<Entry> queue=ENTRIES.values().stream().filter(candidate->candidate.state==State.QUEUED).sorted(Comparator.comparingInt((Entry candidate)->candidate.priority.ordinal()).thenComparingLong(candidate->candidate.id)).toList();return queue.indexOf(entry)+1;}
     private static Priority priority(Kind kind){return switch(kind){case QUERY,RELOAD,CONNECTION->Priority.INTERACTIVE;case COUNT,EXPORT,REPORT->Priority.BACKGROUND;case PREFETCH->Priority.SPECULATIVE;};}

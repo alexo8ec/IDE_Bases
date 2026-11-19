@@ -1,6 +1,18 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.49**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.50**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Monitor, recuperación, diagnóstico, auditoría y manual — 0.18.50
+
+- El nuevo **Monitor de sesiones y bloqueos** muestra conexiones, consultas activas, sesiones inactivas, transacciones abiertas, bloqueadores, esperas y duración. El SQL permanece oculto hasta que el usuario decide mostrarlo. Puede cancelar consultas o cerrar sesiones únicamente tras confirmar y si el servidor concede permisos.
+- MySQL/MariaDB, PostgreSQL, SQL Server, Oracle y H2 disponen de consultas de monitorización propias. Sin privilegios administrativos el panel conserva el modo informativo y explica la limitación, sin inmovilizar la interfaz.
+- El monitor alerta sobre bloqueos prolongados y posibles límites alcanzados, se actualiza automáticamente con intervalo configurable y utiliza una conexión auxiliar para no ocupar la conexión principal.
+- La **recuperación del espacio de trabajo** marca cierres inesperados, restaura los borradores SQL existentes y presenta las tareas que quedaron interrumpidas. No vuelve a ejecutar operaciones ni conserva filas, contraseñas o datos sensibles.
+- Cada resultado incorpora un **diagnóstico automático de lentitud** que separa servidor/red, transferencia, metadatos e interfaz, y recomienda revisar planes, índices, bloqueos, filtros o tamaño de página según la evidencia observada.
+- El planificador incorpora **límites adaptativos**: reduce la concurrencia después de errores, tiempos agotados o presión de memoria, y la recupera gradualmente tras operaciones rápidas. El límite efectivo se ve en el panel central.
+- La nueva **auditoría local segura** registra acciones estructurales y administrativas, resultado, conexión y una huella irreversible. Nunca guarda SQL, parámetros, valores, direcciones JDBC, credenciales ni resultados.
+- **Ayuda › Manual de uso** o F1 abre un manual sin conexión, con índice, buscador, instrucciones paso a paso, consejos e ilustraciones para conexiones, SSH, consultas, edición, filtros, exportación, estructura, reportes, permisos, monitor, rendimiento, IA, seguridad y actualizaciones.
+- El explorador de objetos reconoce `TABLE`, `BASE TABLE`, `SYSTEM TABLE`, vistas y tablas temporales. Si un controlador filtra incorrectamente los metadatos, usa una lectura sin filtro y un respaldo de `information_schema` en MySQL/MariaDB, corrigiendo bases donde `SHOW TABLES` mostraba objetos pero el árbol aparecía vacío.
 
 ## Prioridades y protección por conexión — 0.18.49
 

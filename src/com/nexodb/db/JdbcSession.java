@@ -571,6 +571,7 @@ public final class JdbcSession implements AutoCloseable {
       synchronized(connection) {
         long started = System.nanoTime();
         List<QueryResult> results = new ArrayList<>();
+        boolean audited=!SqlExecutionPolicy.readOnly(sql);
         try (Statement statement = connection.createStatement()) {
             activeStatement = statement;
             configureRowLimit(statement,maxRows);
@@ -599,8 +600,10 @@ public final class JdbcSession implements AutoCloseable {
                 serverStarted=System.nanoTime();hasResult = statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT);serverMillis=elapsedMillis(serverStarted);
             } while (true);
             if (results.isEmpty()) results.add(QueryResult.update(-1, elapsedMillis(started)));
+            if(audited)com.nexodb.util.AuditLog.configured().record(com.nexodb.util.AuditLog.sqlAction(sql),profile.name(),auditScope(),"OK",sql);
             return List.copyOf(results);
         } catch (SQLException error) {
+            if(audited)com.nexodb.util.AuditLog.configured().record(com.nexodb.util.AuditLog.sqlAction(sql),profile.name(),auditScope(),"FAILED",sql);
             if (!results.isEmpty() && all) throw new ExecutionException(error, results);
             throw error;
         } finally {
@@ -608,6 +611,8 @@ public final class JdbcSession implements AutoCloseable {
         }
       }
     }
+
+    private String auditScope(){try{String value=connection.getCatalog();if(value!=null&&!value.isBlank())return value;value=connection.getSchema();return value==null?"":value;}catch(SQLException error){return "";}}
 
     private QueryResult executeEnriched(Statement owner,QueryEditSupport.Enrichment enrichment,int maxRows,long started,long baseServerMillis,long baseFetchMillis,long baseMetadataMillis)throws SQLException{
         try(Statement statement=connection.createStatement()){

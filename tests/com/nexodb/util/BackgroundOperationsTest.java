@@ -60,7 +60,7 @@ public final class BackgroundOperationsTest {
         List<BackgroundOperations.Snapshot> snapshots=BackgroundOperations.snapshots();
         if(snapshots.isEmpty()||snapshots.stream().anyMatch(BackgroundOperations.Snapshot::active))throw new AssertionError("Operations did not finish cleanly");
         BackgroundOperations.clearFinished();equal(0,BackgroundOperations.snapshots().size());
-        BackgroundOperations.configure(4,2,120);
+        BackgroundOperations.configure(4,2,120,true);for(int i=0;i<3;i++){BackgroundOperations.Operation failed=BackgroundOperations.create(BackgroundOperations.Kind.QUERY,"Prueba adaptativa","Servidor",()->{},null);failed.awaitTurn();failed.fail("fallo");}equal(1,BackgroundOperations.effectiveMaxConcurrent());BackgroundOperations.clearFinished();BackgroundOperations.configure(4,2,120,true);
         System.out.println("BackgroundOperationsTest: OK (priority queue, global/per-connection limits, timeout, cancel, safe retry and private history)");
     }
     private static void equal(Object expected,Object actual){if(!Objects.equals(expected,actual))throw new AssertionError(expected+" != "+actual);}

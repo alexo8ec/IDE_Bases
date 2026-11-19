@@ -50,7 +50,7 @@ final class QueryResultPanel extends JPanel {
     private final JButton reload = UiLanguage.text(new JButton(),UiLanguage.key("Recargar"));
     private final JTextField filter = new JTextField(14);
     private final JLabel status = new JLabel(), count = new JLabel();
-    private final JLabel elapsed=new JLabel(),pageLabel=new JLabel(),totalLabel=new JLabel();
+    private final JLabel elapsed=new JLabel(),diagnosis=new JLabel(),pageLabel=new JLabel(),totalLabel=new JLabel();
     private final JButton firstPage=new JButton("⏮"),previous=new JButton("◀"),next=new JButton("▶"),lastPage=new JButton("⏭"),countRows=UiLanguage.button("Contar");
     private final JTextField pageNumber=new JTextField(4);
     private final JComboBox<String> pageSizeChoice=new JComboBox<>(new String[]{"100","500","1000","Personalizado…"});
@@ -132,7 +132,7 @@ final class QueryResultPanel extends JPanel {
         UiLanguage.placeholder(filter,"Filtrar resultados…");filter.setName("query-filter");filter.setMaximumSize(new Dimension(200,28));toolbar.add(filter);
         JPanel footer=new JPanel(new BorderLayout(8,3));footer.setBorder(BorderFactory.createEmptyBorder(4,5,4,5));
         JPanel counts=new JPanel(new BorderLayout(8,0));counts.add(status);counts.add(count,BorderLayout.EAST);footer.add(counts,BorderLayout.NORTH);
-        JPanel paging=new JPanel(new FlowLayout(FlowLayout.LEFT,7,0));paging.add(firstPage);paging.add(previous);paging.add(pageLabel);paging.add(next);paging.add(lastPage);paging.add(UiLanguage.label("Página:"));paging.add(pageNumber);paging.add(totalLabel);paging.add(countRows);paging.add(UiLanguage.label("Filas por página:"));paging.add(pageSizeChoice);paging.add(elapsed);footer.add(paging,BorderLayout.SOUTH);
+        JPanel paging=new JPanel(new FlowLayout(FlowLayout.LEFT,7,0));paging.add(firstPage);paging.add(previous);paging.add(pageLabel);paging.add(next);paging.add(lastPage);paging.add(UiLanguage.label("Página:"));paging.add(pageNumber);paging.add(totalLabel);paging.add(countRows);paging.add(UiLanguage.label("Filas por página:"));paging.add(pageSizeChoice);paging.add(elapsed);diagnosis.setForeground(new Color(185,105,0));paging.add(diagnosis);footer.add(paging,BorderLayout.SOUTH);
         firstPage.setName("query-page-first");previous.setName("query-page-previous");next.setName("query-page-next");lastPage.setName("query-page-last");pageNumber.setName("query-page-number");totalLabel.setName("query-total-rows");countRows.setName("query-count-rows");pageSizeChoice.setName("query-page-size");elapsed.setName("query-elapsed");
         for(JButton button:List.of(firstPage,previous,next,lastPage))button.setMargin(new Insets(2,7,2,7));pageNumber.setHorizontalAlignment(JTextField.RIGHT);pageNumber.setMaximumSize(new Dimension(60,26));countRows.setMargin(new Insets(2,7,2,7));
         UiLanguage.tooltip(firstPage,UiLanguage.key("Primera página"));UiLanguage.tooltip(previous,UiLanguage.key("Página anterior"));UiLanguage.tooltip(next,UiLanguage.key("Página siguiente"));UiLanguage.tooltip(lastPage,UiLanguage.key("Última página"));UiLanguage.tooltip(pageNumber,UiLanguage.key("Escribe el número de página y presiona Enter"));
@@ -270,6 +270,7 @@ final class QueryResultPanel extends JPanel {
         String text=tr("Tiempo: ")+timing.totalMillis()+" ms · "+tr("servidor ")+timing.serverMillis()+" · "+tr("lectura ")+timing.fetchMillis()+" · "+tr("preparación ")+timing.metadataMillis()+" · "+tr("interfaz ")+renderMillis;
         elapsed.setText(text);
         elapsed.setToolTipText("<html>"+tr("Tiempo total hasta recibir y preparar el resultado:")+" <b>"+timing.totalMillis()+" ms</b><br>"+tr("Servidor/red hasta responder:")+" "+timing.serverMillis()+" ms<br>"+tr("Lectura y conversión de filas:")+" "+timing.fetchMillis()+" ms<br>"+tr("Metadatos y edición segura:")+" "+timing.metadataMillis()+" ms<br>"+tr("Construcción de la cuadrícula:")+" "+renderMillis+" ms</html>");
+        var findings=PerformanceDiagnosis.result(timing,model.dataRowCount(),renderMillis);String diagnostic=PerformanceDiagnosis.summary(findings);diagnosis.setText(diagnostic.isBlank()?"":"⚠ "+tr("Diagnóstico"));diagnosis.setToolTipText(diagnostic.isBlank()?null:"<html>"+diagnostic+"</html>");
         pageLabel.setText((model.dataRowCount()==0?0:pageOffset+1)+"–"+(pageOffset+model.dataRowCount())+(model.definition().truncated()?" · +":"")+(keysetActive?" · clave":""));
         pageLabel.setToolTipText(keysetActive?tr("Paginación por clave activa: esta página no recorrió las filas anteriores."):tr("Paginación compatible por desplazamiento."));
         long pages=totalRows<0?-1:Math.max(1,(totalRows+pageSize-1)/pageSize);if(!pageNumber.isFocusOwner())pageNumber.setText(""+(pageOffset/pageSize+1));
