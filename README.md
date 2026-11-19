@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.48**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.49**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Prioridades y protección por conexión — 0.18.49
+
+- El planificador distingue operaciones **interactivas**, de **segundo plano** y **especulativas**. Consultas y recargas solicitadas por el usuario avanzan antes que conteos, exportaciones o precargas que todavía esperan turno.
+- Al iniciar una operación interactiva se cancelan automáticamente las precargas obsoletas de la misma conexión. Las operaciones que ya terminaron o pertenecen a otra conexión no se alteran.
+- Además del límite global, el panel permite definir de una a cuatro operaciones simultáneas por conexión. Una exportación de una instancia ya no puede ocupar todos los espacios disponibles ni frenar el trabajo en otra instancia.
+- La tabla central muestra prioridad y posición real en la cola. Cuando se libera un espacio, el siguiente trabajo elegible se selecciona por prioridad y después por orden de llegada.
+- Los límites global, por conexión y de tiempo se guardan juntos. Las pruebas cubren competencia entre conexiones, liberación de espacios, preferencia interactiva y cancelación de trabajo especulativo.
 
 ## Control de operaciones en segundo plano — 0.18.48
 

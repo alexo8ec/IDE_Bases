@@ -26,8 +26,9 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class BackgroundOperations {
     public enum Kind { QUERY, COUNT, EXPORT, REPORT, RELOAD, PREFETCH, CONNECTION }
+    public enum Priority { INTERACTIVE, BACKGROUND, SPECULATIVE }
     public enum State { QUEUED, RUNNING, COMPLETED, CANCELLED, FAILED, TIMED_OUT }
-    public record Snapshot(long id,Kind kind,String label,String connection,State state,Instant queuedAt,
+    public record Snapshot(long id,Kind kind,Priority priority,String label,String connection,State state,int queuePosition,Instant queuedAt,
                            Instant startedAt,Instant finishedAt,int progress,String detail,
                            boolean canCancel,boolean canRetry,boolean timedOut) {
         public long elapsedMillis(){Instant end=finishedAt==null?Instant.now():finishedAt;Instant start=startedAt==null?queuedAt:startedAt;return Math.max(0,Duration.between(start,end).toMillis());}
@@ -41,7 +42,7 @@ public final class BackgroundOperations {
         public long id(){return entry.id;}
         public void awaitTurn()throws InterruptedException{
             synchronized(LOCK){
-                while(entry.state==State.QUEUED&&running>=maxConcurrent){LOCK.wait(250);}
+                while(entry.state==State.QUEUED&&!canStart(entry)){LOCK.wait(250);}
                 if(entry.state!=State.QUEUED)throw new CancellationException("La operación fue cancelada antes de comenzar.");
                 running++;entry.slot=true;entry.state=State.RUNNING;entry.startedAt=Instant.now();scheduleTimeout(entry);changed();
             }
@@ -57,11 +58,11 @@ public final class BackgroundOperations {
     }
 
     private static final class Entry {
-        final long id;final Kind kind;final String label,connection;final Instant queuedAt=Instant.now();final Runnable cancel,retry;final int timeoutSeconds;
+        final long id;final Kind kind;final Priority priority;final String label,connection;final Instant queuedAt=Instant.now();final Runnable cancel,retry;final int timeoutSeconds;
         State state=State.QUEUED;Instant startedAt,finishedAt;int progress=-1;String detail="";boolean slot,timedOut;ScheduledFuture<?> timeout;
-        Entry(long id,Kind kind,String label,String connection,Runnable cancel,Runnable retry,int timeoutSeconds){this.id=id;this.kind=kind;this.label=safe(label);this.connection=safe(connection);this.cancel=cancel;this.retry=retry;this.timeoutSeconds=timeoutSeconds;}
+        Entry(long id,Kind kind,String label,String connection,Runnable cancel,Runnable retry,int timeoutSeconds){this.id=id;this.kind=kind;this.priority=priority(kind);this.label=safe(label);this.connection=safe(connection);this.cancel=cancel;this.retry=retry;this.timeoutSeconds=timeoutSeconds;}
         boolean active(){return state==State.QUEUED||state==State.RUNNING;}
-        Snapshot snapshot(){return new Snapshot(id,kind,label,connection,state,queuedAt,startedAt,finishedAt,progress,detail,active()&&cancel!=null,retry!=null&&!active(),timedOut);}
+        Snapshot snapshot(){return new Snapshot(id,kind,priority,label,connection,state,queuePosition(this),queuedAt,startedAt,finishedAt,progress,detail,active()&&cancel!=null,retry!=null&&!active(),timedOut);}
     }
     private static final class ConnectionStatus {final String name;Entry recovery;ConnectionStatus(String name){this.name=safeLabel(name);}}
 
@@ -72,6 +73,7 @@ public final class BackgroundOperations {
     private static final CopyOnWriteArrayList<Listener> LISTENERS=new CopyOnWriteArrayList<>();
     private static final ScheduledExecutorService TIMER=Executors.newSingleThreadScheduledExecutor(r->{Thread thread=new Thread(r,"adisdb-operation-timeouts");thread.setDaemon(true);return thread;});
     private static volatile int maxConcurrent=setting("background.maxConcurrent",4,1,8);
+    private static volatile int maxPerConnection=setting("background.maxPerConnection",2,1,4);
     private static volatile int timeoutSeconds=setting("background.timeoutSeconds",120,5,3600);
     private static int running;
 
@@ -80,7 +82,8 @@ public final class BackgroundOperations {
     public static Operation create(Kind kind,String label,String connection,Runnable cancel,Runnable retry){return create(kind,label,connection,cancel,retry,timeoutSeconds);}
     public static Operation create(Kind kind,String label,String connection,Runnable cancel,Runnable retry,int timeout){
         Entry entry=new Entry(IDS.incrementAndGet(),Objects.requireNonNull(kind),label,connection,cancel,retry,Math.max(1,timeout));
-        synchronized(LOCK){ENTRIES.put(entry.id,entry);trim();changed();}return new Operation(entry);
+        List<Entry> obsolete=List.of();synchronized(LOCK){if(entry.priority==Priority.INTERACTIVE)obsolete=ENTRIES.values().stream().filter(candidate->candidate.kind==Kind.PREFETCH&&candidate.active()&&candidate.connection.equals(entry.connection)).toList();ENTRIES.put(entry.id,entry);trim();changed();}
+        obsolete.forEach(candidate->cancel(candidate,false));return new Operation(entry);
     }
     public static List<Snapshot> snapshots(){synchronized(LOCK){return ENTRIES.values().stream().map(Entry::snapshot).sorted(Comparator.comparing((Snapshot snapshot)->!snapshot.active()).thenComparing(Snapshot::queuedAt,Comparator.reverseOrder())).toList();}}
     public static Snapshot snapshot(long id){synchronized(LOCK){Entry entry=ENTRIES.get(id);return entry==null?null:entry.snapshot();}}
@@ -90,8 +93,10 @@ public final class BackgroundOperations {
     public static int activeCount(){synchronized(LOCK){return (int)ENTRIES.values().stream().filter(Entry::active).count();}}
     public static int queuedCount(){synchronized(LOCK){return (int)ENTRIES.values().stream().filter(entry->entry.state==State.QUEUED).count();}}
     public static int maxConcurrent(){return maxConcurrent;}
+    public static int maxPerConnection(){return maxPerConnection;}
     public static int timeoutSeconds(){return timeoutSeconds;}
-    public static void configure(int concurrent,int timeout){maxConcurrent=Math.max(1,Math.min(8,concurrent));timeoutSeconds=Math.max(5,Math.min(3600,timeout));AppSettings.put("background.maxConcurrent",Integer.toString(maxConcurrent));AppSettings.put("background.timeoutSeconds",Integer.toString(timeoutSeconds));synchronized(LOCK){LOCK.notifyAll();changed();}}
+    public static void configure(int concurrent,int timeout){configure(concurrent,maxPerConnection,timeout);}
+    public static void configure(int concurrent,int perConnection,int timeout){maxConcurrent=Math.max(1,Math.min(8,concurrent));maxPerConnection=Math.max(1,Math.min(4,perConnection));timeoutSeconds=Math.max(5,Math.min(3600,timeout));AppSettings.put("background.maxConcurrent",Integer.toString(maxConcurrent));AppSettings.put("background.maxPerConnection",Integer.toString(maxPerConnection));AppSettings.put("background.timeoutSeconds",Integer.toString(timeoutSeconds));synchronized(LOCK){LOCK.notifyAll();changed();}}
     public static void addListener(Listener listener){if(listener!=null)LISTENERS.addIfAbsent(listener);}
     public static void removeListener(Listener listener){LISTENERS.remove(listener);}
 
@@ -105,7 +110,11 @@ public final class BackgroundOperations {
 
     private static void scheduleTimeout(Entry entry){if(entry.timeoutSeconds<=0)return;entry.timeout=TIMER.schedule(()->{synchronized(LOCK){if(!entry.active())return;entry.timedOut=true;entry.detail="Se alcanzó el tiempo máximo configurado";cancel(entry,true);}},entry.timeoutSeconds,TimeUnit.SECONDS);}
     private static void cancel(Entry entry,boolean timeout){if(!entry.active())return;Runnable action=entry.cancel;finish(entry,timeout?State.TIMED_OUT:State.CANCELLED,timeout?"Se alcanzó el tiempo máximo configurado":"Cancelada por el usuario");if(action!=null)try{action.run();}catch(RuntimeException ignored){}}
-    private static void finish(Entry entry,State state,String detail){synchronized(LOCK){if(!entry.active())return;if(entry.timeout!=null)entry.timeout.cancel(false);entry.timeout=null;entry.state=state;entry.finishedAt=Instant.now();entry.progress=state==State.COMPLETED?100:entry.progress;entry.detail=safe(detail);if(entry.slot){entry.slot=false;running=Math.max(0,running-1);LOCK.notifyAll();}trim();changed();}}
+    private static void finish(Entry entry,State state,String detail){synchronized(LOCK){if(!entry.active())return;if(entry.timeout!=null)entry.timeout.cancel(false);entry.timeout=null;entry.state=state;entry.finishedAt=Instant.now();entry.progress=state==State.COMPLETED?100:entry.progress;entry.detail=safe(detail);if(entry.slot){entry.slot=false;running=Math.max(0,running-1);}LOCK.notifyAll();trim();changed();}}
+    private static boolean canStart(Entry entry){if(running>=maxConcurrent||runningFor(entry.connection)>=maxPerConnection)return false;return ENTRIES.values().stream().filter(candidate->candidate.state==State.QUEUED&&runningFor(candidate.connection)<maxPerConnection).min(Comparator.comparingInt((Entry candidate)->candidate.priority.ordinal()).thenComparingLong(candidate->candidate.id)).orElse(null)==entry;}
+    private static long runningFor(String connection){return ENTRIES.values().stream().filter(candidate->candidate.slot&&candidate.state==State.RUNNING&&candidate.connection.equals(connection)).count();}
+    private static int queuePosition(Entry entry){if(entry.state!=State.QUEUED)return 0;List<Entry> queue=ENTRIES.values().stream().filter(candidate->candidate.state==State.QUEUED).sorted(Comparator.comparingInt((Entry candidate)->candidate.priority.ordinal()).thenComparingLong(candidate->candidate.id)).toList();return queue.indexOf(entry)+1;}
+    private static Priority priority(Kind kind){return switch(kind){case QUERY,RELOAD,CONNECTION->Priority.INTERACTIVE;case COUNT,EXPORT,REPORT->Priority.BACKGROUND;case PREFETCH->Priority.SPECULATIVE;};}
     private static void trim(){int terminal=(int)ENTRIES.values().stream().filter(entry->!entry.active()).count();if(terminal<=100)return;var iterator=ENTRIES.entrySet().iterator();while(iterator.hasNext()&&terminal>100){Entry entry=iterator.next().getValue();if(!entry.active()){iterator.remove();terminal--;}}}
     private static void changed(){for(Listener listener:LISTENERS)SwingUtilities.invokeLater(listener::changed);}
     private static int setting(String key,int fallback,int min,int max){try{return Math.max(min,Math.min(max,Integer.parseInt(AppSettings.get(key,Integer.toString(fallback)))));}catch(RuntimeException error){return fallback;}}
