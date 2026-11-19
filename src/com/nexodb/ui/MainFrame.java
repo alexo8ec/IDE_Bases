@@ -934,6 +934,7 @@ public final class MainFrame extends JFrame {
                         removeWorkspaceTabs(previous);
                         closeSpecificSession(previous);
                     }
+                    scheduledTasks.credentials(profile.id(),savedCandidate);
                     if (rememberAfterSuccess) {
                         try { secretStore.save(profile.id(), savedCandidate); }
                         catch (Exception error) {
@@ -1780,6 +1781,7 @@ public final class MainFrame extends JFrame {
 
     private void exitApplication() {
         if(!canCloseStoredWorkspaces())return;
+        if(!confirmScheduledTaskHandoff())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof SqlProjectPanel project&&!project.canClose())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report&&!report.canClose())return;
@@ -1799,6 +1801,7 @@ public final class MainFrame extends JFrame {
         BackgroundOperations.removeListener(operationsListener);
         dispose();
     }
+    private boolean confirmScheduledTaskHandoff(){List<com.nexodb.db.ScheduledTasks.Task> running=scheduledTasks.runningTasks();if(running.isEmpty())return true;String names=running.stream().map(com.nexodb.db.ScheduledTasks.Task::name).limit(5).collect(java.util.stream.Collectors.joining("\n• ","• ",running.size()>5?"\n…":""));com.nexodb.tools.ExternalTaskScheduler.Status external=com.nexodb.tools.ExternalTaskScheduler.configured().status();if(!external.installed()){JOptionPane.showMessageDialog(this,tr("Hay tareas todavía en ejecución:")+"\n"+names+"\n\n"+tr("AdisDB no se cerrará porque el ejecutor externo no está instalado. Espera a que terminen o actívalo desde Tareas programadas."),tr("Tareas en ejecución"),JOptionPane.WARNING_MESSAGE);return false;}return JOptionPane.showConfirmDialog(this,tr("Hay tareas todavía en ejecución:")+"\n"+names+"\n\n"+tr("Al cerrar se interrumpirá la conexión actual y la tarea quedará pendiente. El ejecutor externo la reintentará en pocos minutos. ¿Cerrar ahora?"),tr("Continuar tareas con AdisDB cerrado"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)==JOptionPane.YES_OPTION;}
     private boolean canCloseStoredWorkspaces(){for(Component component:workspaceTabs.getComponents()){if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return false;if(component instanceof StoredProcedureDebugPanel debug&&!debug.canClose())return false;}return true;}
 
     private void showError(String title, Throwable error) {
