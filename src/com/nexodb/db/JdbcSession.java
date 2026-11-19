@@ -434,6 +434,24 @@ public final class JdbcSession implements AutoCloseable {
       }
     }
 
+    /** Reads the next page from a stable ordered cursor instead of scanning an ever-growing OFFSET. */
+    public QueryResult executeSeekPage(String sql,List<?> parameters,int pageSize,List<String> columns,List<QueryPaging.Order> order,List<?> anchor)throws SQLException {
+      QueryPaging.SeekSql page=QueryPaging.seekSql(sql,profile.type(),pageSize,columns,order,parameters,anchor);long started=System.nanoTime();
+      synchronized(connection){
+        try(PreparedStatement statement=connection.prepareStatement(page.sql(),ResultSet.TYPE_FORWARD_ONLY,ResultSet.CONCUR_READ_ONLY)){
+            activeStatement=statement;statement.setMaxRows(pageSize+1);statement.setFetchSize(Math.min(pageSize,500));
+            for(int i=0;i<page.parameters().size();i++)statement.setObject(i+1,page.parameters().get(i));
+            long serverStarted=System.nanoTime();boolean returned=statement.execute();long serverMillis=elapsedMillis(serverStarted);
+            if(!returned)throw new SQLException("La consulta no devolvió una tabla paginable por clave.");
+            try(ResultSet rows=statement.getResultSet()){
+                long fetchStarted=System.nanoTime();QueryResult result=QueryResult.from(rows,pageSize);long fetchMillis=elapsedMillis(fetchStarted);
+                long metadataStarted=System.nanoTime();result=result.withEditing(QueryEditSupport.describe(connection,profile.type(),page.sql(),rows.getMetaData(),editMetadata));long metadataMillis=elapsedMillis(metadataStarted);
+                return result.withTiming(timing(started,serverMillis,fetchMillis,metadataMillis));
+            }
+        }finally{activeStatement=null;}
+      }
+    }
+
     /** Executes one read-only result forward-only and releases every row after the consumer writes it. */
     public long streamResult(String sql,List<?> parameters,long maxRows,ResultStream stream,LongConsumer progress)throws Exception{
       if(!QueryPaging.supported(sql))throw new SQLException("La sentencia no es un SELECT exportable de forma segura.");

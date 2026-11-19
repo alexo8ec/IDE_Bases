@@ -1,6 +1,15 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.44**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.45**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Paginación por clave para páginas profundas — 0.18.45
+
+- Cuando el resultado posee una clave primaria y un orden seguro, las páginas siguientes se solicitan desde los valores de la última fila recibida. La base ya no necesita recorrer todas las filas anteriores con un `OFFSET` cada vez mayor.
+- El orden elegido en los encabezados se conserva y la clave primaria se agrega como desempate estable. Se admiten claves compuestas y combinaciones ascendentes y descendentes sin duplicar ni omitir registros con valores repetidos.
+- AdisDB conserva cursores ligeros por página para regresar a páginas anteriores, mientras la caché de datos continúa limitada a las tres páginas recientes.
+- El pie del resultado muestra **clave** cuando la página se obtuvo mediante este método. Los filtros y el orden global aplicados en el servidor generan un cursor nuevo desde la primera página.
+- Las consultas con `LIMIT`, `TOP`, `OFFSET` o `FETCH` propios, expresiones de orden complejas, columnas ambiguas, claves nulas o motores sin soporte conservan automáticamente la paginación anterior. Nunca se modifica una consulta cuando no puede demostrarse que el cambio sea seguro.
+- Las pruebas verifican cursores parametrizados, filtros preparados, claves ascendentes y descendentes, cambios concurrentes entre páginas, navegación visual y retorno seguro a `OFFSET`.
 
 ## Exportación incremental y prefijos SQL — 0.18.44
 

@@ -1,6 +1,6 @@
 {
-  "version": "0.18.44",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.44-win64.zip",
-  "sha256": "db92215e7213831fdbcb43fbb9da052d25a1d695da75a5f1722368236723070a",
-  "notes": "AdisDB 0.18.44: exportación incremental de resultados completos, archivos atómicos y autocompletado SQL con prefijos y alias de tabla."
+  "version": "0.18.45",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.45-win64.zip",
+  "sha256": "91124ecbcf4947c4eeb2cad50f74d1c2475f50b6ed700f03fdb59932da362fe2",
+  "notes": "AdisDB 0.18.45: paginación por clave para páginas profundas, orden estable y respaldo automático por OFFSET."
 }
