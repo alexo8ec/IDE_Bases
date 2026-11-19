@@ -81,6 +81,7 @@ final class QueryResultPanel extends JPanel {
     private int enumGeneration;
     private int activeModelRow=-1;
     private long renderMillis;
+    private List<PerformanceDiagnosis.Finding> latestDiagnosis=List.of();
     private final Set<Integer> autoSaveRows=new LinkedHashSet<>();
     private boolean autoSaveScheduled;
     private record PageKey(long offset,int size) {}
@@ -132,7 +133,7 @@ final class QueryResultPanel extends JPanel {
         UiLanguage.placeholder(filter,"Filtrar resultados…");filter.setName("query-filter");filter.setMaximumSize(new Dimension(200,28));toolbar.add(filter);
         JPanel footer=new JPanel(new BorderLayout(8,3));footer.setBorder(BorderFactory.createEmptyBorder(4,5,4,5));
         JPanel counts=new JPanel(new BorderLayout(8,0));counts.add(status);counts.add(count,BorderLayout.EAST);footer.add(counts,BorderLayout.NORTH);
-        JPanel paging=new JPanel(new FlowLayout(FlowLayout.LEFT,7,0));paging.add(firstPage);paging.add(previous);paging.add(pageLabel);paging.add(next);paging.add(lastPage);paging.add(UiLanguage.label("Página:"));paging.add(pageNumber);paging.add(totalLabel);paging.add(countRows);paging.add(UiLanguage.label("Filas por página:"));paging.add(pageSizeChoice);paging.add(elapsed);diagnosis.setForeground(new Color(185,105,0));paging.add(diagnosis);footer.add(paging,BorderLayout.SOUTH);
+        JPanel paging=new JPanel(new FlowLayout(FlowLayout.LEFT,7,0));paging.add(firstPage);paging.add(previous);paging.add(pageLabel);paging.add(next);paging.add(lastPage);paging.add(UiLanguage.label("Página:"));paging.add(pageNumber);paging.add(totalLabel);paging.add(countRows);paging.add(UiLanguage.label("Filas por página:"));paging.add(pageSizeChoice);paging.add(elapsed);diagnosis.setForeground(new Color(185,105,0));diagnosis.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));diagnosis.addMouseListener(new MouseAdapter(){public void mouseClicked(MouseEvent e){showDiagnosis();}});paging.add(diagnosis);footer.add(paging,BorderLayout.SOUTH);
         firstPage.setName("query-page-first");previous.setName("query-page-previous");next.setName("query-page-next");lastPage.setName("query-page-last");pageNumber.setName("query-page-number");totalLabel.setName("query-total-rows");countRows.setName("query-count-rows");pageSizeChoice.setName("query-page-size");elapsed.setName("query-elapsed");
         for(JButton button:List.of(firstPage,previous,next,lastPage))button.setMargin(new Insets(2,7,2,7));pageNumber.setHorizontalAlignment(JTextField.RIGHT);pageNumber.setMaximumSize(new Dimension(60,26));countRows.setMargin(new Insets(2,7,2,7));
         UiLanguage.tooltip(firstPage,UiLanguage.key("Primera página"));UiLanguage.tooltip(previous,UiLanguage.key("Página anterior"));UiLanguage.tooltip(next,UiLanguage.key("Página siguiente"));UiLanguage.tooltip(lastPage,UiLanguage.key("Última página"));UiLanguage.tooltip(pageNumber,UiLanguage.key("Escribe el número de página y presiona Enter"));
@@ -270,7 +271,7 @@ final class QueryResultPanel extends JPanel {
         String text=tr("Tiempo: ")+timing.totalMillis()+" ms · "+tr("servidor ")+timing.serverMillis()+" · "+tr("lectura ")+timing.fetchMillis()+" · "+tr("preparación ")+timing.metadataMillis()+" · "+tr("interfaz ")+renderMillis;
         elapsed.setText(text);
         elapsed.setToolTipText("<html>"+tr("Tiempo total hasta recibir y preparar el resultado:")+" <b>"+timing.totalMillis()+" ms</b><br>"+tr("Servidor/red hasta responder:")+" "+timing.serverMillis()+" ms<br>"+tr("Lectura y conversión de filas:")+" "+timing.fetchMillis()+" ms<br>"+tr("Metadatos y edición segura:")+" "+timing.metadataMillis()+" ms<br>"+tr("Construcción de la cuadrícula:")+" "+renderMillis+" ms</html>");
-        var findings=PerformanceDiagnosis.result(timing,model.dataRowCount(),renderMillis);String diagnostic=PerformanceDiagnosis.summary(findings);diagnosis.setText(diagnostic.isBlank()?"":"⚠ "+tr("Diagnóstico"));diagnosis.setToolTipText(diagnostic.isBlank()?null:"<html>"+diagnostic+"</html>");
+        latestDiagnosis=PerformanceDiagnosis.result(timing,model.dataRowCount(),renderMillis);String diagnostic=PerformanceDiagnosis.summary(latestDiagnosis);diagnosis.setText(diagnostic.isBlank()?"":"⚠ "+tr("Diagnóstico"));diagnosis.setToolTipText(diagnostic.isBlank()?null:"<html>"+diagnostic+"<br><b>"+tr("Haz clic para ver todas las recomendaciones.")+"</b></html>");
         pageLabel.setText((model.dataRowCount()==0?0:pageOffset+1)+"–"+(pageOffset+model.dataRowCount())+(model.definition().truncated()?" · +":"")+(keysetActive?" · clave":""));
         pageLabel.setToolTipText(keysetActive?tr("Paginación por clave activa: esta página no recorrió las filas anteriores."):tr("Paginación compatible por desplazamiento."));
         long pages=totalRows<0?-1:Math.max(1,(totalRows+pageSize-1)/pageSize);if(!pageNumber.isFocusOwner())pageNumber.setText(""+(pageOffset/pageSize+1));
@@ -278,6 +279,8 @@ final class QueryResultPanel extends JPanel {
         boolean idle=available&&!saving&&pageable;firstPage.setEnabled(idle&&pageOffset>0);previous.setEnabled(idle&&pageOffset>0);next.setEnabled(idle&&model.definition().truncated());lastPage.setEnabled(idle&&(totalRows<0||pageOffset+model.dataRowCount()<totalRows));pageNumber.setEnabled(idle);pageSizeChoice.setEnabled(idle);
         boolean counting=countWorker!=null&&!countWorker.isDone();countRows.setText(tr(counting?"Cancelar conteo":"Contar"));countRows.setEnabled(pageable&&(counting||available&&!saving&&totalRows<0));
     }
+
+    private void showDiagnosis(){if(latestDiagnosis.isEmpty())return;StringBuilder html=new StringBuilder("<html><body style='width:560px;font-family:sans-serif'><h2>").append(tr("Diagnóstico del resultado")).append("</h2><p>").append(tr("Estas conclusiones se basan en tiempos medidos y volumen; no ejecutan ni modifican SQL.")).append("</p>");for(var finding:latestDiagnosis)html.append("<h3>").append(finding.severity()).append(" · ").append(finding.title()).append("</h3><p>").append(finding.detail()).append("</p>");html.append("<hr><b>").append(tr("Siguiente comprobación recomendada:")).append("</b> ").append(tr("abre Plan de ejecución si domina el servidor; abre Monitor de sesiones si sospechas bloqueos; reduce columnas o filas si domina la lectura o la interfaz.")).append("</body></html>");JEditorPane content=new JEditorPane("text/html",html.toString());content.setEditable(false);content.setCaretPosition(0);JScrollPane scroll=new JScrollPane(content);scroll.setPreferredSize(new Dimension(640,430));JOptionPane.showMessageDialog(this,scroll,tr("Diagnóstico de lentitud"),JOptionPane.INFORMATION_MESSAGE);}
 
     private void startCount(boolean requested){
         if(!pageable||!available||saving||totalRows>=0)return;if(countWorker!=null&&!countWorker.isDone()){if(requested)cancelCount(true);return;}

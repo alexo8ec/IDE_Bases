@@ -1,6 +1,6 @@
 {
-  "version": "0.18.50",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.50-win64.zip",
-  "sha256": "6e825aad6d20840ed00537b3797bb5ac6927b3dfcbd66aff69c73af2cb66a074",
-  "notes": "AdisDB 0.18.50: monitor de sesiones y bloqueos, recuperación segura, diagnóstico de lentitud, límites adaptativos, auditoría local, manual integrado y corrección del explorador de tablas."
+  "version": "0.18.51",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.51-win64.zip",
+  "sha256": "a63015baa8001b1fa9d5111c4226924bf62f19aa8d7f7c0c15cf291d77a498bb",
+  "notes": "AdisDB 0.18.51: manual detallado con ilustraciones y ejemplos, comparación de esquemas y datos documentada, monitor con filtros y diagnóstico, auditoría segura exportable y recuperación mejorada."
 }

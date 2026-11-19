@@ -1,6 +1,14 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.50**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.51**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Manual detallado y observabilidad mejorada — 0.18.51
+
+- El manual integrado ahora documenta cada área de AdisDB con pasos, ejemplos, recomendaciones e ilustraciones: conexiones y SSH, editor SQL, edición de resultados, estructura de tablas, relaciones, comparación de esquemas, comparación de datos, diseñador de diagramas, reportes, usuarios, monitor, auditoría, recuperación e IA.
+- La comparación de esquemas explica el recorrido conexión → base → objetos → diferencias → script DDL, y la comparación de datos explica selección de tablas, claves, límites, diferencias y sincronización segura.
+- El monitor permite buscar y filtrar sesiones activas, inactivas, bloqueadas o lentas, ajustar el umbral y consultar un diagnóstico detallado sin exponer SQL por defecto.
+- La auditoría local permite buscar, filtrar por resultado y exportar un CSV seguro que nunca contiene datos, SQL, parámetros ni contraseñas.
+- El diagnóstico de lentitud es interactivo: al pulsarlo muestra hallazgos y acciones recomendadas. La recuperación identifica la conexión/base afectada y aclara qué contenido se restaura de forma segura.
 
 ## Monitor, recuperación, diagnóstico, auditoría y manual — 0.18.50
 
