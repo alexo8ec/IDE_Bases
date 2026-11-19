@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * retaining SQL, parameters, result values or credentials.
  */
 public final class BackgroundOperations {
-    public enum Kind { QUERY, COUNT, EXPORT, REPORT, RELOAD, PREFETCH, CONNECTION }
+    public enum Kind { QUERY, COUNT, EXPORT, REPORT, MIGRATION, RELOAD, PREFETCH, CONNECTION }
     public enum Priority { INTERACTIVE, BACKGROUND, SPECULATIVE }
     public enum State { QUEUED, RUNNING, COMPLETED, CANCELLED, FAILED, TIMED_OUT }
     public record Snapshot(long id,Kind kind,Priority priority,String label,String connection,State state,int queuePosition,Instant queuedAt,
@@ -127,7 +127,7 @@ public final class BackgroundOperations {
     private static long memoryHeadroom(){Runtime runtime=Runtime.getRuntime();return Math.max(0,runtime.maxMemory()-(runtime.totalMemory()-runtime.freeMemory()));}
     private static long runningFor(String connection){return ENTRIES.values().stream().filter(candidate->candidate.slot&&candidate.state==State.RUNNING&&candidate.connection.equals(connection)).count();}
     private static int queuePosition(Entry entry){if(entry.state!=State.QUEUED)return 0;List<Entry> queue=ENTRIES.values().stream().filter(candidate->candidate.state==State.QUEUED).sorted(Comparator.comparingInt((Entry candidate)->candidate.priority.ordinal()).thenComparingLong(candidate->candidate.id)).toList();return queue.indexOf(entry)+1;}
-    private static Priority priority(Kind kind){return switch(kind){case QUERY,RELOAD,CONNECTION->Priority.INTERACTIVE;case COUNT,EXPORT,REPORT->Priority.BACKGROUND;case PREFETCH->Priority.SPECULATIVE;};}
+    private static Priority priority(Kind kind){return switch(kind){case QUERY,RELOAD,CONNECTION->Priority.INTERACTIVE;case COUNT,EXPORT,REPORT,MIGRATION->Priority.BACKGROUND;case PREFETCH->Priority.SPECULATIVE;};}
     private static void trim(){int terminal=(int)ENTRIES.values().stream().filter(entry->!entry.active()).count();if(terminal<=100)return;var iterator=ENTRIES.entrySet().iterator();while(iterator.hasNext()&&terminal>100){Entry entry=iterator.next().getValue();if(!entry.active()){iterator.remove();terminal--;}}}
     private static void changed(){for(Listener listener:LISTENERS)SwingUtilities.invokeLater(listener::changed);}
     private static int setting(String key,int fallback,int min,int max){try{return Math.max(min,Math.min(max,Integer.parseInt(AppSettings.get(key,Integer.toString(fallback)))));}catch(RuntimeException error){return fallback;}}

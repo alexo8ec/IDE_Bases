@@ -9,12 +9,18 @@ public final class VisualQuery {
     public record Join(String left,String leftColumn,String right,String rightColumn,String type){}
     public record Field(String table,String column,boolean output,String aggregate,String alias,String sort,String criterion){}
     private VisualQuery(){}
+    public static List<String> joinTypes(DatabaseType type){
+        List<String> types=new ArrayList<>(List.of("INNER","LEFT","RIGHT"));
+        if(Set.of(DatabaseType.POSTGRESQL,DatabaseType.SQLSERVER,DatabaseType.ORACLE,DatabaseType.H2).contains(type))types.add("FULL");
+        return List.copyOf(types);
+    }
     public static String quote(String name,String quote){quote=quote==null?"":quote.trim();if(quote.isEmpty()){if(!name.matches("[\\p{L}_$][\\p{L}\\p{N}_$]*"))throw new IllegalArgumentException("El controlador no permite citar este identificador.");return name;}return quote+name.replace(quote,quote+quote)+quote;}
     public static String qualified(String database,String table,String quote){return (database==null||database.isBlank()?"":quote(database,quote)+".")+quote(table,quote);}
     private static String column(String table,String column,String quote){return quote(table,quote)+"."+quote(column,quote);}
     public static String select(DatabaseType type,String quote,String database,List<Table> tables,List<Join> joins,List<Field> fields,boolean distinct,int limit){
         if(tables.isEmpty())return "";Set<String> aliases=new HashSet<>();for(Table table:tables)if(!aliases.add(table.alias()))throw new IllegalArgumentException("Alias de tabla duplicado.");
-        for(Join join:joins)if(!aliases.containsAll(List.of(join.left(),join.right()))||!Set.of("INNER","LEFT","RIGHT").contains(join.type()))throw new IllegalArgumentException("Relación no válida.");
+        Set<String> supportedJoins=new HashSet<>(joinTypes(type));
+        for(Join join:joins)if(!aliases.containsAll(List.of(join.left(),join.right()))||!supportedJoins.contains(join.type()))throw new IllegalArgumentException("Relación no válida para "+type.displayName()+".");
         List<Field> output=fields.stream().filter(Field::output).toList();boolean grouped=output.stream().anyMatch(f->!f.aggregate().isBlank());
         StringBuilder sql=new StringBuilder("SELECT ");if(distinct)sql.append("DISTINCT ");if(type==DatabaseType.SQLSERVER&&limit>0)sql.append("TOP ").append(limit).append(' ');
         if(output.isEmpty())sql.append('*');else{List<String> columns=new ArrayList<>();for(Field f:output){if(!aliases.contains(f.table()))throw new IllegalArgumentException("Tabla de columna no disponible.");String expression=column(f.table(),f.column(),quote);if(!f.aggregate().isBlank()){if(!Set.of("COUNT","SUM","AVG","MIN","MAX").contains(f.aggregate()))throw new IllegalArgumentException("Agregado no válido.");expression=f.aggregate()+"("+expression+")";}if(!f.alias().isBlank())expression+=" AS "+quote(f.alias(),quote);columns.add(expression);}sql.append(String.join(",\n       ",columns));}

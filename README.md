@@ -1,6 +1,13 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.52**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.25**.
+La versión actual de escritorio es **0.18.53**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.26**.
+
+## JOIN visual, recarga estable, prueba de 15 días y comparación por streaming — 0.18.53
+
+- En el constructor visual, una línea JOIN se selecciona con clic, se edita con doble clic y ofrece con clic derecho el tipo compatible con el motor, cambio de columnas, eliminación de una condición o de todo el JOIN.
+- **Actualizar** concilia los metadatos sin vaciar el lienzo: conserva tarjetas, posiciones, tamaños, colores, alias, columnas elegidas y relaciones que continúan siendo válidas.
+- Cada instalación puede utilizarse durante 15 días desde el primer arranque sin licencia. El vencimiento persiste entre actualizaciones y controla retrocesos del reloj.
+- La comparación avanzada fusiona filas ordenadas por clave a medida que llegan, puede cancelarse desde el panel de operaciones y evita conservar ambas tablas completas en memoria. Se verificó con 25.005 filas.
 
 ## Migración y comparación avanzada 1A — 0.18.52
 
@@ -333,7 +340,7 @@ Cada consulta nueva comienza en **Solo lectura**. Las instrucciones de escritura
 
 ## Licencias y generador privado
 
-Al abrir la aplicación se requiere una licencia vigente; también se valida antes de consultar/instalar actualizaciones y antes de ejecutar acciones de la sesión. El usuario puede cargar un archivo **.nexolicense** o pegar la clave completa desde **Ayuda → Licencia de AdisDB…**. La validación utiliza **Ed25519** y una clave pública incorporada. El archivo firmado incluye titular, fecha de emisión, inicio y vencimiento opcional; las licencias son **transferibles entre equipos**, y una licencia ilimitada no vence. Su identificador tiene **49 caracteres**; para activar se necesita el archivo o la clave firmada completa, no solo ese identificador.
+Cada instalación dispone de **15 días de prueba sin licencia**, contados desde el primer arranque. La fecha se conserva al actualizar la aplicación y se controla el retroceso del reloj. Al vencer, AdisDB solicita una licencia antes de abrir el espacio de trabajo. El usuario puede cargar un archivo **.nexolicense** o pegar la clave completa desde **Ayuda → Licencia de AdisDB…**. La validación utiliza **Ed25519** y una clave pública incorporada. El archivo firmado incluye titular, fecha de emisión, inicio y vencimiento opcional; las licencias son **transferibles entre equipos**, y una licencia ilimitada no vence. Su identificador tiene **49 caracteres**; para activar se necesita el archivo o la clave firmada completa, no solo ese identificador.
 
 El generador administrativo se encuentra en `license-issuer/private-dist/NexoDB License Manager/` e incluye Java para Windows. Su ZIP privado es `license-issuer/private-dist/NexoDB-License-Manager-1.0.1-win64.zip`: **extrae todo el ZIP** y abre `NexoDB License Manager.exe` dentro de la carpeta extraída. Es una aplicación portátil; conserva juntas las carpetas `app` y `runtime` y el ejecutable. La ubicación de la autoridad se lee desde `app/issuer.properties`, compatible con rutas que contienen espacios y acentos. Si trasladas la autoridad, selecciónala con el botón **…**. La autoridad cifrada, la contraseña inicial y una licencia ilimitada para tu instalación están únicamente en **`.signing`**, con instrucciones en `.signing/LEEME.txt`. Desbloquea `issuer.nxvault` con la contraseña inicial de esa carpeta y cambia la contraseña de la autoridad. Puedes elegir días, meses, años o duración ilimitada y guardar el archivo para el cliente. Conserva una copia de seguridad privada de la autoridad; no la reemplaces al compilar otra versión.
 

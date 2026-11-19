@@ -1,6 +1,6 @@
 {
-  "version": "0.18.52",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.52-win64.zip",
-  "sha256": "e851119f793bc44645de6f10db690894aa6d7bae8733728c21665896a49de3c7",
-  "notes": "AdisDB 0.18.52: comparación avanzada con mapeo de columnas y claves, apertura automática de Objetos al conectar y contraste completo del manual en modo oscuro."
+  "version": "0.18.53",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.53-win64.zip",
+  "sha256": "70cf4762b566dde53ba54c7e8c59c4c5ad7d770379be56d3cb97cc398d420693",
+  "notes": "AdisDB 0.18.53: JOIN editables desde sus líneas, actualización del esquema sin vaciar el lienzo, prueba de 15 días y comparación de datos por streaming."
 }

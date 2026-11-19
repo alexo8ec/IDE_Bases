@@ -48,7 +48,7 @@ public final class ForeignKeyDesignerTest {
                 SwingUtilities.invokeAndWait(()->button(drop,"Abrir SQL en consulta nueva").doClick());equal(1,generated.size());equal(true,generated.get(0).contains("DROP CONSTRAINT"));equal(1,ForeignKeyDefinition.read(session.connection(),DatabaseType.H2,"PUBLIC","CHILD").size());
                 SwingUtilities.invokeAndWait(()->{
                     Point old=((JComponent)child).getLocation();invoke(panel,"load");panel.putClientProperty("expected-position",old);
-                });await(()->field(panel,"cards",Map.class).get("CHILD")!=child);await(()->field(panel,"foreignKeys",Map.class).size()==1);
+                });await(()->field(panel,"cards",Map.class).get("CHILD")==child);await(()->field(panel,"foreignKeys",Map.class).size()==1);
                 SwingUtilities.invokeAndWait(()->{equal(panel.getClientProperty("expected-position"),((JComponent)field(panel,"cards",Map.class).get("CHILD")).getLocation());image(panel,"foreign-key-diagram.png");});
                 // Search result double-click opens the clicked, sorted row, with unlimited JDBC reading.
                 session.execute("INSERT INTO parent SELECT X FROM SYSTEM_RANGE(1,1205)",1);

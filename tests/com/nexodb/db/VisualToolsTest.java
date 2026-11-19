@@ -15,6 +15,7 @@ public final class VisualToolsTest {
             var result=session.execute(sql,100);equal(2,result.rows().size());equal("Joe",result.rows().get(0).get(0));equal("30.00",result.rows().get(0).get(1).toString());
             equal(true,VisualQuery.select(DatabaseType.SQLSERVER,"\"","",List.of(new VisualQuery.Table("x","a")),List.of(),List.of(),false,10).startsWith("SELECT TOP 10"));
             equal(true,VisualQuery.select(DatabaseType.ORACLE,"\"","",List.of(new VisualQuery.Table("x","a")),List.of(),List.of(),false,10).contains("FETCH FIRST 10 ROWS ONLY"));
+            equal(false,VisualQuery.joinTypes(DatabaseType.MYSQL).contains("FULL"));equal(true,VisualQuery.joinTypes(DatabaseType.H2).contains("FULL"));String full=VisualQuery.select(DatabaseType.H2,"\"","PUBLIC",List.of(new VisualQuery.Table("CUSTOMERS","c"),new VisualQuery.Table("ORDERS","o")),List.of(new VisualQuery.Join("c","ID","o","CUSTOMER_ID","FULL")),List.of(),false,0);contains(full,"FULL JOIN");reject(()->VisualQuery.select(DatabaseType.MYSQL,"`","test",List.of(new VisualQuery.Table("a","a"),new VisualQuery.Table("b","b")),List.of(new VisualQuery.Join("a","id","b","id","FULL")),List.of(),false,0));
             createTableDialects(session);
             check(session,"snow leopard",2);check(session,"\"snow leopard\"",1);check(session,"Joe OR snow",3);check(session,"snow -other",1);check(session,"100%_",1);check(session,"x' OR 1=1 --",0);
             var odd=DataSearch.condition(DatabaseType.H2,"\"",List.of("what?"),"literal?");String inline=DataSearch.inline(DatabaseType.H2,odd);equal(1,session.execute("SELECT * FROM customers WHERE "+inline,10).rows().size());
@@ -37,5 +38,6 @@ public final class VisualToolsTest {
     }
     private static void check(JdbcSession s,String text,int count)throws Exception{var condition=DataSearch.condition(DatabaseType.H2,"\"",List.of("NAME","NOTE"),text);try(var statement=s.connection().prepareStatement("SELECT * FROM customers WHERE "+condition.sql())){for(int i=0;i<condition.parameters().size();i++)statement.setString(i+1,condition.parameters().get(i));int rows=0;try(var result=statement.executeQuery()){while(result.next())rows++;}equal(count,rows);}equal(count,s.execute("SELECT * FROM customers WHERE "+DataSearch.inline(DatabaseType.H2,condition),10).rows().size());}
     private static void contains(String value,String expected){if(!value.contains(expected))throw new AssertionError("Missing ["+expected+"] in ["+value+"]");}
+    private static void reject(Runnable action){try{action.run();throw new AssertionError("Expected operation to be rejected");}catch(IllegalArgumentException expected){}}
     private static void equal(Object expected,Object actual){if(!Objects.equals(expected,actual))throw new AssertionError("Expected ["+expected+"] got ["+actual+"]");}
 }

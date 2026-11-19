@@ -4,6 +4,7 @@ import static com.nexodb.util.I18n.tr;
 
 import com.nexodb.db.JdbcSession;
 import com.nexodb.model.DatabaseType;
+import com.nexodb.util.BackgroundOperations;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -26,6 +27,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /** Primary-key based data comparison between databases from one or two active connections. */
@@ -57,6 +60,7 @@ public final class DataCompareDialog extends JDialog {
     private final JProgressBar progress = new JProgressBar();
     private final JLabel status = UiLanguage.text(new JLabel(tr("Selecciona las bases que deseas comparar.")), UiLanguage.key("Selecciona las bases que deseas comparar."));
     private final JButton compare = UiLanguage.text(new JButton(tr("Comparar datos"), IconFactory.of(IconFactory.Kind.COMPARE, 16)), UiLanguage.key("Comparar datos"));
+    private final JButton cancelCompare = UiLanguage.text(new JButton(tr("Cancelar"), IconFactory.of(IconFactory.Kind.STOP, 16)), UiLanguage.key("Cancelar"));
     private final JButton generate = UiLanguage.text(new JButton(tr("Abrir script en editor"), IconFactory.of(IconFactory.Kind.SQL, 16)), UiLanguage.key("Abrir script en editor"));
     private final JButton saveScript = UiLanguage.text(new JButton(tr("Guardar .sql"), IconFactory.of(IconFactory.Kind.SAVE, 16)), UiLanguage.key("Guardar .sql"));
     private Comparison comparison;
@@ -66,6 +70,9 @@ public final class DataCompareDialog extends JDialog {
     private boolean comparing, disposed, choosing;
     private long selectionRevision;
     private JdbcSession comparisonTarget;
+    private SwingWorker<Comparison, Void> compareWorker;
+    private ComparisonControl comparisonControl;
+    private BackgroundOperations.Operation comparisonOperation;
 
     public DataCompareDialog(Window owner, JdbcSession activeSession, List<JdbcSession> sessions, BiConsumer<JdbcSession, String> scriptConsumer) {
         this(owner, activeSession, sessions, scriptConsumer, new ComparisonChoices());
@@ -121,10 +128,12 @@ public final class DataCompareDialog extends JDialog {
         saveScript.setEnabled(false);
         JButton close = UiLanguage.text(new JButton(tr("Cerrar"), IconFactory.of(IconFactory.Kind.CANCEL, 16)), UiLanguage.key("Cerrar"));
         compare.addActionListener(e -> compare());
+        cancelCompare.addActionListener(e -> requestComparisonCancel());
         generate.addActionListener(e -> generateScript());
         saveScript.addActionListener(e -> saveScript());
         close.addActionListener(e -> dispose());
-        actions.add(progress); actions.add(compare); actions.add(generate); actions.add(saveScript); actions.add(close);
+        cancelCompare.setEnabled(false);
+        actions.add(progress); actions.add(compare); actions.add(cancelCompare); actions.add(generate); actions.add(saveScript); actions.add(close);
         bottom.add(actions, BorderLayout.EAST);
         root.add(bottom, BorderLayout.SOUTH);
         return root;
@@ -195,7 +204,7 @@ public final class DataCompareDialog extends JDialog {
         });
     }
 
-    @Override public void dispose() { disposed = true; if (databaseSelector != null) databaseSelector.close(); super.dispose(); }
+    @Override public void dispose() { disposed = true; cancelActiveComparison(); if (databaseSelector != null) databaseSelector.close(); super.dispose(); }
     private void loadDatabases(JdbcSession endpoint, JComboBox<String> combo, boolean sourceSide) {
         (sourceSide ? sourceDatabases : targetDatabases).load(endpoint);
     }
@@ -226,18 +235,23 @@ public final class DataCompareDialog extends JDialog {
                 ignoreLobs.isSelected(), includeViews.isSelected(), ((Number) maxRows.getValue()).intValue(), tableFilter.getText().trim(),
                 Set.copyOf(selectedTables), tableSelectionConfigured, Map.copyOf(mappings));
         long request = selectionRevision;
-        comparing = true; updateActions(); generate.setEnabled(false); model.setRowCount(0);
+        comparing = true; updateActions(); cancelCompare.setEnabled(true); generate.setEnabled(false); model.setRowCount(0);
         saveScript.setEnabled(false); scriptPreview.setText(""); outputTabs.setSelectedIndex(0);
         progress.setValue(0); progress.setString(tr("Preparando…")); progress.setVisible(true);
         UiLanguage.text(status, UiLanguage.key("Comparando "), sourceSession.profile().name(), "/", sourceDb, UiLanguage.key(" con "), targetSession.profile().name(), "/", targetDb, "…");
+        ComparisonControl control = new ComparisonControl(); comparisonControl = control;
+        String operationConnection=sourceSession.profile().name()+" → "+targetSession.profile().name();
+        BackgroundOperations.Operation operation=BackgroundOperations.create(BackgroundOperations.Kind.MIGRATION,tr("Comparar datos"),operationConnection,this::cancelActiveComparison,()->SwingUtilities.invokeLater(this::compare),Math.max(300,BackgroundOperations.timeoutSeconds()));comparisonOperation=operation;
         SwingWorker<Comparison, Void> worker = new SwingWorker<>() {
             @Override protected Comparison doInBackground() throws Exception {
-                return buildComparison(sourceSession, sourceDb, targetSession, targetDb, options, this::setProgress);
+                operation.awaitTurn();
+                return buildComparison(sourceSession, sourceDb, targetSession, targetDb, options, value->{setProgress(value);operation.progress(value,tr("Comparando filas…"));},control);
             }
             @Override protected void done() {
-                comparing = false; updateActions(); progress.setVisible(false);
-                if (disposed || request != selectionRevision) return;
+                comparing = false; updateActions(); cancelCompare.setEnabled(false); progress.setVisible(false);
+                if (disposed || request != selectionRevision) {operation.cancelled(tr("Resultado descartado porque cambió la selección"));if(compareWorker==this)compareWorker=null;if(comparisonControl==control)comparisonControl=null;if(comparisonOperation==operation)comparisonOperation=null;return;}
                 try {
+                    if(isCancelled()||control.cancelled())throw new CancellationException();
                     comparison = get(); comparisonTarget = targetSession;
                     for (TableDifference difference : comparison.tables()) {
                         model.addRow(new Object[]{difference.table(), difference.status(),
@@ -251,13 +265,17 @@ public final class DataCompareDialog extends JDialog {
                     scriptPreview.setCaretPosition(0);
                     long changedTables = comparison.tables().stream().filter(t -> !t.status().equals(tr("Igual"))).count();
                     UiLanguage.text(status, (comparison.tables().size()), UiLanguage.key(" tablas revisadas · "), changedTables, UiLanguage.key(" con diferencias"));
+                    operation.complete(comparison.tables().size()+tr(" tablas"));
                 } catch (Exception error) {
-                    UiLanguage.text(status, UiLanguage.key("Error al comparar datos"));
-                    JOptionPane.showMessageDialog(DataCompareDialog.this, rootCause(error).getMessage(),
-                            tr("No se pudieron comparar los datos"), JOptionPane.ERROR_MESSAGE);
+                    Throwable cause=rootCause(error);
+                    if(cause instanceof CancellationException||control.cancelled()){operation.cancelled(tr("Comparación cancelada"));UiLanguage.text(status,UiLanguage.key("Comparación cancelada de forma segura."));}
+                    else{operation.fail(cause);UiLanguage.text(status, UiLanguage.key("Error al comparar datos"));JOptionPane.showMessageDialog(DataCompareDialog.this, cause.getMessage(),tr("No se pudieron comparar los datos"), JOptionPane.ERROR_MESSAGE);}
+                } finally {
+                    if(compareWorker==this)compareWorker=null;if(comparisonControl==control)comparisonControl=null;if(comparisonOperation==operation)comparisonOperation=null;
                 }
             }
         };
+        compareWorker=worker;
         worker.addPropertyChangeListener(event -> {
             if ("progress".equals(event.getPropertyName())) {
                 int value = (Integer) event.getNewValue(); progress.setValue(value); progress.setString(value + "%");
@@ -265,6 +283,9 @@ public final class DataCompareDialog extends JDialog {
         });
         worker.execute();
     }
+
+    private void requestComparisonCancel(){BackgroundOperations.Operation operation=comparisonOperation;if(operation!=null)operation.requestCancel();else cancelActiveComparison();}
+    private void cancelActiveComparison(){ComparisonControl control=comparisonControl;if(control!=null)control.cancel();SwingWorker<?,?> worker=compareWorker;if(worker!=null&&!worker.isDone())worker.cancel(true);}
 
     private void configureMapping() {
         JdbcSession sourceSession = sourceSession(), targetSession = targetSession();
@@ -339,6 +360,11 @@ public final class DataCompareDialog extends JDialog {
 
     Comparison buildComparison(JdbcSession sourceSession, String sourceDb, JdbcSession targetSession, String targetDb, Options options,
                                        java.util.function.IntConsumer progressConsumer) throws SQLException {
+        return buildComparison(sourceSession,sourceDb,targetSession,targetDb,options,progressConsumer,new ComparisonControl());
+    }
+
+    private Comparison buildComparison(JdbcSession sourceSession, String sourceDb, JdbcSession targetSession, String targetDb, Options options,
+                                       java.util.function.IntConsumer progressConsumer,ComparisonControl control) throws SQLException {
         Map<String, String> sourceTables = tableNames(sourceSession, sourceDb, options.includeViews());
         Map<String, String> targetTables = tableNames(targetSession, targetDb, options.includeViews());
         Set<String> keys = new LinkedHashSet<>(); keys.addAll(sourceTables.keySet()); keys.addAll(targetTables.keySet());
@@ -352,13 +378,15 @@ public final class DataCompareDialog extends JDialog {
         StringBuilder script = new StringBuilder();
         int current = 0;
         for (String key : filtered) {
+            control.check();
             String sourceTable = sourceTables.get(key), targetTable = targetTables.get(key);
             if (sourceTable == null) {
                 differences.add(new TableDifference(targetTable, tr("Solo en destino"), 0, -1, 0, 0, 0, tr("No existe en origen"), List.of()));
             } else if (targetTable == null) {
                 differences.add(new TableDifference(sourceTable, tr("Solo en origen"), -1, 0, 0, 0, 0, tr("No existe en destino"), List.of()));
             } else {
-                TableDifference difference = compareTable(sourceSession, sourceDb, targetSession, targetDb, sourceTable, targetTable, options, script);
+                int completed=current,total=Math.max(1,filtered.size());
+                TableDifference difference = compareTable(sourceSession, sourceDb, targetSession, targetDb, sourceTable, targetTable, options, script,control,rows->{int within=(int)Math.min(99,rows*100L/Math.max(1L,options.maxRows()*2L));progressConsumer.accept(Math.min(99,(completed*100+within)/total));});
                 differences.add(difference);
             }
             current++;
@@ -384,7 +412,7 @@ public final class DataCompareDialog extends JDialog {
 
     private TableDifference compareTable(JdbcSession sourceSession, String sourceDb, JdbcSession targetSession, String targetDb,
                                          String sourceTable, String targetTable,
-                                         Options options, StringBuilder script) throws SQLException {
+                                         Options options, StringBuilder script,ComparisonControl control,java.util.function.LongConsumer rowProgress) throws SQLException {
         List<ColumnMeta> sourceColumns = columns(sourceSession, sourceDb, sourceTable, options.ignoreLobs());
         List<ColumnMeta> targetColumns = columns(targetSession, targetDb, targetTable, options.ignoreLobs());
         TableMapping configured=options.mappings().get(sourceTable.toLowerCase(Locale.ROOT));
@@ -407,29 +435,25 @@ public final class DataCompareDialog extends JDialog {
             return new TableDifference(sourceTable, tr("Sin clave compatible"), -1, -1, 0, 0, 0,
                     tr("Se necesita una clave compatible; usa Mapear columnas y claves"), List.of());
         }
-        TableData left = readRows(sourceSession, sourceDb, sourceTable, pairs.stream().map(ColumnPair::source).toList(), sourceKeys, options);
-        TableData right = readRows(targetSession, targetDb, targetTable, pairs.stream().map(ColumnPair::target).toList(), targetKeys, options);
         int missing = 0, extra = 0, changed = 0;
         List<String> details = new ArrayList<>();
-        for (Map.Entry<RowKey, RowData> entry : left.rows().entrySet()) {
-            RowData targetRow = right.rows().get(entry.getKey());
-            if (targetRow == null) {
-                missing++; if (details.size() < 100) details.add(tr("Falta en destino: ") + entry.getKey().display());
-                appendInsert(script, targetSession, targetDb, targetTable, pairs, entry.getValue());
-            } else if (!entry.getValue().normalized().equals(targetRow.normalized())) {
-                changed++; if (details.size() < 100) details.add(tr("Modificada: ") + entry.getKey().display());
-                appendUpdate(script, targetSession, targetDb, targetTable, pairs, entry.getValue());
+        boolean leftTruncated,rightTruncated;int leftRows,rightRows;
+        try(RowCursor left=new RowCursor(sourceSession,sourceDb,sourceTable,pairs.stream().map(ColumnPair::source).toList(),sourceKeys,options,control);
+            RowCursor right=new RowCursor(targetSession,targetDb,targetTable,pairs.stream().map(ColumnPair::target).toList(),targetKeys,options,control)){
+            boolean hasLeft=left.advance(),hasRight=right.advance();long processed=0;
+            while(hasLeft||hasRight){
+                control.check();int order=!hasLeft?1:!hasRight?-1:compareKeys(left.key(),right.key());
+                if(order<0){missing++;if(details.size()<100)details.add(tr("Falta en destino: ")+left.key().display());appendInsert(script,targetSession,targetDb,targetTable,pairs,left.row());hasLeft=left.advance();}
+                else if(order>0){extra++;if(details.size()<100)details.add(tr("Adicional en destino: ")+right.key().display());hasRight=right.advance();}
+                else{if(!left.row().normalized().equals(right.row().normalized())){changed++;if(details.size()<100)details.add(tr("Modificada: ")+left.key().display());appendUpdate(script,targetSession,targetDb,targetTable,pairs,left.row());}hasLeft=left.advance();hasRight=right.advance();}
+                if((++processed&255)==0)rowProgress.accept(left.count()+right.count());
             }
-        }
-        for (RowKey key : right.rows().keySet()) {
-            if (!left.rows().containsKey(key)) {
-                extra++; if (details.size() < 100) details.add(tr("Adicional en destino: ") + key.display());
-            }
+            leftRows=left.count();rightRows=right.count();leftTruncated=left.truncated();rightTruncated=right.truncated();rowProgress.accept(leftRows+rightRows);
         }
         String state = missing == 0 && extra == 0 && changed == 0
-                ? (left.truncated() || right.truncated() ? tr("Parcial") : tr("Igual")) : tr("Diferente");
-        String note = (left.truncated() || right.truncated()) ? tr("Límite alcanzado; comparación parcial") : pairs.size() + tr(" columnas comparadas")+(configured==null?"":tr(" · mapeo personalizado"));
-        return new TableDifference(sourceTable, state, left.rows().size(), right.rows().size(), missing, extra, changed, note, details);
+                ? (leftTruncated || rightTruncated ? tr("Parcial") : tr("Igual")) : tr("Diferente");
+        String note = (leftTruncated || rightTruncated) ? tr("Límite alcanzado; comparación parcial") : pairs.size() + tr(" columnas comparadas")+(configured==null?"":tr(" · mapeo personalizado"));
+        return new TableDifference(sourceTable, state, leftRows, rightRows, missing, extra, changed, note, details);
     }
 
     private List<ColumnMeta> columns(JdbcSession endpoint, String database, String table, boolean ignoreLarge) throws SQLException {
@@ -456,39 +480,19 @@ public final class DataCompareDialog extends JDialog {
         return keys.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).toList();
     }
 
-    private TableData readRows(JdbcSession endpoint, String database, String table, List<ColumnMeta> columns, List<String> primaryKeys,
-                               Options options) throws SQLException {
-        String selectedColumns = columns.stream().map(c -> quote(endpoint, c.name())).collect(java.util.stream.Collectors.joining(", "));
-        String order = primaryKeys.stream().map(key -> quote(endpoint, key)).collect(java.util.stream.Collectors.joining(", "));
-        String sql = "SELECT " + selectedColumns + " FROM " + qualified(endpoint, database, table) + " ORDER BY " + order;
-        Map<RowKey, RowData> rows = new LinkedHashMap<>();
-        boolean truncated = false;
-        try (Statement statement = endpoint.connection().createStatement()) {
-            statement.setFetchSize(Math.min(500, options.maxRows()));
-            statement.setMaxRows(options.maxRows() + 1);
-            try (ResultSet rs = statement.executeQuery(sql)) {
-                while (rs.next()) {
-                    if (rows.size() >= options.maxRows()) { truncated = true; break; }
-                    Map<String, Object> raw = new LinkedHashMap<>();
-                    List<Object> normalized = new ArrayList<>();
-                    for (int i = 0; i < columns.size(); i++) {
-                        Object value = safeValue(rs, i + 1, columns.get(i).sqlType());
-                        raw.put(columns.get(i).name().toLowerCase(Locale.ROOT), value);
-                        normalized.add(normalize(value, options));
-                    }
-                    List<Object> keyValues = new ArrayList<>();
-                    List<String> display = new ArrayList<>();
-                    for (String key : primaryKeys) {
-                        int index = columnIndex(columns, key);
-                        Object value = index < 0 ? null : raw.get(columns.get(index).name().toLowerCase(Locale.ROOT));
-                        keyValues.add(normalize(value, options)); display.add(key + "=" + String.valueOf(value));
-                    }
-                    rows.put(new RowKey(List.copyOf(keyValues), String.join(", ", display)), new RowData(raw, List.copyOf(normalized)));
-                }
-            }
+    private final class RowCursor implements AutoCloseable{
+        private final List<ColumnMeta> columns;private final List<String> keys;private final Options options;private final ComparisonControl control;private final Statement statement;private final ResultSet rows;private RowKey key,previous;private RowData row;private int count;private boolean done,truncated;
+        RowCursor(JdbcSession endpoint,String database,String table,List<ColumnMeta> columns,List<String> keys,Options options,ComparisonControl control)throws SQLException{
+            this.columns=columns;this.keys=keys;this.options=options;this.control=control;String selected=columns.stream().map(c->quote(endpoint,c.name())).collect(java.util.stream.Collectors.joining(", ")),order=keys.stream().map(value->quote(endpoint,value)).collect(java.util.stream.Collectors.joining(", "));
+            Statement opened=endpoint.connection().createStatement(ResultSet.TYPE_FORWARD_ONLY,ResultSet.CONCUR_READ_ONLY);control.register(opened);try{opened.setFetchSize(Math.min(500,options.maxRows()));opened.setMaxRows(options.maxRows()+1);ResultSet result=opened.executeQuery("SELECT "+selected+" FROM "+qualified(endpoint,database,table)+" ORDER BY "+order);statement=opened;rows=result;}catch(SQLException|RuntimeException error){control.unregister(opened);try{opened.close();}catch(Exception ignored){}throw error;}
         }
-        return new TableData(rows, truncated);
+        boolean advance()throws SQLException{control.check();if(done)return false;if(count>=options.maxRows()){truncated=rows.next();done=true;key=null;row=null;return false;}if(!rows.next()){done=true;key=null;row=null;return false;}Map<String,Object> raw=new LinkedHashMap<>();List<Object> normalized=new ArrayList<>();for(int i=0;i<columns.size();i++){Object value=safeValue(rows,i+1,columns.get(i).sqlType());raw.put(columns.get(i).name().toLowerCase(Locale.ROOT),value);normalized.add(normalize(value,options));}List<Object> values=new ArrayList<>();List<String> display=new ArrayList<>();for(String name:keys){int index=columnIndex(columns,name);Object value=index<0?null:raw.get(columns.get(index).name().toLowerCase(Locale.ROOT));values.add(normalize(value,options));display.add(name+"="+String.valueOf(value));}RowKey next=new RowKey(List.copyOf(values),String.join(", ",display));if(previous!=null){int order=compareKeys(previous,next);if(order>0)throw new SQLException(tr("El orden de la clave no es compatible entre los motores; selecciona otra clave o ajusta la collation."));if(order==0)throw new SQLException(tr("La clave seleccionada no es única después de aplicar las opciones de texto: ")+next.display());}previous=next;key=next;row=new RowData(raw,List.copyOf(normalized));count++;return true;}
+        RowKey key(){return key;}RowData row(){return row;}int count(){return count;}boolean truncated(){return truncated;}
+        public void close(){control.unregister(statement);try{rows.close();}catch(Exception ignored){}try{statement.close();}catch(Exception ignored){}}
     }
+
+    private static int compareKeys(RowKey left,RowKey right){for(int i=0;i<Math.min(left.values().size(),right.values().size());i++){int compared=compareKeyValue(left.values().get(i),right.values().get(i));if(compared!=0)return compared;}return Integer.compare(left.values().size(),right.values().size());}
+    @SuppressWarnings({"rawtypes","unchecked"}) private static int compareKeyValue(Object left,Object right){if(Objects.equals(left,right))return 0;if(left==NullValue.INSTANCE)return -1;if(right==NullValue.INSTANCE)return 1;if(left instanceof Number a&&right instanceof Number b)try{return new BigDecimal(a.toString()).compareTo(new BigDecimal(b.toString()));}catch(NumberFormatException ignored){}if(left.getClass()==right.getClass()&&left instanceof Comparable value)try{return value.compareTo(right);}catch(RuntimeException ignored){}return left.toString().compareTo(right.toString());}
 
     private void appendInsert(StringBuilder sql, JdbcSession endpoint, String database, String table, List<ColumnPair> columns, RowData row) {
         sql.append("INSERT INTO ").append(qualified(endpoint, database, table)).append(" (")
@@ -656,7 +660,10 @@ public final class DataCompareDialog extends JDialog {
         @Override public int hashCode(){return values.hashCode();}
     }
     private record RowData(Map<String, Object> raw, List<Object> normalized) {}
-    private record TableData(Map<RowKey, RowData> rows, boolean truncated) {}
+    static final class ComparisonControl{
+        private final AtomicBoolean cancelled=new AtomicBoolean();private final Set<Statement> statements=java.util.Collections.synchronizedSet(new HashSet<>());
+        void register(Statement statement){if(cancelled.get())try{statement.cancel();}catch(SQLException ignored){}else statements.add(statement);}void unregister(Statement statement){statements.remove(statement);}void cancel(){if(!cancelled.compareAndSet(false,true))return;Statement[] active; synchronized(statements){active=statements.toArray(Statement[]::new);}for(Statement statement:active)try{statement.cancel();}catch(SQLException ignored){}}boolean cancelled(){return cancelled.get();}void check(){if(cancelled.get()||Thread.currentThread().isInterrupted())throw new CancellationException(tr("Comparación cancelada"));}
+    }
     static record TableDifference(String table, String status, int sourceRows, int targetRows, int missing,
                                    int extra, int changed, String detail, List<String> details) {}
     static record Comparison(List<TableDifference> tables, String script) {}

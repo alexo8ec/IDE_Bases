@@ -51,7 +51,7 @@ final class BackgroundOperationsPanel extends JPanel {
     private Snapshot selected(){int row=table.getSelectedRow();if(row<0)return null;int modelRow=table.convertRowIndexToModel(row);return modelRow>=0&&modelRow<rows.size()?rows.get(modelRow):null;}
     private void updateActions(){Snapshot item=selected();cancel.setEnabled(item!=null&&item.canCancel());retry.setEnabled(item!=null&&item.canRetry());clear.setEnabled(rows.stream().anyMatch(row->!row.active()));}
     private static String duration(long millis){long seconds=millis/1000;return seconds<60?seconds+" s":String.format("%d:%02d",seconds/60,seconds%60);}
-    private static String kind(Snapshot item){return tr(switch(item.kind()){case QUERY->"Consulta";case COUNT->"Conteo";case EXPORT->"Exportación";case REPORT->"Reporte";case RELOAD->"Recarga";case PREFETCH->"Precarga";case CONNECTION->"Conexión";});}
+    private static String kind(Snapshot item){return tr(switch(item.kind()){case QUERY->"Consulta";case COUNT->"Conteo";case EXPORT->"Exportación";case REPORT->"Reporte";case MIGRATION->"Migración";case RELOAD->"Recarga";case PREFETCH->"Precarga";case CONNECTION->"Conexión";});}
     private static String priority(Snapshot item){return tr(switch(item.priority()){case INTERACTIVE->"Interactiva";case BACKGROUND->"Segundo plano";case SPECULATIVE->"Especulativa";});}
     private static String state(Snapshot item){return tr(switch(item.state()){case QUEUED->"En espera";case RUNNING->"Ejecutando…";case COMPLETED->"Completada";case CANCELLED->"Cancelada";case FAILED->"Fallida";case TIMED_OUT->"Tiempo agotado";});}
 }
