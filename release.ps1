@@ -58,7 +58,7 @@ $macArmPackage = Join-Path $root "dist\AdisDB-$desktopVersion-macos-arm64.zip"
     --linux-arm64 $linuxArmPackage `
     --macos-x64 $macIntelPackage `
     --macos-arm64 $macArmPackage `
-    --notes "AdisDB ${desktopVersion}: proyectos SQL conectados a GitHub, seguimiento de procedimientos y objetos, historial visual de ramas y fusiones, y consola Git segura para conflictos."
+    --notes "AdisDB ${desktopVersion}: resultados detallados para tareas y respaldos, diagnostico de autenticacion, driver o DLL, copia completa y acceso al archivo generado."
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo generar el manifiesto multiplataforma.' }
 & python (Join-Path $root 'tools\verify-platforms.py')
 if ($LASTEXITCODE -ne 0) { throw 'Falló la verificación cruzada de los paquetes Linux/macOS.' }
