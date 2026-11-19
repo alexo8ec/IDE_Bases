@@ -1,6 +1,7 @@
 package com.nexodb.ui;
 
 import com.nexodb.db.*;
+import com.nexodb.util.BackgroundOperations;
 import com.nexodb.util.DataExporter;
 import javax.swing.*;
 import javax.swing.table.*;
@@ -68,6 +69,7 @@ final class QueryResultPanel extends JPanel {
     private SwingWorker<Long,Void> countWorker;
     private SwingWorker<List<PrefetchedPage>,Void> prefetchWorker;
     private SwingWorker<QueryResult,Void> reloadWorker;
+    private BackgroundOperations.Operation exportOperation,countOperation,prefetchOperation,reloadOperation;
     private volatile JdbcSession.ReadLease exportLease,countLease,prefetchLease,reloadLease;
     private long totalRows=-1,estimatedRows;
     private int countGeneration,prefetchGeneration,reloadGeneration;
@@ -204,7 +206,7 @@ final class QueryResultPanel extends JPanel {
     void resetReadOnly(){finishEditing();edit.setSelected(false);updateActions();}
     void setExportAction(Runnable action){exportAction=action;}
     boolean canCancel(){return exportWorker!=null&&!exportWorker.isDone()||countWorker!=null&&!countWorker.isDone()||reloadWorker!=null&&!reloadWorker.isDone();}
-    void cancelOperation(){if(exportWorker!=null&&!exportWorker.isDone()){exportWorker.cancel(true);cancelLease(exportLease);changed.accept(tr("Exportación cancelada"));return;}if(reloadWorker!=null&&!reloadWorker.isDone()){reloadWorker.cancel(true);cancelLease(reloadLease);changed.accept(tr("Actualización cancelada"));return;}cancelCount(true);}
+    void cancelOperation(){if(exportWorker!=null&&!exportWorker.isDone()){if(exportOperation!=null)exportOperation.requestCancel();else{exportWorker.cancel(true);cancelLease(exportLease);}changed.accept(tr("Exportación cancelada"));return;}if(reloadWorker!=null&&!reloadWorker.isDone()){if(reloadOperation!=null)reloadOperation.requestCancel();else{reloadWorker.cancel(true);cancelLease(reloadLease);}changed.accept(tr("Actualización cancelada"));return;}cancelCount(true);}
     void exportData(){exportResult(null);}
     private void exportResult(DataExporter.Format initial){
         if(exportWorker!=null&&!exportWorker.isDone()){changed.accept(tr("Ya existe una exportación en curso."));return;}
@@ -213,8 +215,10 @@ final class QueryResultPanel extends JPanel {
         if(!full){ResultExports.write(this,snapshot,name,initial==null?DataExporter.Format.CSV:initial,changed);return;}
         ExportChooser.Request request=initial==null?ExportChooser.choose(this,name):ExportChooser.choose(this,name,initial);if(request==null)return;
         cancelPrefetch();String exportSql=viewSql;List<Object> parameters=List.copyOf(viewParameters);
+        BackgroundOperations.Operation operation=BackgroundOperations.create(BackgroundOperations.Kind.EXPORT,tr("Exportar resultado"),origin.profile().name(),()->{SwingWorker<Long,Long> active=exportWorker;if(active!=null)active.cancel(true);cancelLease(exportLease);},()->SwingUtilities.invokeLater(()->exportResult(request.format())));exportOperation=operation;
         exportWorker=new SwingWorker<Long,Long>(){
             protected Long doInBackground()throws Exception{
+                operation.awaitTurn();
                 try(JdbcSession.ReadLease lease=origin.borrowReadOnly(30_000)){
                     exportLease=lease;return DataExporter.writeStreaming(request.path(),request.format(),name,writer->lease.session().streamResult(exportSql,parameters,Long.MAX_VALUE,new JdbcSession.ResultStream(){
                         public void start(List<String> columns,List<Integer> types)throws Exception{writer.start(columns);}
@@ -222,8 +226,8 @@ final class QueryResultPanel extends JPanel {
                     },rows->{if(!isCancelled())publish(rows);}));
                 }finally{exportLease=null;}
             }
-            protected void process(List<Long> values){if(!values.isEmpty())changed.accept(tr("Exportando ")+values.get(values.size()-1)+tr(" filas…"));}
-            protected void done(){try{if(isCancelled()){changed.accept(tr("Exportación cancelada"));return;}long rows=get();changed.accept(request.format()+tr(" exportado · ")+rows+tr(" filas · ")+request.path().getFileName());}catch(Exception error){if(!isCancellation(error))showError(root(error),"No se pudo exportar");}finally{exportWorker=null;updateActions();}}
+            protected void process(List<Long> values){if(!values.isEmpty()){long rows=values.get(values.size()-1);operation.progress(-1,rows+tr(" filas"));changed.accept(tr("Exportando ")+rows+tr(" filas…"));}}
+            protected void done(){try{if(isCancelled()){operation.cancelled(tr("Exportación cancelada"));changed.accept(tr("Exportación cancelada"));return;}long rows=get();operation.complete(rows+tr(" filas"));changed.accept(request.format()+tr(" exportado · ")+rows+tr(" filas · ")+request.path().getFileName());}catch(Exception error){operation.fail(root(error));if(!isCancellation(error))showError(root(error),"No se pudo exportar");}finally{exportWorker=null;exportOperation=null;updateActions();}}
         };UiLanguage.text(status,UiLanguage.key("Exportando resultado completo en segundo plano…"));exportWorker.execute();updateActions();
     }
     void setColumnEditor(ColumnEditor editor){
@@ -245,7 +249,7 @@ final class QueryResultPanel extends JPanel {
     void setAvailable(JdbcSession current,boolean operationBusy){available=!disposed&&current==origin&&origin!=null&&origin.isOpen()&&!operationBusy;if(!available)cancelPrefetch();else schedulePrefetch();updateActions();}
     void disposePanel(){
         if(disposed)return;disposed=true;available=false;viewTimer.stop();countTimer.stop();cancelPrefetch();countGeneration++;reloadGeneration++;
-        if(exportWorker!=null)exportWorker.cancel(true);if(countWorker!=null)countWorker.cancel(true);if(reloadWorker!=null)reloadWorker.cancel(true);
+        if(exportOperation!=null)exportOperation.requestCancel();else if(exportWorker!=null)exportWorker.cancel(true);if(countOperation!=null)countOperation.requestCancel();else if(countWorker!=null)countWorker.cancel(true);if(reloadOperation!=null)reloadOperation.requestCancel();else if(reloadWorker!=null)reloadWorker.cancel(true);
         cancelLease(exportLease);cancelLease(countLease);cancelLease(reloadLease);exportLease=null;countLease=null;reloadLease=null;updateActions();
     }
     void transactionFinished(boolean rollback){
@@ -278,19 +282,20 @@ final class QueryResultPanel extends JPanel {
         if(!pageable||!available||saving||totalRows>=0)return;if(countWorker!=null&&!countWorker.isDone()){if(requested)cancelCount(true);return;}
         boolean cheap=QueryPaging.cheapCount(viewSql);if(requested&&!cheap&&!confirm.test("Conteo exacto",tr("Esta consulta puede requerir un conteo costoso en el servidor y se cancelará automáticamente después de 20 segundos. ¿Continuar?"))){pendingLastPage=false;return;}
         if(requested)cancelPrefetch();int generation=++countGeneration;String source=viewSql;List<Object> parameters=List.copyOf(viewParameters);UiLanguage.text(status,UiLanguage.key("Calculando total…"));updateCount();
+        BackgroundOperations.Operation operation=BackgroundOperations.create(BackgroundOperations.Kind.COUNT,tr("Contar filas"),origin.profile().name(),()->{SwingWorker<Long,Void> active=countWorker;if(active!=null)active.cancel(true);cancelLease(countLease);},()->SwingUtilities.invokeLater(()->startCount(true)),25);countOperation=operation;
         countWorker=new SwingWorker<>(){
-            protected Long doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly(requested?15_000:5_000)){countLease=lease;return lease.session().countRows(source,parameters,20);}finally{countLease=null;}}
+            protected Long doInBackground()throws Exception{operation.awaitTurn();try(JdbcSession.ReadLease lease=origin.borrowReadOnly(requested?15_000:5_000)){countLease=lease;return lease.session().countRows(source,parameters,20);}finally{countLease=null;}}
             protected void done(){
                 if(generation!=countGeneration)return;boolean openLast=pendingLastPage;pendingLastPage=false;
-                try{totalRows=get();estimatedRows=Math.max(estimatedRows,totalRows);UiLanguage.text(status,UiLanguage.key("Total calculado: "),totalRows,UiLanguage.key(" filas"));}
-                catch(Exception error){Throwable cause=root(error);if(!isCancellation(cause)){String message=cause instanceof java.sql.SQLTimeoutException||java.util.Objects.toString(cause.getMessage(),"").toLowerCase(java.util.Locale.ROOT).contains("timeout")?tr("El conteo superó 20 segundos y fue cancelado. Puedes continuar navegando con la estimación."):tr("No se pudo calcular el total: ")+java.util.Objects.toString(cause.getMessage(),cause.getClass().getSimpleName());UiLanguage.text(status,UiLanguage.key(message));changed.accept(message);}openLast=false;}
-                finally{countWorker=null;updateCount();}
+                try{totalRows=get();operation.complete(totalRows+tr(" filas"));estimatedRows=Math.max(estimatedRows,totalRows);UiLanguage.text(status,UiLanguage.key("Total calculado: "),totalRows,UiLanguage.key(" filas"));}
+                catch(Exception error){Throwable cause=root(error);if(isCancellation(cause))operation.cancelled(tr("Conteo cancelado"));else{operation.fail(cause);String message=cause instanceof java.sql.SQLTimeoutException||java.util.Objects.toString(cause.getMessage(),"").toLowerCase(java.util.Locale.ROOT).contains("timeout")?tr("El conteo superó 20 segundos y fue cancelado. Puedes continuar navegando con la estimación."):tr("No se pudo calcular el total: ")+java.util.Objects.toString(cause.getMessage(),cause.getClass().getSimpleName());UiLanguage.text(status,UiLanguage.key(message));changed.accept(message);}openLast=false;}
+                finally{countWorker=null;countOperation=null;updateCount();}
                 if(openLast)SwingUtilities.invokeLater(QueryResultPanel.this::loadLastPage);
             }
         };countWorker.execute();updateCount();
     }
     private void cancelCount(boolean report){
-        countTimer.stop();pendingLastPage=false;SwingWorker<Long,Void> worker=countWorker;if(worker==null||worker.isDone())return;countGeneration++;worker.cancel(true);cancelLease(countLease);countWorker=null;if(report){UiLanguage.text(status,UiLanguage.key("Conteo cancelado"));changed.accept(tr("Conteo cancelado"));}updateCount();
+        countTimer.stop();pendingLastPage=false;SwingWorker<Long,Void> worker=countWorker;if(worker==null||worker.isDone())return;countGeneration++;if(countOperation!=null){countOperation.cancelled(tr("Conteo cancelado"));countOperation=null;}worker.cancel(true);cancelLease(countLease);countWorker=null;if(report){UiLanguage.text(status,UiLanguage.key("Conteo cancelado"));changed.accept(tr("Conteo cancelado"));}updateCount();
     }
     private void resetTotal(){cancelCount(false);totalRows=-1;estimatedRows=0;pendingLastPage=false;updateCount();}
     private void scheduleCount(){if(totalRows<0&&pageable&&QueryPaging.cheapCount(viewSql))countTimer.restart();}
@@ -305,21 +310,23 @@ final class QueryResultPanel extends JPanel {
         prefetchTimer.stop();if(!canPrefetch())return;long latency=model.definition().timing().totalMillis();prefetchTimer.setInitialDelay((int)Math.max(250,Math.min(1_500,200+latency*2)));prefetchTimer.restart();
     }
     private void cancelPrefetch(){
-        prefetchTimer.stop();prefetchGeneration++;SwingWorker<List<PrefetchedPage>,Void> worker=prefetchWorker;if(worker!=null&&!worker.isDone())worker.cancel(true);cancelLease(prefetchLease);prefetchWorker=null;prefetchLease=null;
+        prefetchTimer.stop();prefetchGeneration++;SwingWorker<List<PrefetchedPage>,Void> worker=prefetchWorker;if(prefetchOperation!=null){prefetchOperation.cancelled(tr("Precarga obsoleta"));prefetchOperation=null;}if(worker!=null&&!worker.isDone())worker.cancel(true);cancelLease(prefetchLease);prefetchWorker=null;prefetchLease=null;
     }
     private void prefetchPages(){
         if(!canPrefetch())return;List<PageKey> requested=new java.util.ArrayList<>(2);long nextOffset=pageOffset+model.dataRowCount();
         if(model.definition().truncated()){PageKey nextKey=new PageKey(nextOffset,pageSize);if(!pageCache.containsKey(nextKey))requested.add(nextKey);}
         if(pageOffset>0){PageKey previousKey=new PageKey(Math.max(0,pageOffset-pageSize),pageSize);if(!pageCache.containsKey(previousKey)&&(previousKey.offset()<=100_000||pageAnchors.containsKey(previousKey)))requested.add(previousKey);}
         if(requested.isEmpty())return;int generation=++prefetchGeneration;String source=viewSql;List<Object> parameters=List.copyOf(viewParameters);List<QueryPaging.Order> order=seekOrder();Map<PageKey,PageAnchor> anchors=new LinkedHashMap<>();for(PageKey key:requested){PageAnchor anchor=key.offset()==0?new PageAnchor(order,List.of()):pageAnchors.get(key);if(anchor!=null)anchors.put(key,anchor);}
+        BackgroundOperations.Operation operation=BackgroundOperations.create(BackgroundOperations.Kind.PREFETCH,tr("Precargar páginas"),origin.profile().name(),()->{SwingWorker<List<PrefetchedPage>,Void> active=prefetchWorker;if(active!=null)active.cancel(true);cancelLease(prefetchLease);},null,Math.min(15,BackgroundOperations.timeoutSeconds()));prefetchOperation=operation;
         prefetchWorker=new SwingWorker<>(){
             protected List<PrefetchedPage> doInBackground()throws Exception{
+                operation.awaitTurn();
                 try(JdbcSession.ReadLease lease=origin.borrowReadOnly(750)){
                     prefetchLease=lease;List<PrefetchedPage> pages=new java.util.ArrayList<>();for(PageKey key:requested){if(isCancelled())break;PageAnchor anchor=anchors.get(key);LoadedPage loaded=executePage(lease.session(),source,parameters,key.size(),key.offset(),order,anchor);pages.add(new PrefetchedPage(key,loaded.result(),loaded.keyset()));}return pages;
                 }finally{prefetchLease=null;}
             }
             protected void done(){
-                if(generation!=prefetchGeneration)return;try{for(PrefetchedPage page:get()){pageCache.put(page.key(),page.result());if(page.keyset())keysetPages.add(page.key());else keysetPages.remove(page.key());rememberNextAnchor(page.key().offset(),page.key().size(),page.result(),order);}}catch(Exception ignored){}finally{prefetchWorker=null;updateCount();}
+                if(generation!=prefetchGeneration)return;try{List<PrefetchedPage> pages=get();for(PrefetchedPage page:pages){pageCache.put(page.key(),page.result());if(page.keyset())keysetPages.add(page.key());else keysetPages.remove(page.key());rememberNextAnchor(page.key().offset(),page.key().size(),page.result(),order);}operation.complete(pages.size()+tr(" páginas"));}catch(Exception error){if(isCancellation(error))operation.cancelled(tr("Precarga cancelada"));else operation.fail(root(error));}finally{prefetchWorker=null;prefetchOperation=null;updateCount();}
             }
         };prefetchWorker.execute();
     }
@@ -588,19 +595,21 @@ final class QueryResultPanel extends JPanel {
             }
         }.execute();
     }
-    private void reload(){reloadForReport((fresh,error)->{if(error!=null&&!isCancellation(error))showError(error,"Error al ejecutar la consulta");});}
-    void reloadForReport(java.util.function.BiConsumer<QueryResult,Throwable> completion){
+    private void reload(){reloadResult(false,(fresh,error)->{if(error!=null&&!isCancellation(error))showError(error,"Error al ejecutar la consulta");});}
+    void reloadForReport(java.util.function.BiConsumer<QueryResult,Throwable> completion){reloadResult(true,completion);}
+    private void reloadResult(boolean report,java.util.function.BiConsumer<QueryResult,Throwable> completion){
         if(!available||saving||disposed||!SqlExecutionPolicy.readOnly(sql)){completion.accept(null,new IllegalStateException(tr("El resultado no está disponible para actualizarse.")));return;}
         if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){completion.accept(null,new IllegalStateException(tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de recargar.")));return;}
         if(!confirmDiscard()){completion.accept(null,new java.util.concurrent.CancellationException(tr("Actualización cancelada.")));return;}
         if(pageable){resetTotal();resetPagingState();}
         String replay=target==null?sql:QueryEditSupport.qualifiedSelect(sql,target);long offset=pageOffset;int size=pageSize,generation=++reloadGeneration;List<QueryPaging.Order> order=seekOrder();PageAnchor anchor=offset==0?new PageAnchor(order,List.of()):pageAnchors.get(new PageKey(offset,size));java.util.concurrent.atomic.AtomicBoolean loadedByKey=new java.util.concurrent.atomic.AtomicBoolean();startLocal();UiLanguage.text(status,UiLanguage.key("Recargando en una conexión auxiliar…"));
+        BackgroundOperations.Operation operation=BackgroundOperations.create(report?BackgroundOperations.Kind.REPORT:BackgroundOperations.Kind.RELOAD,tr(report?"Actualizar reporte":"Recargar resultado"),origin.profile().name(),()->{SwingWorker<QueryResult,Void> active=reloadWorker;if(active!=null)active.cancel(true);cancelLease(reloadLease);},report?null:()->SwingUtilities.invokeLater(this::reload));reloadOperation=operation;
         reloadWorker=new SwingWorker<>() {
-            protected QueryResult doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly(15_000)){reloadLease=lease;if(!pageable)return lease.session().executeEditable(replay,rowLimit.getAsInt());LoadedPage loaded=executePage(lease.session(),viewSql,List.copyOf(viewParameters),size,offset,order,anchor);loadedByKey.set(loaded.keyset());return loaded.result();}finally{reloadLease=null;}}
+            protected QueryResult doInBackground()throws Exception{operation.awaitTurn();try(JdbcSession.ReadLease lease=origin.borrowReadOnly(15_000)){reloadLease=lease;if(!pageable)return lease.session().executeEditable(replay,rowLimit.getAsInt());LoadedPage loaded=executePage(lease.session(),viewSql,List.copyOf(viewParameters),size,offset,order,anchor);loadedByKey.set(loaded.keyset());return loaded.result();}finally{reloadLease=null;}}
             protected void done(){
                 if(generation!=reloadGeneration||disposed)return;
-                try{QueryResult fresh=get();if(pageable)showPage(fresh,offset,size,loadedByKey.get());else{long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();}completion.accept(fresh,null);}
-                catch(Exception error){completion.accept(null,root(error));}finally{reloadWorker=null;endLocal();}
+                try{QueryResult fresh=get();operation.complete(fresh.rows().size()+tr(" filas"));if(pageable)showPage(fresh,offset,size,loadedByKey.get());else{long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();}completion.accept(fresh,null);}
+                catch(Exception error){Throwable cause=root(error);if(isCancellation(cause))operation.cancelled(tr("Actualización cancelada"));else operation.fail(cause);completion.accept(null,cause);}finally{reloadWorker=null;reloadOperation=null;endLocal();}
             }
         };reloadWorker.execute();
     }

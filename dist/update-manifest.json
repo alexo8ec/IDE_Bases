@@ -1,6 +1,6 @@
 {
-  "version": "0.18.47",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.47-win64.zip",
-  "sha256": "1c8b0f95a73d7dcaafde815849f95c2f42d70a0fcb2b80202270c252c42f1188",
-  "notes": "AdisDB 0.18.47: precarga adaptativa, conexiones auxiliares de solo lectura, prioridad para acciones del usuario e iconos de orden y filtro juntos."
+  "version": "0.18.48",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.48-win64.zip",
+  "sha256": "be7ef4444b1a4b75ab79fa3d1144b540cc197b715b70fc33266281a618223c4c",
+  "notes": "AdisDB 0.18.48: panel central de operaciones, cancelación y reintento seguro, límites simultáneos y de tiempo, recuperación visible de conexiones e historial privado de la sesión."
 }

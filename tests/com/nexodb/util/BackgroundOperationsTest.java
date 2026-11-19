@@ -1,0 +1,50 @@
+package com.nexodb.util;
+
+import java.nio.file.Files;
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+public final class BackgroundOperationsTest {
+    public static void main(String[] args)throws Exception {
+        var settings=Files.createTempDirectory("adisdb-operations").resolve("settings.properties");
+        System.setProperty("nexodb.settingsFile",settings.toString());
+        BackgroundOperations.clearFinished();BackgroundOperations.configure(1,30);
+
+        BackgroundOperations.Operation first=BackgroundOperations.create(BackgroundOperations.Kind.QUERY,"Consulta","Producción",()->{},null);
+        first.awaitTurn();
+        BackgroundOperations.Operation second=BackgroundOperations.create(BackgroundOperations.Kind.COUNT,"Conteo","Producción",()->{},null);
+        CountDownLatch secondRunning=new CountDownLatch(1);
+        Thread waiter=new Thread(()->{try{second.awaitTurn();secondRunning.countDown();}catch(InterruptedException ignored){Thread.currentThread().interrupt();}});
+        waiter.start();Thread.sleep(120);
+        equal(BackgroundOperations.State.QUEUED,second.snapshot().state());
+        equal(1,BackgroundOperations.queuedCount());
+        first.complete("12 filas");
+        if(!secondRunning.await(2,TimeUnit.SECONDS))throw new AssertionError("Queued operation never obtained a slot");
+        equal(BackgroundOperations.State.RUNNING,second.snapshot().state());second.complete("12 filas");waiter.join(2_000);
+
+        AtomicBoolean cancelled=new AtomicBoolean();
+        BackgroundOperations.Operation timeout=BackgroundOperations.create(BackgroundOperations.Kind.EXPORT,"Exportación","Producción",()->cancelled.set(true),null,1);
+        timeout.awaitTurn();long deadline=System.currentTimeMillis()+3_000;
+        while(timeout.snapshot().state()!=BackgroundOperations.State.TIMED_OUT&&System.currentTimeMillis()<deadline)Thread.sleep(25);
+        equal(BackgroundOperations.State.TIMED_OUT,timeout.snapshot().state());equal(true,cancelled.get());
+
+        CountDownLatch retried=new CountDownLatch(1);
+        BackgroundOperations.Operation retry=BackgroundOperations.create(BackgroundOperations.Kind.RELOAD,"Recarga","Producción",()->{},retried::countDown);
+        retry.awaitTurn();retry.fail(new SQLException("jdbc:mysql://server/db password=secret","08006"));
+        BackgroundOperations.retry(retry.id());
+        if(!retried.await(2,TimeUnit.SECONDS))throw new AssertionError("Safe retry action was not invoked");
+        String all=BackgroundOperations.snapshots().toString().toLowerCase();
+        if(all.contains("secret")||all.contains("jdbc:mysql")||all.contains("select "))throw new AssertionError("Sensitive operation data leaked: "+all);
+        if(BackgroundOperations.snapshots().stream().noneMatch(item->item.state()==BackgroundOperations.State.TIMED_OUT&&item.timedOut()))throw new AssertionError("Timeout history was not retained");
+        List<BackgroundOperations.Snapshot> snapshots=BackgroundOperations.snapshots();
+        if(snapshots.isEmpty()||snapshots.stream().anyMatch(BackgroundOperations.Snapshot::active))throw new AssertionError("Operations did not finish cleanly");
+        BackgroundOperations.clearFinished();equal(0,BackgroundOperations.snapshots().size());
+        BackgroundOperations.configure(4,120);
+        System.out.println("BackgroundOperationsTest: OK (queue, limit, timeout, cancel, safe retry and private history)");
+    }
+    private static void equal(Object expected,Object actual){if(!Objects.equals(expected,actual))throw new AssertionError(expected+" != "+actual);}
+}

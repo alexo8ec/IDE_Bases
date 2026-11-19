@@ -1,6 +1,7 @@
 package com.nexodb.reporting.ui;
 
 import com.nexodb.reporting.*;
+import com.nexodb.util.BackgroundOperations;
 import static com.nexodb.reporting.ReportDesign.*;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -49,6 +50,8 @@ public final class ReportDesignerPanel extends JPanel {
     private final JButton export=new JButton("Exportar…"),print=new JButton("Imprimir…"),undoButton=new JButton("Deshacer"),redoButton=new JButton("Rehacer"),refreshSource=new JButton("Actualizar datos");
     private final javax.swing.Timer previewTimer;
     private SwingWorker<ReportLayout,Void> previewWorker;
+    private SwingWorker<Void,Void> exportWorker,printWorker;
+    private BackgroundOperations.Operation exportOperation,printOperation;
     private long previewGeneration;
 
     public ReportDesignerPanel(Supplier<List<ReportData>> sources,ReportData initial,ReportExporter.TabularWriter tabular,Consumer<String> status) {
@@ -194,11 +197,11 @@ public final class ReportDesignerPanel extends JPanel {
     private static Path extension(Path path,String extension){return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith("."+extension)?path:path.resolveSibling(path.getFileName()+"."+extension);}
     public boolean canClose() {
         if(columns.isEditing()&&!columns.getCellEditor().stopCellEditing())return false;
-        if(exporting){JOptionPane.showMessageDialog(this,"Espera a que termine la exportación.");return false;}
+        if(exporting||printing){JOptionPane.showMessageDialog(this,"Espera a que termine la operación del reporte.");return false;}
         return confirmClose();
     }
     private boolean confirmClose(){if(!dirty)return true;int answer=JOptionPane.showOptionDialog(this,"El diseño tiene cambios sin guardar.","Plantilla de reporte",JOptionPane.DEFAULT_OPTION,JOptionPane.QUESTION_MESSAGE,null,new String[]{"Guardar","Descartar","Cancelar"},"Guardar");return answer==1||answer==0&&save(false);}
-    public void dispose(){previewGeneration++;previewTimer.stop();if(previewWorker!=null)previewWorker.cancel(true);}
+    public void dispose(){previewGeneration++;previewTimer.stop();if(previewWorker!=null)previewWorker.cancel(true);if(exportOperation!=null)exportOperation.requestCancel();else if(exportWorker!=null)exportWorker.cancel(true);if(printOperation!=null)printOperation.requestCancel();else if(printWorker!=null)printWorker.cancel(true);}
     private void export() {
         if(columns.isEditing()&&!columns.getCellEditor().stopCellEditing())return;
         JFileChooser chooser=new JFileChooser();chooser.setDialogTitle("Exportar reporte");chooser.setAcceptAllFileFilterUsed(false);Map<javax.swing.filechooser.FileFilter,ReportExporter.Format> formats=new LinkedHashMap<>();
@@ -208,10 +211,11 @@ public final class ReportDesignerPanel extends JPanel {
         if(chooser.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return;var format=formats.get(chooser.getFileFilter());Path target=extension(chooser.getSelectedFile().toPath(),format.extension());
         if(Files.exists(target)&&JOptionPane.showConfirmDialog(this,"¿Reemplazar el archivo existente?","Exportar reporte",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
         ReportDesign snapshot=design;ReportData input=data;ReportLayout preview=layout!=null&&layout.plan().design()==snapshot?layout:null;exporting=true;sync();state.setText("Exportando "+format+"…");
-        new SwingWorker<Void,Void>() {
-            protected Void doInBackground()throws Exception{if(preview!=null)ReportExporter.write(preview,target,format,tabular);else ReportExporter.write(ReportPlan.build(snapshot,input),target,format,tabular);return null;}
-            protected void done(){exporting=false;sync();try{get();status.accept("Reporte exportado: "+target.getFileName());state.setText("Reporte guardado: "+target);}catch(Exception error){error(root(error));}}
-        }.execute();
+        BackgroundOperations.Operation operation=BackgroundOperations.create(BackgroundOperations.Kind.REPORT,"Exportar reporte",input.name(),()->{SwingWorker<Void,Void> active=exportWorker;if(active!=null)active.cancel(true);},()->SwingUtilities.invokeLater(this::export));exportOperation=operation;
+        exportWorker=new SwingWorker<Void,Void>() {
+            protected Void doInBackground()throws Exception{operation.awaitTurn();operation.progress(-1,"Generando "+format);if(preview!=null)ReportExporter.write(preview,target,format,tabular);else ReportExporter.write(ReportPlan.build(snapshot,input),target,format,tabular);return null;}
+            protected void done(){exporting=false;sync();try{if(isCancelled()){operation.cancelled("Exportación cancelada");state.setText("Exportación cancelada.");return;}get();operation.complete("Reporte generado");status.accept("Reporte exportado: "+target.getFileName());state.setText("Reporte guardado: "+target);}catch(Exception failure){operation.fail(root(failure));error(root(failure));}finally{exportWorker=null;exportOperation=null;}}
+        };exportWorker.execute();
     }
     private void print() {
         if(layout==null||layout.plan().design()!=design){state.setText("Espera a que termine de actualizar la vista previa.");return;}
@@ -220,7 +224,8 @@ public final class ReportDesignerPanel extends JPanel {
         if(job.printDialog(attributes)) {
             job.setPrintable(ReportRenderer.printable(snapshot),ReportPrintSupport.pageFormat(job,attributes));
             printing=true;sync();state.setText("Imprimiendo "+snapshot.pages().size()+" página"+(snapshot.pages().size()==1?"":"s")+"…");
-            new SwingWorker<Void,Void>(){protected Void doInBackground()throws Exception{job.print(attributes);return null;}protected void done(){printing=false;sync();try{get();status.accept("Reporte enviado a la impresora.");state.setText("Impresión terminada.");}catch(Exception error){error(root(error));}}}.execute();
+            BackgroundOperations.Operation operation=BackgroundOperations.create(BackgroundOperations.Kind.REPORT,"Imprimir reporte",data.name(),()->{job.cancel();SwingWorker<Void,Void> active=printWorker;if(active!=null)active.cancel(true);},null);printOperation=operation;
+            printWorker=new SwingWorker<Void,Void>(){protected Void doInBackground()throws Exception{operation.awaitTurn();operation.progress(-1,"Enviando a la impresora");job.print(attributes);return null;}protected void done(){printing=false;sync();try{if(isCancelled()){operation.cancelled("Impresión cancelada");state.setText("Impresión cancelada.");return;}get();operation.complete(snapshot.pages().size()+" páginas");status.accept("Reporte enviado a la impresora.");state.setText("Impresión terminada.");}catch(Exception failure){operation.fail(root(failure));error(root(failure));}finally{printWorker=null;printOperation=null;}}};printWorker.execute();
         }
     }
     private final class ColumnModel extends AbstractTableModel {

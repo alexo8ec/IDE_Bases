@@ -16,6 +16,7 @@ import com.nexodb.util.ProfileStore;
 import com.nexodb.util.SecretStore;
 import com.nexodb.util.DataExporter;
 import com.nexodb.util.StoredObjectFormatStore;
+import com.nexodb.util.BackgroundOperations;
 
 import javax.swing.*;
 import javax.imageio.ImageIO;
@@ -68,6 +69,8 @@ public final class MainFrame extends JFrame {
     private final JButton disconnectButton = UiLanguage.text(new JButton(tr("Desconectar")), UiLanguage.key("Desconectar"));
     private final JButton refreshButton = UiLanguage.text(new JButton(tr("Actualizar objetos")), UiLanguage.key("Actualizar objetos"));
     private final JButton compareButton = UiLanguage.text(new JButton(tr("Comparar esquemas")), UiLanguage.key("Comparar esquemas"));
+    private final JButton operationsButton = UiLanguage.text(new JButton(),UiLanguage.key("Operaciones en segundo plano"));
+    private final BackgroundOperations.Listener operationsListener=this::updateOperationsIndicator;
     private final Map<String, JdbcSession> sessions = new LinkedHashMap<>();
     private JdbcSession session;
     private int busyDepth;
@@ -99,6 +102,7 @@ public final class MainFrame extends JFrame {
         scheduledTasks.setLicenseCheck(LicenseGate::licensed);
         setJMenuBar(buildMenu());
         setContentPane(buildContent());
+        BackgroundOperations.addListener(operationsListener);updateOperationsIndicator();
         UiDesign.enhance(this);
         configureProfiles();
         configureTree();
@@ -168,6 +172,7 @@ public final class MainFrame extends JFrame {
         toolbar.addSeparator();
         toolbar.add(compareButton);
         toolbar.add(Box.createHorizontalGlue());
+        operationsButton.setIcon(IconFactory.of(IconFactory.Kind.HISTORY,16));operationsButton.addActionListener(e->openOperations());operationsButton.setFocusable(false);toolbar.add(operationsButton);toolbar.addSeparator();
         busyBar.setIndeterminate(true);
         busyBar.setPreferredSize(new Dimension(150, 14));
         busyBar.setMaximumSize(new Dimension(150, 14));
@@ -357,6 +362,7 @@ public final class MainFrame extends JFrame {
         power.add(toolMenuItem("Programar consultas y reportes…",IconFactory.Kind.SQL,KeyEvent.VK_N,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openTasks(com.nexodb.db.ScheduledTasks.Kind.REPORT)));
         power.add(toolMenuItem("Respaldos programados…",IconFactory.Kind.SAVE,KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openTasks(com.nexodb.db.ScheduledTasks.Kind.BACKUP)));
         power.add(toolMenuItem("Tareas programadas…",IconFactory.Kind.SETTINGS,0,0,()->openTasks(null)));power.addSeparator();
+        power.add(toolMenuItem("Operaciones en segundo plano",IconFactory.Kind.HISTORY,0,0,this::openOperations));power.addSeparator();
         power.add(toolMenuItem("Reconstruir autocompletado",IconFactory.Kind.REFRESH,0,0,()->{queryPanel.refreshCompletions();setStatus(tr("Autocompletado actualizado."));}));
 
         JMenu reporting=UiLanguage.text(new JMenu(),UiLanguage.key("Reportería"));
@@ -399,7 +405,9 @@ public final class MainFrame extends JFrame {
     }
 
     private JMenuItem toolMenuItem(String text,IconFactory.Kind icon,int key,int modifiers,Runnable action){JMenuItem item=UiLanguage.text(new JMenuItem(tr(text),IconFactory.of(icon,16)),UiLanguage.key(text));if(key!=0)item.setAccelerator(KeyStroke.getKeyStroke(key,modifiers));item.addActionListener(e->action.run());return item;}
-    private void addToolTab(String title,JComponent panel){UiDesign.enhance(panel);workspaceTabs.addTab(title,IconFactory.of(panel instanceof VisualDatabasePanel?IconFactory.Kind.DIAGRAM:panel instanceof DataSearchPanel?IconFactory.Kind.SEARCH:panel instanceof ScheduledTasksPanel?IconFactory.Kind.EVENT:IconFactory.Kind.SQL,16),panel);int index=workspaceTabs.indexOfComponent(panel);workspaceTabs.setTabComponentAt(index,closableTab(title,panel));workspaceTabs.setSelectedComponent(panel);}
+    private void addToolTab(String title,JComponent panel){UiDesign.enhance(panel);workspaceTabs.addTab(title,IconFactory.of(panel instanceof VisualDatabasePanel?IconFactory.Kind.DIAGRAM:panel instanceof DataSearchPanel?IconFactory.Kind.SEARCH:panel instanceof ScheduledTasksPanel?IconFactory.Kind.EVENT:panel instanceof BackgroundOperationsPanel?IconFactory.Kind.HISTORY:IconFactory.Kind.SQL,16),panel);int index=workspaceTabs.indexOfComponent(panel);workspaceTabs.setTabComponentAt(index,closableTab(title,panel));workspaceTabs.setSelectedComponent(panel);}
+    private void openOperations(){for(Component component:workspaceTabs.getComponents())if(component instanceof BackgroundOperationsPanel){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Operaciones en segundo plano"),new BackgroundOperationsPanel());}
+    private void updateOperationsIndicator(){if(!SwingUtilities.isEventDispatchThread()){SwingUtilities.invokeLater(this::updateOperationsIndicator);return;}int active=BackgroundOperations.activeCount(),queued=BackgroundOperations.queuedCount();operationsButton.setText(Integer.toString(active));UiLanguage.tooltip(operationsButton,UiLanguage.caption(active==0?tr("Sin operaciones en segundo plano"):tr("Operaciones activas: ")+active+(queued>0?tr(" · En espera: ")+queued:"")));}
     private boolean requireDatabase(){if(!LicenseGate.ensure(this))return false;if(session==null||!session.isOpen()||queryPanel.activeDatabase().isBlank()){JOptionPane.showMessageDialog(this,tr("Conecta y selecciona una base de datos primero."));return false;}return true;}
     private void openQueryTool(String tool){
         if(tool.equals("reports")){openReports();return;}
@@ -1521,7 +1529,7 @@ public final class MainFrame extends JFrame {
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
         UiLanguage.tooltip(close, UiLanguage.key("Cerrar pestaña"));
-        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
+        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
         tab.add(close);
         return tab;
     }
@@ -1745,6 +1753,8 @@ public final class MainFrame extends JFrame {
         for(Component component:workspaceTabs.getComponents())if(component instanceof StoredProcedureDebugPanel debug)debug.dispose();
         for(Component component:workspaceTabs.getComponents())if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report)report.dispose();
         for(Component component:workspaceTabs.getComponents())if(component instanceof AiAssistantPanel ai)ai.dispose();
+        for(Component component:workspaceTabs.getComponents())if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();
+        BackgroundOperations.removeListener(operationsListener);
         dispose();
     }
     private boolean canCloseStoredWorkspaces(){for(Component component:workspaceTabs.getComponents()){if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return false;if(component instanceof StoredProcedureDebugPanel debug&&!debug.canClose())return false;}return true;}

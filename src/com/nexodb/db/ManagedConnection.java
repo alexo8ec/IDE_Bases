@@ -8,11 +8,14 @@ import java.util.concurrent.*;
 /** Idle validation and session recovery. SQL statements are never replayed. */
 public final class ManagedConnection implements InvocationHandler {
     @FunctionalInterface public interface Opener { Connection open() throws Exception; }
+    interface RecoveryListener {void recovering(Connection connection);void recovered(Connection connection);void failed(Connection connection);}
     /** Android's java.sql.Connection omits schema methods; expose them to the compatibility adapter. */
     public interface SchemaAccess { String getSchema() throws SQLException; void setSchema(String schema) throws SQLException; }
     private static final long IDLE_NANOS=TimeUnit.SECONDS.toNanos(15);
     private static final ScheduledThreadPoolExecutor TIMER=new ScheduledThreadPoolExecutor(2,r->{Thread t=new Thread(r,"nexodb-connection-keepalive");t.setDaemon(true);return t;});
+    private static volatile RecoveryListener RECOVERY_LISTENER=new RecoveryListener(){public void recovering(Connection c){}public void recovered(Connection c){}public void failed(Connection c){}};
     static { TIMER.setRemoveOnCancelPolicy(true); }
+    static void recoveryListener(RecoveryListener listener){RECOVERY_LISTENER=listener==null?RECOVERY_LISTENER:listener;}
     private final Opener opener;private final Runnable cleanup;
     private final IdentityHashMap<Object,Handle> handles=new IdentityHashMap<>();
     private Connection physical,proxy;private ScheduledFuture<?> heartbeat;
@@ -66,7 +69,7 @@ public final class ManagedConnection implements InvocationHandler {
     private void recover()throws SQLException{
         if(inTransaction())throw new SQLException("La conexión se interrumpió durante una transacción. No se reconectó ni se repitieron sentencias. Desconecta y vuelve a conectar para iniciar una sesión nueva.","08007");
         if(resourcesOpen())throw new SQLException("La conexión se interrumpió. Cierra la operación actual y vuelve a intentarlo.","08006");
-        Connection replacement=null;
+        RECOVERY_LISTENER.recovering(proxy);Connection replacement=null;
         try{
             replacement=opener.open();replacement.setAutoCommit(true);replacement.setReadOnly(readOnly);
             if(catalog!=null)replacement.setCatalog(catalog);
@@ -74,7 +77,8 @@ public final class ManagedConnection implements InvocationHandler {
             if(isolation!=null&&isolation!=Connection.TRANSACTION_NONE&&replacement.getTransactionIsolation()!=isolation)replacement.setTransactionIsolation(isolation);
             Connection previous=physical;physical=replacement;replacement=null;broken=false;handles.clear();lastActivity=System.nanoTime();
             try{previous.close();}catch(SQLException ignored){}
-        }catch(Exception error){broken=true;throw new SQLException("No se pudo recuperar la conexión. Comprueba la red o el servidor y vuelve a intentarlo. No se ejecutó ninguna sentencia.","08001",error);}
+            RECOVERY_LISTENER.recovered(proxy);
+        }catch(Exception error){broken=true;RECOVERY_LISTENER.failed(proxy);throw new SQLException("No se pudo recuperar la conexión. Comprueba la red o el servidor y vuelve a intentarlo. No se ejecutó ninguna sentencia.","08001",error);}
         finally{if(replacement!=null)try{replacement.close();}catch(SQLException ignored){}}
     }
     private Connection openReadOnlySibling()throws SQLException{synchronized(proxy){

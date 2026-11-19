@@ -46,6 +46,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del motor de reportes fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del disenador de reportes fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.ManagedConnectionTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de mantenimiento de conexiones fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.util.BackgroundOperationsTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del control de operaciones en segundo plano fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.BackgroundOperationsPanelTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del panel de operaciones en segundo plano fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.UserAdministrationTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de usuarios por motor fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.ForeignKeyLookupTest

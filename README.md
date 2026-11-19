@@ -1,6 +1,15 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.47**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.48**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Control de operaciones en segundo plano — 0.18.48
+
+- El nuevo panel **Operaciones en segundo plano**, disponible desde la barra superior y Herramientas avanzadas, reúne consultas, conteos, exportaciones, reportes, recargas y precargas. Muestra conexión, estado, inicio, tiempo transcurrido, progreso y un detalle breve.
+- Cada tarea se puede cancelar individualmente. Las lecturas seguras ofrecen **Reintentar**; las sentencias SQL no se repiten automáticamente para impedir que una escritura incierta se ejecute dos veces.
+- El panel permite configurar entre una y ocho operaciones simultáneas y un tiempo máximo global. El exceso permanece en espera sin saturar el servidor y los límites se conservan para el siguiente inicio.
+- La pérdida y recuperación de una conexión principal o auxiliar queda visible como una operación. AdisDB informa si se restableció o falló sin repetir sentencias ni ocultar la interrupción de una transacción.
+- El historial conserva como máximo cien estados durante la sesión. No guarda SQL, parámetros, valores devueltos, rutas JDBC, contraseñas, tokens ni otros secretos.
+- Las exportaciones incrementales y los reportes muestran su avance dentro del registro común; al cerrar la pestaña se cancelan también sus tareas y conexiones auxiliares.
 
 ## Precarga adaptativa y lecturas auxiliares — 0.18.47
 

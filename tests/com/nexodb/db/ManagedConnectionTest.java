@@ -1,5 +1,6 @@
 package com.nexodb.db;
 
+import com.nexodb.util.BackgroundOperations;
 import java.lang.reflect.Proxy;
 import java.sql.*;
 import java.util.*;
@@ -9,11 +10,13 @@ public final class ManagedConnectionTest {
     public static void main(String[] args)throws Exception {
         AtomicInteger opened=new AtomicInteger(),cleaned=new AtomicInteger();Wire first=new Wire(),next=new Wire();
         Connection managed=ManagedConnection.wrap(first.connection(),()->{opened.incrementAndGet();return next.connection();},cleaned::incrementAndGet);
+        Class.forName("com.nexodb.db.JdbcSession");BackgroundOperations.clearFinished();BackgroundOperations.registerConnection(managed,"Conexión de prueba");
         managed.setCatalog("chosen_database");managed.setSchema("reporting");managed.setReadOnly(true);managed.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
         try(Statement active=managed.createStatement()){int validations=first.validations;ManagedConnection.maintain(managed);equal(validations,first.validations);}
         ManagedConnection.maintain(managed);equal(1,first.validations);
         first.valid=false;ManagedConnection.maintain(managed);equal(1,opened.get());equal("chosen_database",next.catalog);equal("reporting",next.schema);equal(true,next.readOnly);equal(Connection.TRANSACTION_SERIALIZABLE,next.isolation);equal(0,next.executions);
-        managed.close();equal(1,cleaned.get());ManagedConnection.maintain(managed);equal(1,opened.get());
+        if(BackgroundOperations.snapshots().stream().noneMatch(item->item.kind()==BackgroundOperations.Kind.CONNECTION&&item.state()==BackgroundOperations.State.COMPLETED))throw new AssertionError("Connection recovery was not reported");
+        BackgroundOperations.unregisterConnection(managed);managed.close();equal(1,cleaned.get());ManagedConnection.maintain(managed);equal(1,opened.get());BackgroundOperations.clearFinished();
 
         Wire lost=new Wire();opened.set(0);cleaned.set(0);
         managed=ManagedConnection.wrap(lost.connection(),()->{opened.incrementAndGet();return new Wire().connection();},cleaned::incrementAndGet);

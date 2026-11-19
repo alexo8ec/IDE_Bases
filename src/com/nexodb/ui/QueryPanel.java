@@ -15,6 +15,7 @@ import com.nexodb.util.SqlDraftStore;
 import com.nexodb.util.SqlVocabulary;
 import com.nexodb.util.SqlFiles;
 import com.nexodb.util.QueryHistoryStore;
+import com.nexodb.util.BackgroundOperations;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -93,6 +94,7 @@ public final class QueryPanel extends JPanel {
     private JdbcSession session;
     private QueryResult currentResult;
     private SwingWorker<List<StatementOutcome>, Void> worker;
+    private BackgroundOperations.Operation queryOperation;
     private boolean savingResult;
     private boolean queryRunning;
     private int externalBusy;
@@ -560,11 +562,14 @@ public final class QueryPanel extends JPanel {
         appendMessage(tr("Ejecutando ") + statements.size() + (statements.size() == 1 ? tr(" sentencia") : tr(" sentencias")), preview(sql));
         JdbcSession executingSession = session;
         String executionDatabase=activeDatabase();
+        BackgroundOperations.Operation operation=BackgroundOperations.create(BackgroundOperations.Kind.QUERY,tr("Consulta SQL"),executingSession.profile().name(),()->{try{executingSession.cancel();}catch(SQLException ignored){}SwingWorker<?,?> active=worker;if(active!=null)active.cancel(true);},null);queryOperation=operation;
         worker = new SwingWorker<>() {
             @Override protected List<StatementOutcome> doInBackground() throws Exception {
+                operation.awaitTurn();
                 executingSession.setReadOnly(executeReadOnly);
                 List<StatementOutcome> outcomes = new ArrayList<>();
                 for (int i = 0; i < statements.size() && !isCancelled(); i++) {
+                    operation.progress((int)((long)i*100/statements.size()),tr("Sentencia ")+(i+1)+tr(" de ")+statements.size());
                     String statement = statements.get(i);
                     long started=System.nanoTime();
                     try {
@@ -588,6 +593,7 @@ public final class QueryPanel extends JPanel {
             @Override protected void done() {
                 setRunning(false);
                 if (isCancelled()) {
+                    operation.cancelled(tr("Consulta cancelada"));queryOperation=null;
                     statusConsumer.accept(tr("Consulta cancelada"));
                     return;
                 }
@@ -621,12 +627,14 @@ public final class QueryPanel extends JPanel {
                     else outputTabs.setSelectedComponent(messagesScroll);
                     if(firstError!=null)firstError.run();
                     statusConsumer.accept(outcomes.stream().map(StatementOutcome::index).distinct().count() + tr(" sentencias · ") + totalRows + tr(" filas · ") + errors + tr(" errores"));
+                    if(errors>0)operation.fail(errors+tr(" errores"));else operation.complete(totalRows+tr(" filas"));
                 } catch (Exception ex) {
                     Throwable cause = rootCause(ex);
+                    operation.fail(cause);
                     appendMessage("Error", cause.getMessage());
                     outputTabs.setSelectedComponent(messagesScroll);
                     statusConsumer.accept(tr("Error al ejecutar la consulta"));
-                }
+                }finally{queryOperation=null;}
             }
         };
         setRunning(true);
@@ -654,6 +662,7 @@ public final class QueryPanel extends JPanel {
     private void cancelSql() {
         if(outputTabs.getSelectedComponent() instanceof QueryResultPanel panel&&panel.canCancel()){panel.cancelOperation();return;}
         if (worker == null || worker.isDone() || session == null) return;
+        if(queryOperation!=null){queryOperation.requestCancel();return;}
         try {
             session.cancel();
             worker.cancel(true);

@@ -3,6 +3,7 @@ package com.nexodb.db;
 import com.nexodb.model.ConnectionProfile;
 import com.nexodb.model.DatabaseType;
 import com.nexodb.model.AuthenticationMode;
+import com.nexodb.util.BackgroundOperations;
 
 import java.io.File;
 import java.net.URL;
@@ -26,6 +27,7 @@ import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 public final class JdbcSession implements AutoCloseable {
+    static {ManagedConnection.recoveryListener(new ManagedConnection.RecoveryListener(){public void recovering(Connection connection){BackgroundOperations.connectionRecovering(connection);}public void recovered(Connection connection){BackgroundOperations.connectionRecovered(connection);}public void failed(Connection connection){BackgroundOperations.connectionRecoveryFailed(connection);}});}
     public record DriverCheck(boolean available, File file, String detail) {}
     public interface ResultStream {
         void start(List<String> columns,List<Integer> jdbcTypes)throws Exception;
@@ -58,6 +60,7 @@ public final class JdbcSession implements AutoCloseable {
         this.driverLoader = driverLoader;
         this.sshTunnel=sshTunnel;
         this.readPool=ownsReaders?new ReadPool(this):null;
+        BackgroundOperations.registerConnection(connection,profile.name());
     }
 
     /** At most two reusable siblings isolate background reads from the user's main connection. */
@@ -682,6 +685,7 @@ public final class JdbcSession implements AutoCloseable {
             if (!connection.isClosed() && !connection.getAutoCommit()) connection.rollback();
         } finally {
             try { connection.close(); } finally {
+                BackgroundOperations.unregisterConnection(connection);
                 try { if (driverLoader != null) driverLoader.close(); }
                 finally { if(sshTunnel!=null)sshTunnel.close(); }
             }
