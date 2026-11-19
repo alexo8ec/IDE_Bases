@@ -13,9 +13,14 @@ if ($desktopVersion -notmatch '^\d+\.\d+\.\d+$' -or $androidVersion -notmatch '^
 $updateServicePath = Join-Path $root 'src\com\nexodb\update\UpdateService.java'
 $updateService = [IO.File]::ReadAllText($updateServicePath)
 $versionPattern = [regex]'CURRENT_VERSION\s*=\s*"\d+\.\d+\.\d+"'
-$updatedService = $versionPattern.Replace($updateService, ('CURRENT_VERSION = "' + $desktopVersion + '"'), 1)
-if ($updatedService -notmatch ('CURRENT_VERSION\s*=\s*"' + [regex]::Escape($desktopVersion) + '"')) {
-    throw 'No se pudo sincronizar CURRENT_VERSION con VERSION.'
+$dynamicVersionPattern = 'CURRENT_VERSION\s*=\s*com\.nexodb\.util\.AppVersion\.current\(\)'
+if ($updateService -match $dynamicVersionPattern) {
+    $updatedService = $updateService
+} else {
+    $updatedService = $versionPattern.Replace($updateService, ('CURRENT_VERSION = "' + $desktopVersion + '"'), 1)
+    if ($updatedService -notmatch ('CURRENT_VERSION\s*=\s*"' + [regex]::Escape($desktopVersion) + '"')) {
+        throw 'No se pudo sincronizar CURRENT_VERSION con VERSION.'
+    }
 }
 [IO.File]::WriteAllText($updateServicePath, $updatedService, [Text.UTF8Encoding]::new($false))
 

@@ -1,6 +1,6 @@
 {
-  "version": "0.18.46",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.46-win64.zip",
-  "sha256": "4a948b794fcf20f7fb24752da52f3bc58a6b7aabd839d7f297b175bea107f05c",
-  "notes": "AdisDB 0.18.46: conteo asíncrono cancelable, navegación directa y última página rápida mediante clave inversa."
+  "version": "0.18.47",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.47-win64.zip",
+  "sha256": "1c8b0f95a73d7dcaafde815849f95c2f42d70a0fcb2b80202270c252c42f1188",
+  "notes": "AdisDB 0.18.47: precarga adaptativa, conexiones auxiliares de solo lectura, prioridad para acciones del usuario e iconos de orden y filtro juntos."
 }

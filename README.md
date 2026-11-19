@@ -1,6 +1,15 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.46**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.47**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Precarga adaptativa y lecturas auxiliares — 0.18.47
+
+- La página siguiente y la anterior se precargan discretamente cuando la consulta, la memoria y la latencia lo permiten. Volver o avanzar suele ser inmediato sin conservar resultados ilimitados en memoria.
+- La caché se ajusta entre dos y cuatro páginas según la memoria disponible. Cambiar filtros, orden, tamaño de página o consulta cancela cualquier precarga obsoleta y descarta sus cursores.
+- Conteos, exportaciones completas, recargas para Reportería y lectura de metadatos usan conexiones auxiliares de solo lectura. La conexión principal queda libre para continuar trabajando y las credenciales permanecen dentro de la conexión segura existente.
+- Las acciones solicitadas por el usuario tienen prioridad: navegar, recargar, contar manualmente o exportar cancela el trabajo especulativo. El grupo auxiliar está limitado a dos conexiones reutilizables y aplica esperas máximas para no dejar tareas detenidas indefinidamente.
+- Los encabezados muestran juntos, en su extremo derecho, el icono de orden ascendente/descendente y el icono de filtro. El área del título continúa seleccionando la columna sin modificar el orden.
+- Al cerrar una consulta se cancelan sus conteos, exportaciones, recargas y precargas. Las pruebas verifican reutilización y límite del grupo de conexiones, cancelación por prioridad, recuperación de páginas, filtros, edición, JOIN y exportación incremental.
 
 ## Conteo asíncrono y navegación avanzada — 0.18.46
 
