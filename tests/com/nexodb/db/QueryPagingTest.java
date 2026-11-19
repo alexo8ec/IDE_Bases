@@ -39,6 +39,7 @@ public final class QueryPagingTest {
             equal(2505L,session.countRows("SELECT * FROM entries ORDER BY id",List.of(),5));equal(505L,session.countRows("SELECT * FROM entries WHERE id > ? ORDER BY id",List.of(2000),5));
             JdbcSession firstReader=null,secondReader=null;try(JdbcSession.ReadLease first=session.borrowReadOnly();JdbcSession.ReadLease second=session.borrowReadOnly()){
                 firstReader=first.session();secondReader=second.session();equal(true,firstReader.profile().readOnly());equal(true,secondReader.profile().readOnly());equal(false,firstReader==secondReader);equal(2505L,firstReader.countRows("SELECT * FROM entries",List.of(),5));equal(505L,secondReader.countRows("SELECT * FROM entries WHERE id>?",List.of(2000),5));
+                long started=System.nanoTime();try(JdbcSession.ReadLease ignored=session.borrowReadOnly(40)){throw new AssertionError("Read pool exceeded its bounded size");}catch(java.sql.SQLTimeoutException expected){}if(System.nanoTime()-started>java.util.concurrent.TimeUnit.SECONDS.toNanos(2))throw new AssertionError("Read pool timeout did not stop promptly");
             }
             try(JdbcSession.ReadLease reused=session.borrowReadOnly()){equal(true,reused.session()==firstReader||reused.session()==secondReader);}
             QueryResult descending=session.executeSeekPage("SELECT * FROM entries ORDER BY id DESC",List.of(),3,List.of("ID","NAME"),List.of(new QueryPaging.Order(0,true)),List.of(2503));equal(List.of(2502,2501,2500),descending.rows().stream().map(row->row.get(0)).toList());
@@ -48,7 +49,7 @@ public final class QueryPagingTest {
             for(int size:List.of(0,10001))try{session.executePage("SELECT 1",size,0);throw new AssertionError("Invalid size accepted");}catch(IllegalArgumentException expected){}
             equal(2505,session.execute("SELECT id FROM entries",3000).rows().size());
         }
-        System.out.println("QueryPagingTest: OK (offset/keyset paging, concurrent inserts, independent read pool, counts, filters, metadata and safe replay)");
+        System.out.println("QueryPagingTest: OK (offset/keyset paging, concurrent inserts, bounded independent read pool, counts, filters, metadata and safe replay)");
     }
     private static void equal(Object expected,Object actual){if(!Objects.equals(expected,actual))throw new AssertionError(expected+" != "+actual);}
 }

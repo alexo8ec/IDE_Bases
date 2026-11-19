@@ -66,14 +66,16 @@ public final class JdbcSession implements AutoCloseable {
         private final JdbcSession owner;private final Deque<JdbcSession> idle=new ArrayDeque<>();
         private final Set<JdbcSession> all=Collections.newSetFromMap(new IdentityHashMap<>());private int opening;private boolean closed;
         private ReadPool(JdbcSession owner){this.owner=owner;}
-        ReadLease borrow()throws Exception{
+        ReadLease borrow(long timeoutMillis)throws Exception{
+            long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(Math.max(1,timeoutMillis));
             JdbcSession available;
             synchronized(this){
                 while(true){
                     if(closed)throw new SQLException("La conexión principal está cerrada.","08003");
                     while((available=idle.pollFirst())!=null){if(available.isOpen())return new ReadLease(this,available);all.remove(available);}
                     if(all.size()+opening<LIMIT){opening++;break;}
-                    try{wait();}catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw interrupted;}
+                    long remaining=deadline-System.nanoTime();if(remaining<=0)throw new SQLTimeoutException("Las conexiones auxiliares están ocupadas. La operación principal puede continuar y puedes volver a intentarlo.","HYT00");
+                    try{java.util.concurrent.TimeUnit.NANOSECONDS.timedWait(this,remaining);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw interrupted;}
                 }
             }
             JdbcSession created;
@@ -431,7 +433,8 @@ public final class JdbcSession implements AutoCloseable {
 
     public ConnectionProfile profile() { return profile; }
     public Connection connection() { return connection; }
-    public ReadLease borrowReadOnly()throws Exception{if(readPool==null)throw new SQLException("Una sesión auxiliar no puede crear más conexiones auxiliares.");return readPool.borrow();}
+    public ReadLease borrowReadOnly()throws Exception{return borrowReadOnly(30_000);}
+    public ReadLease borrowReadOnly(long timeoutMillis)throws Exception{if(readPool==null)throw new SQLException("Una sesión auxiliar no puede crear más conexiones auxiliares.");return readPool.borrow(timeoutMillis);}
     public boolean isOpen() {
         try { return !connection.isClosed(); }
         catch (SQLException e) { return false; }

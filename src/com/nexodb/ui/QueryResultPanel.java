@@ -212,10 +212,10 @@ final class QueryResultPanel extends JPanel {
         boolean full=pageable&&!hasChanges()&&(serverView||pagingRequested||limit==Integer.MAX_VALUE||snapshot.truncated());
         if(!full){ResultExports.write(this,snapshot,name,initial==null?DataExporter.Format.CSV:initial,changed);return;}
         ExportChooser.Request request=initial==null?ExportChooser.choose(this,name):ExportChooser.choose(this,name,initial);if(request==null)return;
-        String exportSql=viewSql;List<Object> parameters=List.copyOf(viewParameters);
+        cancelPrefetch();String exportSql=viewSql;List<Object> parameters=List.copyOf(viewParameters);
         exportWorker=new SwingWorker<Long,Long>(){
             protected Long doInBackground()throws Exception{
-                try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){
+                try(JdbcSession.ReadLease lease=origin.borrowReadOnly(30_000)){
                     exportLease=lease;return DataExporter.writeStreaming(request.path(),request.format(),name,writer->lease.session().streamResult(exportSql,parameters,Long.MAX_VALUE,new JdbcSession.ResultStream(){
                         public void start(List<String> columns,List<Integer> types)throws Exception{writer.start(columns);}
                         public void row(List<Object> values)throws Exception{writer.row(values);}
@@ -242,7 +242,7 @@ final class QueryResultPanel extends JPanel {
         if(JOptionPane.showConfirmDialog(this,tr("Hay cambios sin guardar en este resultado. ¿Deseas descartarlos?"),tr("Cambios pendientes"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)!=JOptionPane.YES_OPTION)return false;
         discardChanges();return true;
     }
-    void setAvailable(JdbcSession current,boolean operationBusy){available=!disposed&&current==origin&&origin!=null&&origin.isOpen()&&!operationBusy;updateActions();}
+    void setAvailable(JdbcSession current,boolean operationBusy){available=!disposed&&current==origin&&origin!=null&&origin.isOpen()&&!operationBusy;if(!available)cancelPrefetch();else schedulePrefetch();updateActions();}
     void disposePanel(){
         if(disposed)return;disposed=true;available=false;viewTimer.stop();countTimer.stop();cancelPrefetch();countGeneration++;reloadGeneration++;
         if(exportWorker!=null)exportWorker.cancel(true);if(countWorker!=null)countWorker.cancel(true);if(reloadWorker!=null)reloadWorker.cancel(true);
@@ -277,9 +277,9 @@ final class QueryResultPanel extends JPanel {
     private void startCount(boolean requested){
         if(!pageable||!available||saving||totalRows>=0)return;if(countWorker!=null&&!countWorker.isDone()){if(requested)cancelCount(true);return;}
         boolean cheap=QueryPaging.cheapCount(viewSql);if(requested&&!cheap&&!confirm.test("Conteo exacto",tr("Esta consulta puede requerir un conteo costoso en el servidor y se cancelará automáticamente después de 20 segundos. ¿Continuar?"))){pendingLastPage=false;return;}
-        int generation=++countGeneration;String source=viewSql;List<Object> parameters=List.copyOf(viewParameters);UiLanguage.text(status,UiLanguage.key("Calculando total…"));updateCount();
+        if(requested)cancelPrefetch();int generation=++countGeneration;String source=viewSql;List<Object> parameters=List.copyOf(viewParameters);UiLanguage.text(status,UiLanguage.key("Calculando total…"));updateCount();
         countWorker=new SwingWorker<>(){
-            protected Long doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){countLease=lease;return lease.session().countRows(source,parameters,20);}finally{countLease=null;}}
+            protected Long doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly(requested?15_000:5_000)){countLease=lease;return lease.session().countRows(source,parameters,20);}finally{countLease=null;}}
             protected void done(){
                 if(generation!=countGeneration)return;boolean openLast=pendingLastPage;pendingLastPage=false;
                 try{totalRows=get();estimatedRows=Math.max(estimatedRows,totalRows);UiLanguage.text(status,UiLanguage.key("Total calculado: "),totalRows,UiLanguage.key(" filas"));}
@@ -314,7 +314,7 @@ final class QueryResultPanel extends JPanel {
         if(requested.isEmpty())return;int generation=++prefetchGeneration;String source=viewSql;List<Object> parameters=List.copyOf(viewParameters);List<QueryPaging.Order> order=seekOrder();Map<PageKey,PageAnchor> anchors=new LinkedHashMap<>();for(PageKey key:requested){PageAnchor anchor=key.offset()==0?new PageAnchor(order,List.of()):pageAnchors.get(key);if(anchor!=null)anchors.put(key,anchor);}
         prefetchWorker=new SwingWorker<>(){
             protected List<PrefetchedPage> doInBackground()throws Exception{
-                try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){
+                try(JdbcSession.ReadLease lease=origin.borrowReadOnly(750)){
                     prefetchLease=lease;List<PrefetchedPage> pages=new java.util.ArrayList<>();for(PageKey key:requested){if(isCancelled())break;PageAnchor anchor=anchors.get(key);LoadedPage loaded=executePage(lease.session(),source,parameters,key.size(),key.offset(),order,anchor);pages.add(new PrefetchedPage(key,loaded.result(),loaded.keyset()));}return pages;
                 }finally{prefetchLease=null;}
             }
@@ -332,7 +332,7 @@ final class QueryResultPanel extends JPanel {
     private void openLastPage(){if(totalRows<0){pendingLastPage=true;startCount(true);return;}loadLastPage();}
     private void loadLastPage(){
         if(totalRows<0||!available||saving||!pageable)return;long offset=totalRows==0?0:((totalRows-1)/pageSize)*pageSize;if(offset==pageOffset)return;PageKey key=new PageKey(offset,pageSize);QueryResult cached=pageCache.get(key);if(cached!=null){showPage(cached,offset,pageSize,keysetPages.contains(key));return;}
-        if(!confirmDiscard())return;if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){showError(new IllegalStateException(tr("La base o el esquema activo cambió.")),"Última página");return;}cancelCount(false);start();UiLanguage.text(status,UiLanguage.key("Cargando última página…"));
+        if(!confirmDiscard())return;if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){showError(new IllegalStateException(tr("La base o el esquema activo cambió.")),"Última página");return;}cancelCount(false);cancelPrefetch();start();UiLanguage.text(status,UiLanguage.key("Cargando última página…"));
         new SwingWorker<LoadedPage,Void>(){
             protected LoadedPage doInBackground()throws Exception{
                 List<QueryPaging.Order> order=seekOrder();if(!order.isEmpty())try{int rows=(int)Math.max(1,totalRows-offset);QueryResult reverse=origin.executeSeekPage(viewSql,viewParameters,rows,viewColumns,QueryPaging.reverse(order),List.of());List<List<Object>> values=new java.util.ArrayList<>(reverse.rows());java.util.Collections.reverse(values);return new LoadedPage(reverse.withRows(values,false).withContext(viewEditing,viewOrigins),true);}catch(IllegalArgumentException error){}catch(java.sql.SQLException error){String state=java.util.Objects.toString(error.getSQLState(),"");if(state.startsWith("08")||state.equals("57014")||state.equalsIgnoreCase("HY008"))throw error;}
@@ -397,7 +397,7 @@ final class QueryResultPanel extends JPanel {
         if(!confirmDiscard()){restorePageChoice();completion.accept(null,new java.util.concurrent.CancellationException(tr("Actualización cancelada.")));return;}
         if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){restorePageChoice();completion.accept(null,new IllegalStateException(tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de paginar.")));return;}
         if(useCache){PageKey current=new PageKey(pageOffset,pageSize),requested=new PageKey(offset,size);pageCache.put(current,model.definition());QueryResult cached=pageCache.get(requested);if(cached!=null){showPage(cached,offset,size,keysetPages.contains(requested));completion.accept(cached,null);return;}}
-        cancelCount(false);
+        cancelCount(false);cancelPrefetch();
         start();UiLanguage.text(status,UiLanguage.key("Cargando página…"));
         new SwingWorker<LoadedPage,Void>() {
             protected LoadedPage doInBackground()throws Exception{return executeViewPage(size,offset);}
@@ -475,7 +475,7 @@ final class QueryResultPanel extends JPanel {
         int generation=++referenceGeneration;references=List.of();if(origin==null||!origin.isOpen())return;
         QueryResult definition=model.definition();
         new SwingWorker<List<ForeignKeyLookup.Reference>,Void>(){
-            protected List<ForeignKeyLookup.Reference> doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){return ForeignKeyLookup.describe(lease.session().connection(),definition);}}
+            protected List<ForeignKeyLookup.Reference> doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly(5_000)){return ForeignKeyLookup.describe(lease.session().connection(),definition);}}
             protected void done(){if(generation!=referenceGeneration||model.definition()!=definition)return;try{references=get();}catch(Exception unavailable){UiLanguage.tooltip(referenceButton,UiLanguage.key("No se pudieron leer las claves foráneas. Comprueba los permisos de metadatos."));}table.getTableHeader().repaint();table.repaint();updateActions();}
         }.execute();
     }
@@ -489,7 +489,7 @@ final class QueryResultPanel extends JPanel {
                 String database=requested.table().schema();if(database==null||database.isBlank())database=requested.table().catalog();
                 if(database==null||database.isBlank())return Map.of();
                 Map<String,String> types=new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-                try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){
+                try(JdbcSession.ReadLease lease=origin.borrowReadOnly(5_000)){
                     try(var statement=lease.session().connection().prepareStatement("SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=?")){
                         statement.setString(1,database);statement.setString(2,requested.table().name());
                         try(var rows=statement.executeQuery()){while(rows.next())types.put(rows.getString(1),rows.getString(2));}
@@ -596,7 +596,7 @@ final class QueryResultPanel extends JPanel {
         if(pageable){resetTotal();resetPagingState();}
         String replay=target==null?sql:QueryEditSupport.qualifiedSelect(sql,target);long offset=pageOffset;int size=pageSize,generation=++reloadGeneration;List<QueryPaging.Order> order=seekOrder();PageAnchor anchor=offset==0?new PageAnchor(order,List.of()):pageAnchors.get(new PageKey(offset,size));java.util.concurrent.atomic.AtomicBoolean loadedByKey=new java.util.concurrent.atomic.AtomicBoolean();startLocal();UiLanguage.text(status,UiLanguage.key("Recargando en una conexión auxiliar…"));
         reloadWorker=new SwingWorker<>() {
-            protected QueryResult doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){reloadLease=lease;if(!pageable)return lease.session().executeEditable(replay,rowLimit.getAsInt());LoadedPage loaded=executePage(lease.session(),viewSql,List.copyOf(viewParameters),size,offset,order,anchor);loadedByKey.set(loaded.keyset());return loaded.result();}finally{reloadLease=null;}}
+            protected QueryResult doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly(15_000)){reloadLease=lease;if(!pageable)return lease.session().executeEditable(replay,rowLimit.getAsInt());LoadedPage loaded=executePage(lease.session(),viewSql,List.copyOf(viewParameters),size,offset,order,anchor);loadedByKey.set(loaded.keyset());return loaded.result();}finally{reloadLease=null;}}
             protected void done(){
                 if(generation!=reloadGeneration||disposed)return;
                 try{QueryResult fresh=get();if(pageable)showPage(fresh,offset,size,loadedByKey.get());else{long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();}completion.accept(fresh,null);}
