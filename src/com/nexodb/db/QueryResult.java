@@ -83,6 +83,10 @@ public record QueryResult(List<String> columns, List<List<Object>> rows, int upd
         return new QueryResult(columns,rows,updateCount,elapsedMillis,truncated,eligibility,sourceOrigins,jdbcTypes,hiddenColumns,timing);
     }
 
+    public QueryResult withRows(List<List<Object>> value,boolean hasMore) {
+        return new QueryResult(columns,List.copyOf(value),updateCount,elapsedMillis,hasMore,editing,origins,jdbcTypes,hiddenColumns,timing);
+    }
+
     public QueryResult withHiddenColumns(int count){return new QueryResult(columns,rows,updateCount,elapsedMillis,truncated,editing,origins,jdbcTypes,count,timing);}
     public int visibleColumnCount(){return columns.size()-hiddenColumns;}
 

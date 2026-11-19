@@ -1,6 +1,15 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.45**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+La versión actual de escritorio es **0.18.46**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.24**.
+
+## Conteo asíncrono y navegación avanzada — 0.18.46
+
+- El total exacto se calcula en segundo plano sin inmovilizar la interfaz. Mientras no se conoce, el pie muestra una estimación conservadora de **al menos** las filas alcanzadas.
+- Los `SELECT` sencillos se cuentan automáticamente. Las consultas con agrupaciones, valores distintos, uniones o límites solicitan confirmación antes del conteo costoso, aplican un límite de 20 segundos y permiten cancelar la operación.
+- La navegación incorpora primera y última página, además de un campo para escribir directamente el número de página. Los controles se actualizan con el total, el rango y el número real de páginas.
+- La última página usa el orden inverso de una clave estable y recupera únicamente las filas finales necesarias. Si la consulta no posee una clave u orden seguro, conserva automáticamente la ruta compatible por `OFFSET`.
+- Los saltos directos a páginas muy profundas advierten cuando todavía no existe un cursor eficiente. Cambiar filtros, orden o datos invalida el total anterior para impedir que se muestre información desactualizada.
+- Las pruebas verifican conteos exactos con parámetros, cancelación disponible, navegación inicial/final/directa, última página por clave inversa y los respaldos seguros entre dialectos.
 
 ## Paginación por clave para páginas profundas — 0.18.45
 

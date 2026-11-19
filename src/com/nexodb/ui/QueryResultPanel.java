@@ -34,7 +34,7 @@ final class QueryResultPanel extends JPanel {
     private final List<Integer> viewTypes;
     private final QueryEditSupport.Eligibility viewEditing;
     private final List<QueryResult.Origin> viewOrigins;
-    private final Timer viewTimer;
+    private final Timer viewTimer,countTimer;
     private ResultGridActions.ViewState activeView=new ResultGridActions.ViewState("",Map.of(),List.of()),pendingView=activeView;
     private final JToggleButton edit = UiLanguage.text(new JToggleButton(),UiLanguage.key("Editar"));
     private final JComboBox<String> mode=new JComboBox<>(new String[]{"Solo lectura"});
@@ -49,8 +49,9 @@ final class QueryResultPanel extends JPanel {
     private final JButton reload = UiLanguage.text(new JButton(),UiLanguage.key("Recargar"));
     private final JTextField filter = new JTextField(14);
     private final JLabel status = new JLabel(), count = new JLabel();
-    private final JLabel elapsed=new JLabel(),pageLabel=new JLabel();
-    private final JButton previous=new JButton("◀"),next=new JButton("▶");
+    private final JLabel elapsed=new JLabel(),pageLabel=new JLabel(),totalLabel=new JLabel();
+    private final JButton firstPage=new JButton("⏮"),previous=new JButton("◀"),next=new JButton("▶"),lastPage=new JButton("⏭"),countRows=UiLanguage.button("Contar");
+    private final JTextField pageNumber=new JTextField(4);
     private final JComboBox<String> pageSizeChoice=new JComboBox<>(new String[]{"100","500","1000","Personalizado…"});
     private long pageOffset;
     private int pageSize=1000;
@@ -64,6 +65,10 @@ final class QueryResultPanel extends JPanel {
     private final ResultGridActions grid;
     private Runnable exportAction;
     private SwingWorker<Long,Long> exportWorker;
+    private SwingWorker<Long,Void> countWorker;
+    private long totalRows=-1,estimatedRows;
+    private int countGeneration;
+    private boolean pendingLastPage;
     private boolean available, saving, pendingCommit, stale;
     private List<ForeignKeyLookup.Reference> references=List.of();
     private final JButton referenceButton=UiLanguage.button("Ver referencia");
@@ -121,17 +126,18 @@ final class QueryResultPanel extends JPanel {
         UiLanguage.placeholder(filter,"Filtrar resultados…");filter.setName("query-filter");filter.setMaximumSize(new Dimension(200,28));toolbar.add(filter);
         JPanel footer=new JPanel(new BorderLayout(8,3));footer.setBorder(BorderFactory.createEmptyBorder(4,5,4,5));
         JPanel counts=new JPanel(new BorderLayout(8,0));counts.add(status);counts.add(count,BorderLayout.EAST);footer.add(counts,BorderLayout.NORTH);
-        JPanel paging=new JPanel(new FlowLayout(FlowLayout.LEFT,7,0));paging.add(previous);paging.add(pageLabel);paging.add(next);paging.add(UiLanguage.label("Filas por página:"));paging.add(pageSizeChoice);paging.add(elapsed);footer.add(paging,BorderLayout.SOUTH);
-        previous.setName("query-page-previous");next.setName("query-page-next");pageSizeChoice.setName("query-page-size");elapsed.setName("query-elapsed");
-        previous.setMargin(new Insets(2,7,2,7));next.setMargin(new Insets(2,7,2,7));UiLanguage.tooltip(previous,UiLanguage.key("Página anterior"));UiLanguage.tooltip(next,UiLanguage.key("Página siguiente"));
+        JPanel paging=new JPanel(new FlowLayout(FlowLayout.LEFT,7,0));paging.add(firstPage);paging.add(previous);paging.add(pageLabel);paging.add(next);paging.add(lastPage);paging.add(UiLanguage.label("Página:"));paging.add(pageNumber);paging.add(totalLabel);paging.add(countRows);paging.add(UiLanguage.label("Filas por página:"));paging.add(pageSizeChoice);paging.add(elapsed);footer.add(paging,BorderLayout.SOUTH);
+        firstPage.setName("query-page-first");previous.setName("query-page-previous");next.setName("query-page-next");lastPage.setName("query-page-last");pageNumber.setName("query-page-number");totalLabel.setName("query-total-rows");countRows.setName("query-count-rows");pageSizeChoice.setName("query-page-size");elapsed.setName("query-elapsed");
+        for(JButton button:List.of(firstPage,previous,next,lastPage))button.setMargin(new Insets(2,7,2,7));pageNumber.setHorizontalAlignment(JTextField.RIGHT);pageNumber.setMaximumSize(new Dimension(60,26));countRows.setMargin(new Insets(2,7,2,7));
+        UiLanguage.tooltip(firstPage,UiLanguage.key("Primera página"));UiLanguage.tooltip(previous,UiLanguage.key("Página anterior"));UiLanguage.tooltip(next,UiLanguage.key("Página siguiente"));UiLanguage.tooltip(lastPage,UiLanguage.key("Última página"));UiLanguage.tooltip(pageNumber,UiLanguage.key("Escribe el número de página y presiona Enter"));
         changingPageSize=true;String initialSize=""+pageSize;if(!java.util.Set.of("100","500","1000").contains(initialSize))pageSizeChoice.insertItemAt(initialSize,0);pageSizeChoice.setSelectedItem(initialSize);changingPageSize=false;
         UiLanguage.tooltip(pageSizeChoice,UiLanguage.key(serverView?"La paginación, los filtros y el orden se ejecutan sobre todo el resultado en la base de datos.":"Cambiar de página vuelve a ejecutar el SELECT. Usa ORDER BY para mantener un orden estable."));
-        previous.addActionListener(e->loadPage(Math.max(0,pageOffset-pageSize),pageSize));next.addActionListener(e->loadPage(pageOffset+model.dataRowCount(),pageSize));
+        firstPage.addActionListener(e->loadPage(0,pageSize));previous.addActionListener(e->loadPage(Math.max(0,pageOffset-pageSize),pageSize));next.addActionListener(e->loadPage(pageOffset+model.dataRowCount(),pageSize));lastPage.addActionListener(e->openLastPage());pageNumber.addActionListener(e->openPageNumber());countRows.addActionListener(e->{if(countWorker!=null&&!countWorker.isDone())cancelCount(true);else startCount(true);});
         pageSizeChoice.addActionListener(e->{if(changingPageSize||!pageable)return;String choice=(String)pageSizeChoice.getSelectedItem();int size=pageSize;
             try{if("Personalizado…".equals(choice)){String value=JOptionPane.showInputDialog(this,tr("Filas por página (1 a 10000):"),pageSize);if(value==null){restorePageChoice();return;}size=Integer.parseInt(value.trim());}else size=Integer.parseInt(choice);if(size<1||size>10000)throw new NumberFormatException();loadPage(0,size);}catch(NumberFormatException error){JOptionPane.showMessageDialog(this,tr("El tamaño de página debe estar entre 1 y 10.000 filas."));restorePageChoice();}});
         scroll=new JScrollPane(table);
         grid=new ResultGridActions(table,model,scroll,filter,this::updateCount,changed);
-        viewTimer=new Timer(350,event->applyServerView());viewTimer.setRepeats(false);
+        viewTimer=new Timer(350,event->applyServerView());viewTimer.setRepeats(false);countTimer=new Timer(700,event->{if(totalRows<0&&countWorker==null&&QueryPaging.cheapCount(viewSql))startCount(false);});countTimer.setRepeats(false);
         if(serverView){
             grid.serverView(this::scheduleServerView);
             filter.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){private void changed(){scheduleServerView(grid.viewState());}public void insertUpdate(javax.swing.event.DocumentEvent e){changed();}public void removeUpdate(javax.swing.event.DocumentEvent e){changed();}public void changedUpdate(javax.swing.event.DocumentEvent e){changed();}});
@@ -160,7 +166,9 @@ final class QueryResultPanel extends JPanel {
         table.getColumnModel().getSelectionModel().addListSelectionListener(event->updateActions());
         model.onChange(()->{updateActions();table.repaint();});
         setAvailable(origin,false);
+        estimatedRows=result.rows().size()+(result.truncated()?1:0);if(!result.truncated())totalRows=result.rows().size();
         if(pageable){PageKey first=new PageKey(0,pageSize);pageCache.put(first,result);List<QueryPaging.Order> order=seekOrder();if(initialKeysetReady(order)){keysetPages.add(first);rememberNextAnchor(0,pageSize,result,order);keysetActive=true;}else if(result.truncated()&&!order.isEmpty())SwingUtilities.invokeLater(()->loadPage(0,pageSize,(fresh,error)->{},false));}
+        updateCount();if(totalRows<0&&pageable)countTimer.restart();
         loadReferences();
     }
     private static void button(AbstractButton button,String name,IconFactory.Kind icon,String hint){button.setName(name);button.setIcon(IconFactory.of(icon,16));UiLanguage.tooltip(button,UiLanguage.key(hint));}
@@ -190,8 +198,8 @@ final class QueryResultPanel extends JPanel {
     void setRenderMillis(long value){renderMillis=Math.max(0,value);updateCount();}
     void resetReadOnly(){finishEditing();edit.setSelected(false);updateActions();}
     void setExportAction(Runnable action){exportAction=action;}
-    boolean canCancel(){return exportWorker!=null&&!exportWorker.isDone();}
-    void cancelOperation(){if(!canCancel())return;exportWorker.cancel(true);try{origin.cancel();}catch(java.sql.SQLException ignored){}changed.accept(tr("Exportación cancelada"));}
+    boolean canCancel(){return exportWorker!=null&&!exportWorker.isDone()||countWorker!=null&&!countWorker.isDone();}
+    void cancelOperation(){if(exportWorker!=null&&!exportWorker.isDone()){exportWorker.cancel(true);try{origin.cancel();}catch(java.sql.SQLException ignored){}changed.accept(tr("Exportación cancelada"));return;}cancelCount(true);}
     void exportData(){exportResult(null);}
     private void exportResult(DataExporter.Format initial){
         String name=target==null?"resultado":target.qualifiedTable();QueryResult snapshot=model.snapshot();
@@ -247,7 +255,49 @@ final class QueryResultPanel extends JPanel {
         elapsed.setToolTipText("<html>"+tr("Tiempo total hasta recibir y preparar el resultado:")+" <b>"+timing.totalMillis()+" ms</b><br>"+tr("Servidor/red hasta responder:")+" "+timing.serverMillis()+" ms<br>"+tr("Lectura y conversión de filas:")+" "+timing.fetchMillis()+" ms<br>"+tr("Metadatos y edición segura:")+" "+timing.metadataMillis()+" ms<br>"+tr("Construcción de la cuadrícula:")+" "+renderMillis+" ms</html>");
         pageLabel.setText((model.dataRowCount()==0?0:pageOffset+1)+"–"+(pageOffset+model.dataRowCount())+(model.definition().truncated()?" · +":"")+(keysetActive?" · clave":""));
         pageLabel.setToolTipText(keysetActive?tr("Paginación por clave activa: esta página no recorrió las filas anteriores."):tr("Paginación compatible por desplazamiento."));
-        previous.setEnabled(available&&!saving&&pageable&&pageOffset>0);next.setEnabled(available&&!saving&&pageable&&model.definition().truncated());pageSizeChoice.setEnabled(available&&!saving&&pageable);
+        long pages=totalRows<0?-1:Math.max(1,(totalRows+pageSize-1)/pageSize);if(!pageNumber.isFocusOwner())pageNumber.setText(""+(pageOffset/pageSize+1));
+        totalLabel.setText(totalRows>=0?tr("de ")+totalRows+tr(" filas · ")+pages+tr(" páginas"):tr("al menos ")+Math.max(estimatedRows,pageOffset+model.dataRowCount()+(model.definition().truncated()?1:0))+tr(" filas"));
+        boolean idle=available&&!saving&&pageable;firstPage.setEnabled(idle&&pageOffset>0);previous.setEnabled(idle&&pageOffset>0);next.setEnabled(idle&&model.definition().truncated());lastPage.setEnabled(idle&&(totalRows<0||pageOffset+model.dataRowCount()<totalRows));pageNumber.setEnabled(idle);pageSizeChoice.setEnabled(idle);
+        boolean counting=countWorker!=null&&!countWorker.isDone();countRows.setText(tr(counting?"Cancelar conteo":"Contar"));countRows.setEnabled(pageable&&(counting||available&&!saving&&totalRows<0));
+    }
+
+    private void startCount(boolean requested){
+        if(!pageable||!available||saving||totalRows>=0)return;if(countWorker!=null&&!countWorker.isDone()){if(requested)cancelCount(true);return;}
+        boolean cheap=QueryPaging.cheapCount(viewSql);if(requested&&!cheap&&!confirm.test("Conteo exacto",tr("Esta consulta puede requerir un conteo costoso en el servidor y se cancelará automáticamente después de 20 segundos. ¿Continuar?"))){pendingLastPage=false;return;}
+        int generation=++countGeneration;String source=viewSql;List<Object> parameters=List.copyOf(viewParameters);UiLanguage.text(status,UiLanguage.key("Calculando total…"));updateCount();
+        countWorker=new SwingWorker<>(){
+            protected Long doInBackground()throws Exception{return origin.countRows(source,parameters,20);}
+            protected void done(){
+                if(generation!=countGeneration)return;boolean openLast=pendingLastPage;pendingLastPage=false;
+                try{totalRows=get();estimatedRows=Math.max(estimatedRows,totalRows);UiLanguage.text(status,UiLanguage.key("Total calculado: "),totalRows,UiLanguage.key(" filas"));}
+                catch(Exception error){Throwable cause=root(error);if(!isCancellation(cause)){String message=cause instanceof java.sql.SQLTimeoutException||java.util.Objects.toString(cause.getMessage(),"").toLowerCase(java.util.Locale.ROOT).contains("timeout")?tr("El conteo superó 20 segundos y fue cancelado. Puedes continuar navegando con la estimación."):tr("No se pudo calcular el total: ")+java.util.Objects.toString(cause.getMessage(),cause.getClass().getSimpleName());UiLanguage.text(status,UiLanguage.key(message));changed.accept(message);}openLast=false;}
+                finally{countWorker=null;busy.accept(false);updateCount();}
+                if(openLast)SwingUtilities.invokeLater(QueryResultPanel.this::loadLastPage);
+            }
+        };busy.accept(true);countWorker.execute();updateCount();
+    }
+    private void cancelCount(boolean report){
+        countTimer.stop();pendingLastPage=false;SwingWorker<Long,Void> worker=countWorker;if(worker==null||worker.isDone())return;countGeneration++;worker.cancel(true);countWorker=null;try{origin.cancel();}catch(java.sql.SQLException ignored){}busy.accept(false);if(report){UiLanguage.text(status,UiLanguage.key("Conteo cancelado"));changed.accept(tr("Conteo cancelado"));}updateCount();
+    }
+    private void resetTotal(){cancelCount(false);totalRows=-1;estimatedRows=0;pendingLastPage=false;updateCount();}
+    private void scheduleCount(){if(totalRows<0&&pageable&&QueryPaging.cheapCount(viewSql))countTimer.restart();}
+
+    private void openPageNumber(){
+        if(!pageable||saving)return;try{long page=Long.parseLong(pageNumber.getText().trim());if(page<1)throw new NumberFormatException();long offset=Math.multiplyExact(page-1L,pageSize);if(totalRows>=0&&offset>=Math.max(totalRows,1))throw new NumberFormatException();
+            if(offset>100_000&&!pageAnchors.containsKey(new PageKey(offset,pageSize))&&!confirm.test("Abrir página",tr("Ir directamente a una página profunda puede ser lento porque todavía no existe un cursor para esa posición. ¿Continuar?"))){updateCount();return;}loadPage(offset,pageSize);
+        }catch(ArithmeticException|NumberFormatException error){JOptionPane.showMessageDialog(this,totalRows>=0?tr("Escribe una página entre 1 y ")+Math.max(1,(totalRows+pageSize-1)/pageSize)+".":tr("Escribe un número de página válido."));updateCount();}
+    }
+    private void openLastPage(){if(totalRows<0){pendingLastPage=true;startCount(true);return;}loadLastPage();}
+    private void loadLastPage(){
+        if(totalRows<0||!available||saving||!pageable)return;long offset=totalRows==0?0:((totalRows-1)/pageSize)*pageSize;if(offset==pageOffset)return;PageKey key=new PageKey(offset,pageSize);QueryResult cached=pageCache.get(key);if(cached!=null){showPage(cached,offset,pageSize,keysetPages.contains(key));return;}
+        if(!confirmDiscard())return;if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){showError(new IllegalStateException(tr("La base o el esquema activo cambió.")),"Última página");return;}cancelCount(false);start();UiLanguage.text(status,UiLanguage.key("Cargando última página…"));
+        new SwingWorker<LoadedPage,Void>(){
+            protected LoadedPage doInBackground()throws Exception{
+                List<QueryPaging.Order> order=seekOrder();if(!order.isEmpty())try{int rows=(int)Math.max(1,totalRows-offset);QueryResult reverse=origin.executeSeekPage(viewSql,viewParameters,rows,viewColumns,QueryPaging.reverse(order),List.of());List<List<Object>> values=new java.util.ArrayList<>(reverse.rows());java.util.Collections.reverse(values);return new LoadedPage(reverse.withRows(values,false).withContext(viewEditing,viewOrigins),true);}catch(IllegalArgumentException error){}catch(java.sql.SQLException error){String state=java.util.Objects.toString(error.getSQLState(),"");if(state.startsWith("08")||state.equals("57014")||state.equalsIgnoreCase("HY008"))throw error;}
+                QueryResult fallback=origin.executePage(viewSql,viewParameters,pageSize,offset);return new LoadedPage(!viewSql.equals(sql)&&viewEditing!=null?fallback.withContext(viewEditing,viewOrigins):fallback,false);
+            }
+            protected void done(){try{LoadedPage loaded=get();pageCache.put(key,loaded.result());if(loaded.keyset())keysetPages.add(key);showPage(loaded.result(),offset,pageSize,loaded.keyset());}catch(Exception error){showError(root(error),"No se pudo cargar la última página");}finally{end();}}
+        }.execute();
     }
     private static String namespace(JdbcSession origin,boolean catalog){if(origin==null)return "";try{return java.util.Objects.toString(catalog?origin.connection().getCatalog():origin.connection().getSchema(),"");}catch(Exception error){return "";}}
     private void restorePageChoice(){changingPageSize=true;String value=""+pageSize;boolean present=false;for(int i=0;i<pageSizeChoice.getItemCount();i++)if(value.equals(pageSizeChoice.getItemAt(i)))present=true;if(!present)pageSizeChoice.insertItemAt(value,0);pageSizeChoice.setSelectedItem(value);changingPageSize=false;}
@@ -260,8 +310,8 @@ final class QueryResultPanel extends JPanel {
             List<ResultQuery.Sort> sorts=pendingView.sorts().stream().filter(key->key.getSortOrder()!=SortOrder.UNSORTED).map(key->new ResultQuery.Sort(key.getColumn(),key.getSortOrder()==SortOrder.DESCENDING)).toList();
             ResultQuery.Prepared prepared=ResultQuery.prepare(sql,origin.profile().type(),viewColumns,viewTypes,pendingView.search(),filters,sorts);
             String previousSql=viewSql;List<Object> previousParameters=viewParameters;ResultGridActions.ViewState previousView=activeView;
-            activeView=pendingView;viewSql=prepared.sql();viewParameters=prepared.parameters();resetPagingState();
-            loadPage(0,pageSize,(fresh,error)->{if(error!=null){viewSql=previousSql;viewParameters=previousParameters;activeView=previousView;resetPagingState();showError(error,"No se pudo aplicar el filtro u orden");}},false);
+            activeView=pendingView;viewSql=prepared.sql();viewParameters=prepared.parameters();resetTotal();resetPagingState();
+            loadPage(0,pageSize,(fresh,error)->{if(error!=null){viewSql=previousSql;viewParameters=previousParameters;activeView=previousView;resetTotal();resetPagingState();scheduleCount();showError(error,"No se pudo aplicar el filtro u orden");}},false);
         }catch(Exception error){showError(error,"No se pudo aplicar el filtro u orden");}
     }
     private static ResultQuery.Filter resultFilter(int column,ResultGridActions.Filter filter){
@@ -303,6 +353,7 @@ final class QueryResultPanel extends JPanel {
         if(!confirmDiscard()){restorePageChoice();completion.accept(null,new java.util.concurrent.CancellationException(tr("Actualización cancelada.")));return;}
         if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){restorePageChoice();completion.accept(null,new IllegalStateException(tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de paginar.")));return;}
         if(useCache){PageKey current=new PageKey(pageOffset,pageSize),requested=new PageKey(offset,size);pageCache.put(current,model.definition());QueryResult cached=pageCache.get(requested);if(cached!=null){showPage(cached,offset,size,keysetPages.contains(requested));completion.accept(cached,null);return;}}
+        cancelCount(false);
         start();UiLanguage.text(status,UiLanguage.key("Cargando página…"));
         new SwingWorker<LoadedPage,Void>() {
             protected LoadedPage doInBackground()throws Exception{return executeViewPage(size,offset);}
@@ -310,7 +361,7 @@ final class QueryResultPanel extends JPanel {
         }.execute();
     }
     private void showPage(QueryResult fresh,long offset,int size,boolean keyset){
-        long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();int horizontal=scroll.getHorizontalScrollBar().getValue();pageOffset=offset;pageSize=size;pagingRequested=true;keysetActive=keyset;grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);scroll.getViewport().setViewPosition(new Point(horizontal,0));if(keyset)rememberNextAnchor(offset,size,fresh,seekOrder());setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();
+        long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();int horizontal=scroll.getHorizontalScrollBar().getValue();pageOffset=offset;pageSize=size;pagingRequested=true;keysetActive=keyset;estimatedRows=Math.max(estimatedRows,offset+fresh.rows().size()+(fresh.truncated()?1:0));if(!fresh.truncated())totalRows=offset+fresh.rows().size();grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);scroll.getViewport().setViewPosition(new Point(horizontal,0));if(keyset)rememberNextAnchor(offset,size,fresh,seekOrder());setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);scheduleCount();loadReferences();
     }
     private void installVirtualPaging(){
         scroll.addMouseWheelListener(e->{if(e.getWheelRotation()>0)SwingUtilities.invokeLater(this::loadNextIfNeeded);});
@@ -483,7 +534,7 @@ final class QueryResultPanel extends JPanel {
             protected void done(){
                 try {
                     SaveOutcome outcome=get();QueryEditSupport.BatchSaved saved=outcome.saved();pendingCommit|=saved.pendingCommit();
-                    if(outcome.fresh()!=null){resetPagingState();long renderStarted=System.nanoTime();String selected=target.qualifiedTable();grid.clearChecked();grid.refreshing(()->model.setResult(outcome.fresh()));configureTargets(outcome.fresh(),selected);resize.accept(table);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);pageCache.put(new PageKey(pageOffset,pageSize),outcome.fresh());loadReferences();}
+                    if(outcome.fresh()!=null){resetTotal();resetPagingState();long renderStarted=System.nanoTime();String selected=target.qualifiedTable();grid.clearChecked();grid.refreshing(()->model.setResult(outcome.fresh()));configureTargets(outcome.fresh(),selected);estimatedRows=pageOffset+outcome.fresh().rows().size()+(outcome.fresh().truncated()?1:0);if(!outcome.fresh().truncated())totalRows=pageOffset+outcome.fresh().rows().size();resize.accept(table);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);pageCache.put(new PageKey(pageOffset,pageSize),outcome.fresh());scheduleCount();loadReferences();}
                     else if(outcome.refreshError()!=null){grid.clearChecked();model.discard();stale=true;edit.setSelected(false);UiLanguage.text(status,UiLanguage.key("Los cambios se guardaron, pero no se pudo recargar el resultado. Pulsa Recargar."));showError(outcome.refreshError(),"No se pudo recargar el resultado");return;}
                     else model.accept(saved.rows());
                     UiLanguage.text(status,UiLanguage.key(saved.pendingCommit()?"Cambio aplicado · pendiente de Commit":"Cambio guardado"));
@@ -497,7 +548,7 @@ final class QueryResultPanel extends JPanel {
     void reloadForReport(java.util.function.BiConsumer<QueryResult,Throwable> completion){
         if(!available||saving||!SqlExecutionPolicy.readOnly(sql)){completion.accept(null,new IllegalStateException(tr("El resultado no está disponible para actualizarse.")));return;}
         if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){completion.accept(null,new IllegalStateException(tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de recargar.")));return;}
-        if(pageable){pageCache.clear();loadPage(pageOffset,pageSize,completion,false);return;}
+        if(pageable){resetTotal();pageCache.clear();loadPage(pageOffset,pageSize,completion,false);return;}
         if(!confirmDiscard()){completion.accept(null,new java.util.concurrent.CancellationException(tr("Actualización cancelada.")));return;}
         String replay=target==null?sql:QueryEditSupport.qualifiedSelect(sql,target);start();UiLanguage.text(status,UiLanguage.key("Recargando solo esta consulta…"));
         new SwingWorker<QueryResult,Void>() {

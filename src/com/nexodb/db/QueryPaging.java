@@ -116,6 +116,27 @@ public final class QueryPaging {
         }catch(java.io.IOException error){throw new IllegalArgumentException("No se pudo preparar la página por clave.",error);}
     }
 
+    /** Wraps one safe read query for an exact asynchronous count. */
+    public static String countSql(String sql,DatabaseType type){
+        validate(sql,1,0);if(type==DatabaseType.GENERIC)throw new IllegalArgumentException("El motor no admite un conteo envuelto seguro.");
+        try{
+            String statement=SqlText.executionStatements(sql).get(0).strip();List<SqlScriptTools.Token> tokens=SqlScriptTools.tokens(statement);List<String> top=topLevelWords(tokens);
+            if(type==DatabaseType.SQLSERVER&&!tokens.isEmpty()&&tokens.get(0).is("WITH"))throw new IllegalArgumentException("El CTE de SQL Server no puede envolverse de forma segura.");
+            boolean paged=top.stream().anyMatch(Set.of("LIMIT","OFFSET","FETCH","TOP")::contains);int depth=0,orderStart=-1;
+            for(int i=0;i+1<tokens.size();i++){SqlScriptTools.Token token=tokens.get(i);if(token.is("(")){depth++;continue;}if(token.is(")")){depth=Math.max(0,depth-1);continue;}if(depth==0&&token.is("ORDER")&&tokens.get(i+1).is("BY")){orderStart=token.start();break;}}
+            if(orderStart>=0&&!paged)statement=statement.substring(0,orderStart).stripTrailing();
+            return "SELECT COUNT(*) FROM ("+statement+") "+quote(type,"__adisdb_count");
+        }catch(java.io.IOException error){throw new IllegalArgumentException("No se pudo preparar el conteo exacto.",error);}
+    }
+
+    /** Simple selects are counted automatically; complex shapes require an explicit confirmation. */
+    public static boolean cheapCount(String sql){
+        try{List<String> words=topLevelWords(SqlScriptTools.tokens(SqlText.executionStatements(sql).get(0)));return words.stream().noneMatch(Set.of("DISTINCT","GROUP","HAVING","UNION","INTERSECT","EXCEPT","LIMIT","OFFSET","FETCH","TOP")::contains);}
+        catch(Exception unavailable){return false;}
+    }
+
+    public static List<Order> reverse(List<Order> order){return order.stream().map(item->new Order(item.column(),!item.descending())).toList();}
+
     public static boolean comparable(int jdbcType){return switch(jdbcType){
         case Types.BIT,Types.BOOLEAN,Types.TINYINT,Types.SMALLINT,Types.INTEGER,Types.BIGINT,Types.REAL,Types.FLOAT,Types.DOUBLE,Types.NUMERIC,Types.DECIMAL,
                 Types.CHAR,Types.VARCHAR,Types.LONGVARCHAR,Types.NCHAR,Types.NVARCHAR,Types.LONGNVARCHAR,Types.DATE,Types.TIME,Types.TIME_WITH_TIMEZONE,Types.TIMESTAMP,Types.TIMESTAMP_WITH_TIMEZONE->true;

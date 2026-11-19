@@ -452,6 +452,18 @@ public final class JdbcSession implements AutoCloseable {
       }
     }
 
+    /** Exact count for the current filtered result, bounded so a costly count cannot run indefinitely. */
+    public long countRows(String sql,List<?> parameters,int timeoutSeconds)throws SQLException {
+      String countSql=QueryPaging.countSql(sql,profile.type());
+      synchronized(connection){
+        try(PreparedStatement statement=connection.prepareStatement(countSql,ResultSet.TYPE_FORWARD_ONLY,ResultSet.CONCUR_READ_ONLY)){
+            activeStatement=statement;statement.setQueryTimeout(Math.max(1,Math.min(300,timeoutSeconds)));
+            for(int i=0;i<parameters.size();i++)statement.setObject(i+1,parameters.get(i));
+            try(ResultSet rows=statement.executeQuery()){if(!rows.next())throw new SQLException("El servidor no devolvió el conteo solicitado.");return rows.getLong(1);}
+        }finally{activeStatement=null;}
+      }
+    }
+
     /** Executes one read-only result forward-only and releases every row after the consumer writes it. */
     public long streamResult(String sql,List<?> parameters,long maxRows,ResultStream stream,LongConsumer progress)throws Exception{
       if(!QueryPaging.supported(sql))throw new SQLException("La sentencia no es un SELECT exportable de forma segura.");
