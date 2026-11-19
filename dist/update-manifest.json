@@ -1,28 +1,28 @@
 {
-  "version": "0.18.64",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.64-win64.zip",
-  "sha256": "d26e96ab50ad15f8a62b0d79ad4b8c74b0ed15b5ebaeac00a5a704b0b8ba7cab",
-  "notes": "AdisDB 0.18.64: credenciales de tareas verificadas, sincronizacion segura tras conectar y reintento externo de respaldos interrumpidos al cerrar.",
+  "version": "0.18.65",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.65-win64.zip",
+  "sha256": "19990addccc403e185a1f8ae137806d2b1e455f5878f0efa01e43519b5f77211",
+  "notes": "AdisDB 0.18.65: el respaldo programado identifica la clave de base, reemplaza credenciales rechazadas y limpia errores anteriores tras verificar.",
   "platforms": {
     "windows-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.64-win64.zip",
-      "sha256": "d26e96ab50ad15f8a62b0d79ad4b8c74b0ed15b5ebaeac00a5a704b0b8ba7cab"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.65-win64.zip",
+      "sha256": "19990addccc403e185a1f8ae137806d2b1e455f5878f0efa01e43519b5f77211"
     },
     "linux-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.64-linux-x64.deb",
-      "sha256": "fe7cb8be853709c54744931049a71675082ecc477ab75e852db5fa9b7ef9e834"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.65-linux-x64.deb",
+      "sha256": "6c8a36b6b52257fe866ff62e1405f3d9f2af5e8eaaba1cc498672951c1dc0d3a"
     },
     "linux-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.64-linux-arm64.deb",
-      "sha256": "165135efabbd67d5ce56d7487e5117850fb78ee6b84a492d50dacfd9bb850b41"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.65-linux-arm64.deb",
+      "sha256": "99f0a3c7a982c4c1a6b0cbad45d22c7ab791231e24d5446fa9eaec9df562bb28"
     },
     "macos-x64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.64-macos-x64.zip",
-      "sha256": "055e90e4e0d8fba3bba6cb1b7c59a84c99110ad2b97d70c409d24bf62b3eb967"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.65-macos-x64.zip",
+      "sha256": "7012210f3503a446ad63598db3e57ce8552b565667f6f09441e3c8dcc21c6b8c"
     },
     "macos-arm64": {
-      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.64-macos-arm64.zip",
-      "sha256": "3ab82ed2dffa51b3c9478f7e2e2e2b481ff0375ee628c573946150dd2b438250"
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.65-macos-arm64.zip",
+      "sha256": "c45ea4019a1b8382fdb645e79365caf316d69bb88b78625fbf3a9e7f0d3ae020"
     }
   }
 }

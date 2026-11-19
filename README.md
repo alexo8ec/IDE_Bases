@@ -1,6 +1,13 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.64**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.65**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Contraseña inequívoca en respaldos programados — 0.18.65
+
+- El formulario identifica el campo como **Contraseña del usuario de la base** y muestra el usuario concreto de la conexión. Esa es la clave de MySQL o MariaDB; no es la contraseña de Windows ni el nombre de la base seleccionada.
+- Si el servidor respondió `Access denied`, AdisDB deja de reutilizar silenciosamente la credencial cifrada anterior: exige introducir nuevamente la clave actual y la comprueba en una conexión independiente antes de aceptar la tarea.
+- La opción de ejecución con AdisDB cerrado continúa cifrando la clave con el usuario actual de Windows, sin incluirla en comandos, registros ni archivos de respaldo.
+- Después de verificar y guardar una tarea se elimina el error anterior de la columna **Último resultado** y se muestra que la configuración y la credencial quedaron verificadas, evitando confundir un fallo antiguo con el estado actual.
 
 ## Tareas programadas y credenciales verificadas — 0.18.64
 
