@@ -90,4 +90,17 @@ if ($mobile.version -ne $androidVersion -or -not $mobile.downloadUrl -or -not $m
     throw 'El manifiesto Android no contiene versión, URL pública y SHA-256 coherentes.'
 }
 
+$releaseFiles = @(
+    (Join-Path $root "dist\installer\AdisDB-$desktopVersion.exe"),
+    $windowsPackage, $linuxIntelPackage, $linuxArmPackage, $macIntelPackage, $macArmPackage,
+    (Join-Path $root "dist\AdisDB-$androidVersion-android.apk")
+)
+$checksumLines = foreach ($file in $releaseFiles) {
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Falta el archivo de entrega: $file" }
+    $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$hash  $([IO.Path]::GetFileName($file))"
+}
+[IO.File]::WriteAllText((Join-Path $root 'dist\SHA256SUMS.txt'),
+    (($checksumLines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
+
 Write-Host "Entrega verificada: AdisDB $desktopVersion para Windows, Linux x64/ARM64 y macOS Intel/Apple Silicon; Android $androidVersion."

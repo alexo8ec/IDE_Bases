@@ -4,13 +4,13 @@ AdisDB utiliza Java 17 y Swing/FlatLaf. La aplicación, los controladores JDBC, 
 
 ## Archivos disponibles
 
-Los paquetes de escritorio incluyen Java 17 para su sistema y arquitectura. Android mantiene su versión 0.14.6, utiliza su propio entorno y no requiere instalar Java. Se generan directamente en `dist`, sin copias en otra carpeta de publicación. Al iniciar requieren una licencia vigente, transferible entre equipos, mediante archivo `.nexolicense` o clave completa. Las actualizaciones conservan la licencia del perfil del usuario. El generador administrativo y su autoridad privada se distribuyen por separado y no forman parte de estos paquetes.
+Los paquetes de escritorio incluyen Java 17 para su sistema y arquitectura. Android mantiene su versión independiente 0.18.31, utiliza su propio entorno y no requiere instalar Java. Se generan directamente en `dist`, sin copias en otra carpeta de publicación. Al iniciar requieren una licencia vigente, transferible entre equipos, mediante archivo `.nexolicense` o clave completa. Las actualizaciones conservan la licencia del perfil del usuario. El generador administrativo y su autoridad privada se distribuyen por separado y no forman parte de estos paquetes.
 
 Los ejecutables están sin firma comercial: la distribución macOS firmada queda pendiente de Developer ID y notarización. La firma criptográfica de las licencias no firma los ejecutables. Consulta la [guía de firma](signing.md).
 
 | Sistema | Archivo | Instalación |
 | --- | --- | --- |
-| Android 8.0+ | [AdisDB-0.14.6-android.apk](../dist/AdisDB-0.14.6-android.apk) | Abrir la APK en el teléfono; [guía móvil](../android/README.md) |
+| Android 8.0+ | [AdisDB-0.18.31-android.apk](../dist/AdisDB-0.18.31-android.apk) | Abrir la APK en el teléfono; [guía móvil](../android/README.md) |
 | Windows x64 | [AdisDB-0.18.58.exe](../dist/installer/AdisDB-0.18.58.exe) | Ejecutar el instalador |
 | Debian/Ubuntu x64 | [AdisDB-0.18.58-linux-x64.deb](../dist/AdisDB-0.18.58-linux-x64.deb) | `sudo apt install ./AdisDB-0.18.58-linux-x64.deb` |
 | Debian/Ubuntu ARM64 | [AdisDB-0.18.58-linux-arm64.deb](../dist/AdisDB-0.18.58-linux-arm64.deb) | `sudo apt install ./AdisDB-0.18.58-linux-arm64.deb` |

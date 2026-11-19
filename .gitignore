@@ -29,6 +29,14 @@
 !/dist/AdisDB-0.18.21-macos-arm64.zip
 !/dist/AdisDB-0.18.21-macos-x64.zip.sha256
 !/dist/AdisDB-0.18.21-macos-arm64.zip.sha256
+!/dist/AdisDB-*-linux-x64.deb
+!/dist/AdisDB-*-linux-arm64.deb
+!/dist/AdisDB-*-linux-x64.deb.sha256
+!/dist/AdisDB-*-linux-arm64.deb.sha256
+!/dist/AdisDB-*-macos-x64.zip
+!/dist/AdisDB-*-macos-arm64.zip
+!/dist/AdisDB-*-macos-x64.zip.sha256
+!/dist/AdisDB-*-macos-arm64.zip.sha256
 !/dist/release-manifest.json
 !/dist/SHA256SUMS.txt
 !/dist/installer/

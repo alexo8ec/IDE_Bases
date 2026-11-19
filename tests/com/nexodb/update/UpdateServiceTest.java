@@ -68,7 +68,7 @@ public final class UpdateServiceTest {
     }
     private static void verifyMacUpdater() throws Exception {
         var method=UpdateService.class.getDeclaredMethod("macUpdaterScript");method.setAccessible(true);String script=(String)method.invoke(null);
-        for(String required:List.of("ditto -x -k","AdisDB.app/Contents/MacOS/AdisDB",".AdisDB-backup-","/usr/bin/open","/bin/kill -0"))if(!script.contains(required))throw new AssertionError("Missing safe macOS updater step: "+required);
+        for(String required:List.of("ditto -x -k","$candidate/Contents/MacOS/AdisDB",".AdisDB-backup-","/usr/bin/open","/bin/kill -0"))if(!script.contains(required))throw new AssertionError("Missing safe macOS updater step: "+required);
         if(script.contains("sudo")||script.contains("eval "))throw new AssertionError("The macOS updater must not elevate privileges or evaluate paths");
     }
     private static void verifyRebrandUpdater()throws Exception{
