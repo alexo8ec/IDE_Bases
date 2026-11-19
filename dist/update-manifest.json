@@ -1,6 +1,6 @@
 {
-  "version": "0.18.55",
-  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.55-win64.zip",
-  "sha256": "b5024eee2fd7c0454a9a0e31085c9f593793df1206991817dd4ebde96530191a",
-  "notes": "AdisDB 0.18.55: ejecutor externo de tareas en Windows, respaldos programados con manifiesto SHA-256, verificación, retención segura y protección contra ejecuciones duplicadas."
+  "version": "0.18.56",
+  "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.56-win64.zip",
+  "sha256": "d88ccaf539995f5c9c9978058b0ed8e437735cfab6639928cbad6621e000559b",
+  "notes": "AdisDB 0.18.56: perfil de calidad, enmascaramiento con vista previa y clave primaria, datos de prueba editables, transacciones seguras y auditoría sin valores sensibles."
 }

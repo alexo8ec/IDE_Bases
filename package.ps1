@@ -121,7 +121,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: ejecutor externo de tareas en Windows, respaldos programados con manifiesto SHA-256, verificación, retención segura y protección contra ejecuciones duplicadas."
+    notes = "AdisDB ${version}: perfil de calidad, enmascaramiento con vista previa y clave primaria, datos de prueba editables, transacciones seguras y auditoría sin valores sensibles."
 }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path $distRoot 'update-manifest.json'),($manifest | ConvertTo-Json),$utf8NoBom)

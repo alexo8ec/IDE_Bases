@@ -1,6 +1,16 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.55**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.28**.
+La versión actual de escritorio es **0.18.56**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.29**.
+
+## Calidad, enmascaramiento y datos de prueba — 0.18.56
+
+- **Herramientas avanzadas › Calidad, enmascaramiento y datos de prueba** abre un espacio de trabajo con tres recorridos independientes y una selección explícita de tabla.
+- **Calidad y perfil** calcula filas, valores `NULL`, cadenas vacías, valores distintos, mínimos, máximos y longitud máxima. Se ejecuta en una conexión auxiliar de solo lectura, tiene límite de tiempo por medición y no ocupa la conexión principal.
+- **Enmascaramiento** ofrece reglas para conservar, establecer `NULL`, fijar un valor, generar un hash determinista y anonimizar correos, teléfonos o nombres. La vista previa compara el valor actual y el nuevo antes de permitir cualquier escritura.
+- AdisDB exige una clave primaria completa, impide modificar claves primarias, columnas automáticas o generadas, valida nulabilidad, tipo y longitud, y actualiza únicamente las filas revisadas. Si una fila ya no coincide o aparece un error, revierte toda la operación.
+- **Datos de prueba** genera una cuadrícula editable antes de insertar. Omite columnas autoincrementales, generadas y con valor predeterminado para que sea el servidor quien aplique sus reglas; la inserción completa se confirma o revierte como una sola transacción.
+- Las operaciones de escritura se bloquean si existe una transacción manual pendiente, requieren confirmación y licencia/prueba vigente, y dejan una entrada segura en la auditoría sin guardar valores ni SQL.
+- El manual incorporado documenta el flujo con ejemplos. Las pruebas reales cubren perfilado, anonimización determinista, recorte seguro, protección por clave, inserciones con identificadores únicos, reversión y la interfaz en modo oscuro.
 
 ## Ejecutor externo y respaldos verificables — 0.18.55
 
@@ -345,7 +355,7 @@ La versión **0.13.0** permite abrir consultas desde archivos **.sql** (Ctrl+O),
 
 El botón **+** es compacto y abre un menú con consulta nueva, abrir SQL, constructor visual, diseñador de esquemas, búsqueda de datos e historial. **Ctrl+T** crea otra consulta. Las herramientas visuales para MySQL/MariaDB generan SELECT con columnas, alias, agregados, filtros, orden, DISTINCT, límites y JOIN; el diseñador muestra tablas y relaciones, permite arrastrarlas, guardar el diagrama y generar SQL de tablas o claves foráneas para revisarlo en otra consulta. El historial local conserva hasta 500 sentencias ejecutadas con su conexión, base, tiempo y resultado, sin volver a ejecutarlas automáticamente.
 
-**Herramientas avanzadas** reúne comparación y sincronización revisable de datos/esquemas, importación externa CSV/TSV o copia desde otra conexión, reportes y respaldos programados, administración de tareas y reconstrucción de autocompletado. La búsqueda acepta palabras, frases, OR y exclusiones con `-`; muestra hasta 100 coincidencias por tabla y puede abrir el SELECT correspondiente en el editor. El importador CSV/TSV para MySQL/MariaDB permite revisar y mapear columnas, conserva la diferencia entre NULL y cadena vacía, verifica que el archivo no haya cambiado y revierte el lote ante error o cancelación.
+**Herramientas avanzadas** reúne comparación y sincronización revisable de datos/esquemas, importación externa CSV/TSV o copia desde otra conexión, perfil y enmascaramiento seguro, generación de datos de prueba, reportes y respaldos programados, administración de tareas y reconstrucción de autocompletado. La búsqueda acepta palabras, frases, OR y exclusiones con `-`; muestra hasta 100 coincidencias por tabla y puede abrir el SELECT correspondiente en el editor. El importador CSV/TSV para MySQL/MariaDB permite revisar y mapear columnas, conserva la diferencia entre NULL y cadena vacía, verifica que el archivo no haya cambiado y revierte el lote ante error o cancelación.
 
 Las tareas programadas usan conexiones independientes, conservan su configuración por usuario y se pausan si cambian el SQL aprobado, la conexión o la licencia. Los reportes SELECT producen HTML y CSV; los respaldos MySQL/MariaDB producen SQL completo. Las contraseñas se conservan en memoria durante la sesión o se obtienen del almacén cifrado existente de Windows. No se guardan contraseñas en los archivos de tareas ni en el comando del sistema. La creación de tareas que escriben SQL exige autorización explícita y revisión del archivo. La ejecución automática usa esa autorización; no muestra una pregunta en cada horario.
 
