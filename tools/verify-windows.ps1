@@ -23,4 +23,6 @@ if ($ManifestUrl) { $testArgs += $ManifestUrl }
 if ($LASTEXITCODE -ne 0) { throw 'Packaged runtime TLS verification failed' }
 $exe = Join-Path $root "dist\installer\AdisDB-$version.exe"
 if ((Get-Item -LiteralPath $exe).VersionInfo.FileVersion -ne $version) { throw 'Incorrect installer version' }
+$runner = Join-Path $image 'AdisDB Tasks.exe'
+if (-not (Test-Path -LiteralPath $runner)) { throw 'Packaged external task runner is missing' }
 Write-Host "Windows $version installer and runtime verified."

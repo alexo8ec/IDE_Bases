@@ -1,6 +1,16 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.54**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.27**.
+La versión actual de escritorio es **0.18.55**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.28**.
+
+## Ejecutor externo y respaldos verificables — 0.18.55
+
+- El paquete de Windows incorpora `AdisDB Tasks.exe`, un ejecutor independiente y sin ventana que revisa las tareas vencidas sin abrir la interfaz principal.
+- Desde **Tareas programadas** se puede activar o retirar su integración con el Programador de tareas de Windows y solicitar una comprobación inmediata. Se ejecuta cada cinco minutos con la misma cuenta del usuario y no coloca contraseñas en argumentos ni archivos de tareas.
+- El agente y la aplicación comparten un bloqueo de proceso. Si coinciden en el mismo horario, solo uno ejecuta el trabajo; las modificaciones de tareas se rechazan de forma segura mientras otra instancia las procesa.
+- Cada respaldo programado crea un manifiesto lateral con versión, motor, base, filas, tamaño y SHA-256. **Verificar respaldo** detecta archivos incompletos o modificados antes de restaurarlos.
+- La tarea permite conservar de 1 a 1.000 versiones, o todas con 0. La limpieza utiliza un prefijo estable derivado del identificador de la tarea y nunca elimina archivos de otra tarea ni el respaldo recién creado.
+- El ejecutor comparte el almacén de contraseñas DPAPI y aplica la misma prueba de 15 días o licencia activa. El manual explica activación, ejecución, retención y verificación.
+- Las pruebas cubren alteración de archivos, retención, bloqueos entre procesos, argumentos seguros del sistema, ejecución sin interfaz, licencia compartida y controles en modo oscuro.
 
 ## Proyectos SQL, Git y control de cambios — 0.18.54
 
@@ -337,7 +347,9 @@ El botón **+** es compacto y abre un menú con consulta nueva, abrir SQL, const
 
 **Herramientas avanzadas** reúne comparación y sincronización revisable de datos/esquemas, importación externa CSV/TSV o copia desde otra conexión, reportes y respaldos programados, administración de tareas y reconstrucción de autocompletado. La búsqueda acepta palabras, frases, OR y exclusiones con `-`; muestra hasta 100 coincidencias por tabla y puede abrir el SELECT correspondiente en el editor. El importador CSV/TSV para MySQL/MariaDB permite revisar y mapear columnas, conserva la diferencia entre NULL y cadena vacía, verifica que el archivo no haya cambiado y revierte el lote ante error o cancelación.
 
-Las tareas programadas de esta entrega requieren **AdisDB abierto**. Usan conexiones independientes, conservan su configuración por usuario y se pausan si cambian el SQL aprobado, la conexión o la licencia. Los reportes SELECT producen HTML y CSV; los respaldos MySQL/MariaDB producen SQL completo. Las contraseñas se conservan en memoria durante la sesión o se obtienen del almacén cifrado existente de Windows. No se guardan contraseñas en los archivos de tareas. La creación de tareas que escriben SQL exige autorización explícita y revisión del archivo. La ejecución automática usa esa autorización; no muestra una pregunta en cada horario. Esta implementación usa JDBC y archivos CSV/TSV; **ODBC/Access, Excel, envío SMTP, un agente independiente y programación con AdisDB cerrado no están implementados**.
+Las tareas programadas usan conexiones independientes, conservan su configuración por usuario y se pausan si cambian el SQL aprobado, la conexión o la licencia. Los reportes SELECT producen HTML y CSV; los respaldos MySQL/MariaDB producen SQL completo. Las contraseñas se conservan en memoria durante la sesión o se obtienen del almacén cifrado existente de Windows. No se guardan contraseñas en los archivos de tareas ni en el comando del sistema. La creación de tareas que escriben SQL exige autorización explícita y revisión del archivo. La ejecución automática usa esa autorización; no muestra una pregunta en cada horario.
+
+En Windows, **Activar ejecutor externo** registra `AdisDB Tasks.exe` en el Programador de tareas para revisar trabajos vencidos cada cinco minutos con la misma cuenta del usuario, incluso si la ventana principal está cerrada. El ejecutor aplica la misma licencia/prueba y el mismo almacén DPAPI. Un bloqueo compartido evita ejecuciones duplicadas entre el agente y la aplicación. Cada respaldo programado crea un manifiesto con SHA-256, tamaño, base, motor, filas y versión; puede verificarse desde la interfaz. La retención elimina únicamente versiones antiguas pertenecientes a esa misma tarea y conserva el número configurado. ODBC/Access, Excel y envío SMTP continúan fuera de esta fase.
 
 Se consultaron las referencias oficiales de SQLyog para [archivos SQL](https://webyog.com/article/37-file-management/), [atajos](https://sqlyogkb.webyog.com/article/41-keyboard-shortcuts), [constructor visual](https://webyog.com/article/58-the-sqlyog-query-builder/), [diseñador](https://sqlyogkb.webyog.com/article/166-the-sqlyog-schema-designer) y [agente de tareas](https://faq.webyog.com/content/27/114/en/introduction-to-the-_sqlyog-job-agent_-sja.html). Las herramientas de esta entrega tienen el alcance descrito arriba; no representan una reproducción completa de SQLyog Ultimate.
 

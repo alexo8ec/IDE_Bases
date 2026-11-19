@@ -130,6 +130,16 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de licencias y autoridad cifrada f
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de proyectos SQL y Git fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.SqlProjectPanelTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de la interfaz de proyectos SQL fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.BackupCatalogTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de integridad y retención de respaldos fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.ScheduledTaskProcessLockTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de exclusión del ejecutor externo fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.tools.ExternalTaskSchedulerTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de integración con el programador del sistema fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.tools.TaskRunnerMainTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del ejecutor independiente fallaron.' }
+& java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ScheduledTasksPanelTest
+if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de la interfaz de tareas y respaldos fallaron.' }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.AiSchemaContextTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del contexto de esquema para IA fallaron.' }

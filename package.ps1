@@ -27,11 +27,18 @@ $appRoot = Join-Path $releaseRoot 'AdisDB'
 $packageRoot = Join-Path ([IO.Path]::GetTempPath()) ("nexodb-package-" + $version)
 $iconPath = Join-Path $projectRoot 'build\adisdb.ico'
 $productionInput = Join-Path $projectRoot 'build\package-input'
+$taskLauncherProperties = Join-Path $projectRoot 'build\task-runner.properties'
 if (Test-Path -LiteralPath $productionInput) { Remove-Item -LiteralPath $productionInput -Recurse -Force }
 New-Item -ItemType Directory -Path $productionInput -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'build\nexodb-studio.jar') -Destination $productionInput
 Copy-Item -LiteralPath (Join-Path $projectRoot 'build\lib') -Destination $productionInput -Recurse
 Copy-Item -LiteralPath (Join-Path $projectRoot 'build\drivers') -Destination $productionInput -Recurse
+@(
+    'main-jar=nexodb-studio.jar'
+    'main-class=com.nexodb.tools.TaskRunnerMain'
+    'win-console=false'
+    'java-options=-Dfile.encoding=UTF-8'
+) | Set-Content -LiteralPath $taskLauncherProperties -Encoding ascii
 $embeddedManifestUrl = if ($UpdateManifestUrl) {
     $UpdateManifestUrl.Trim()
 } elseif ($UpdateBaseUrl) {
@@ -59,6 +66,7 @@ New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
     --input $productionInput `
     --main-jar 'nexodb-studio.jar' `
     --main-class 'com.nexodb.App' `
+    --add-launcher "AdisDB Tasks=$taskLauncherProperties" `
     --icon $iconPath `
     --dest $packageRoot `
     --add-modules 'java.desktop,java.sql,java.prefs,java.naming,java.net.http,java.security.jgss,jdk.security.auth,jdk.crypto.ec' `
@@ -113,7 +121,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: proyectos SQL organizados, edición segura y control de cambios Git local con diferencias, preparación, commits e historial. Mantiene la prueba de 15 días por instalación."
+    notes = "AdisDB ${version}: ejecutor externo de tareas en Windows, respaldos programados con manifiesto SHA-256, verificación, retención segura y protección contra ejecuciones duplicadas."
 }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path $distRoot 'update-manifest.json'),($manifest | ConvertTo-Json),$utf8NoBom)
