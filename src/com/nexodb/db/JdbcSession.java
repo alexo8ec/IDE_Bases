@@ -13,8 +13,13 @@ import java.nio.file.Paths;
 import java.sql.*;
 import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.Arrays;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
@@ -26,23 +31,65 @@ public final class JdbcSession implements AutoCloseable {
         void start(List<String> columns,List<Integer> jdbcTypes)throws Exception;
         void row(List<Object> values)throws Exception;
     }
+    public static final class ReadLease implements AutoCloseable {
+        private ReadPool owner;private final JdbcSession session;
+        private ReadLease(ReadPool owner,JdbcSession session){this.owner=owner;this.session=session;}
+        public JdbcSession session(){return session;}
+        @Override public void close(){ReadPool current=owner;if(current!=null){owner=null;current.release(session);}}
+    }
 
     private final ConnectionProfile profile;
     private final Connection connection;
     private final URLClassLoader driverLoader;
     private final SshTunnel sshTunnel;
+    private final ReadPool readPool;
     private final QueryEditSupport.MetadataCache editMetadata = new QueryEditSupport.MetadataCache();
     private volatile Statement activeStatement;
 
     private JdbcSession(ConnectionProfile profile, Connection connection, URLClassLoader driverLoader) {
-        this(profile,connection,driverLoader,null);
+        this(profile,connection,driverLoader,null,true);
     }
     private JdbcSession(ConnectionProfile profile, Connection connection, URLClassLoader driverLoader,SshTunnel sshTunnel) {
+        this(profile,connection,driverLoader,sshTunnel,true);
+    }
+    private JdbcSession(ConnectionProfile profile,Connection connection,URLClassLoader driverLoader,SshTunnel sshTunnel,boolean ownsReaders) {
         this.profile = profile;
         this.connection = connection;
         this.driverLoader = driverLoader;
         this.sshTunnel=sshTunnel;
+        this.readPool=ownsReaders?new ReadPool(this):null;
     }
+
+    /** At most two reusable siblings isolate background reads from the user's main connection. */
+    private static final class ReadPool {
+        private static final int LIMIT=2;
+        private final JdbcSession owner;private final Deque<JdbcSession> idle=new ArrayDeque<>();
+        private final Set<JdbcSession> all=Collections.newSetFromMap(new IdentityHashMap<>());private int opening;private boolean closed;
+        private ReadPool(JdbcSession owner){this.owner=owner;}
+        ReadLease borrow()throws Exception{
+            JdbcSession available;
+            synchronized(this){
+                while(true){
+                    if(closed)throw new SQLException("La conexión principal está cerrada.","08003");
+                    while((available=idle.pollFirst())!=null){if(available.isOpen())return new ReadLease(this,available);all.remove(available);}
+                    if(all.size()+opening<LIMIT){opening++;break;}
+                    try{wait();}catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw interrupted;}
+                }
+            }
+            JdbcSession created;
+            try{Connection sibling=ManagedConnection.openReadOnlySibling(owner.connection);created=new JdbcSession(readOnlyProfile(owner.profile),sibling,null,null,false);}
+            catch(Exception error){synchronized(this){opening--;notifyAll();}throw error;}
+            boolean rejected;synchronized(this){opening--;rejected=closed;if(!rejected)all.add(created);notifyAll();}
+            if(rejected){closeQuietly(created);throw new SQLException("La conexión principal está cerrada.","08003");}
+            return new ReadLease(this,created);
+        }
+        synchronized void release(JdbcSession session){
+            if(!all.contains(session))return;if(closed||!session.isOpen()){all.remove(session);closeQuietly(session);}else idle.addLast(session);notifyAll();
+        }
+        void close(){List<JdbcSession> sessions;synchronized(this){if(closed)return;closed=true;sessions=new ArrayList<>(all);all.clear();idle.clear();notifyAll();}sessions.forEach(ReadPool::closeQuietly);}
+        private static void closeQuietly(JdbcSession session){try{session.close();}catch(Exception ignored){}}
+    }
+    private static ConnectionProfile readOnlyProfile(ConnectionProfile profile){return new ConnectionProfile(profile.id(),profile.name(),profile.type(),profile.host(),profile.port(),profile.database(),profile.username(),profile.jdbcUrl(),profile.driverClass(),profile.driverJar(),profile.authenticationMode(),profile.ssh(),true);}
 
     public static JdbcSession open(ConnectionProfile profile, char[] password) throws Exception {
         return open(profile, password, (IntConsumer)null);
@@ -384,6 +431,7 @@ public final class JdbcSession implements AutoCloseable {
 
     public ConnectionProfile profile() { return profile; }
     public Connection connection() { return connection; }
+    public ReadLease borrowReadOnly()throws Exception{if(readPool==null)throw new SQLException("Una sesión auxiliar no puede crear más conexiones auxiliares.");return readPool.borrow();}
     public boolean isOpen() {
         try { return !connection.isClosed(); }
         catch (SQLException e) { return false; }
@@ -626,6 +674,7 @@ public final class JdbcSession implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+        if(readPool!=null)readPool.close();
         try {
             if (!connection.isClosed() && !connection.getAutoCommit()) connection.rollback();
         } finally {

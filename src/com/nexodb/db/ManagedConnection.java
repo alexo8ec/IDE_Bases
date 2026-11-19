@@ -33,6 +33,11 @@ public final class ManagedConnection implements InvocationHandler {
     }
     /** Also used by deterministic transport-failure tests without waiting for a timer. */
     static void maintain(Connection connection){((ManagedConnection)Proxy.getInvocationHandler(connection)).keepAliveNow();}
+    /** Opens an independent read-only sibling while keeping credentials inside the existing opener closure. */
+    static Connection openReadOnlySibling(Connection connection)throws SQLException{
+        if(!Proxy.isProxyClass(connection.getClass())||!(Proxy.getInvocationHandler(connection) instanceof ManagedConnection managed))throw new SQLException("La conexión no admite sesiones auxiliares.");
+        return managed.openReadOnlySibling();
+    }
     /** Account DDL can implicitly commit; never run it over an active user transaction. */
     public static boolean hasActiveTransaction(Connection connection)throws SQLException{
         synchronized(connection){
@@ -72,6 +77,15 @@ public final class ManagedConnection implements InvocationHandler {
         }catch(Exception error){broken=true;throw new SQLException("No se pudo recuperar la conexión. Comprueba la red o el servidor y vuelve a intentarlo. No se ejecutó ninguna sentencia.","08001",error);}
         finally{if(replacement!=null)try{replacement.close();}catch(SQLException ignored){}}
     }
+    private Connection openReadOnlySibling()throws SQLException{synchronized(proxy){
+        ready();Connection first=null;
+        try{
+            first=opener.open();first.setAutoCommit(true);first.setReadOnly(true);
+            if(catalog!=null)first.setCatalog(catalog);if(schema!=null)writeSchema(first,schema);
+            if(isolation!=null&&isolation!=Connection.TRANSACTION_NONE&&first.getTransactionIsolation()!=isolation)first.setTransactionIsolation(isolation);
+            return wrap(first,opener,()->{});
+        }catch(Exception error){if(first!=null)try{first.close();}catch(SQLException ignored){}throw error instanceof SQLException sql?sql:new SQLException("No se pudo abrir una conexión auxiliar de solo lectura.","08001",error);}
+    }}
     @Override public Object invoke(Object ignored,Method method,Object[] args)throws Throwable{synchronized(proxy){
         String name=method.getName();
         if(method.getDeclaringClass()==Object.class)return identity(proxy,name,args);

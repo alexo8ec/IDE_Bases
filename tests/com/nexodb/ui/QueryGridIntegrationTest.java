@@ -98,8 +98,11 @@ public final class QueryGridIntegrationTest {
                 List<? extends RowSorter.SortKey> order=table.getRowSorter().getSortKeys();
                 table.getTableHeader().dispatchEvent(new MouseEvent(table.getTableHeader(),MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,10,10,1,false,MouseEvent.BUTTON1));
                 equal(4,table.getSelectedRowCount());equal(1,table.getSelectedColumnCount());equal(order,table.getRowSorter().getSortKeys());
-                Rectangle heading=table.getTableHeader().getHeaderRect(0);table.getTableHeader().dispatchEvent(new MouseEvent(table.getTableHeader(),MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,heading.x+heading.width-5,heading.y+10,1,false,MouseEvent.BUTTON1));
+                Rectangle heading=table.getTableHeader().getHeaderRect(0);Component rendered=table.getTableHeader().getDefaultRenderer().getTableCellRendererComponent(table,table.getColumnName(0),false,false,-1,0);if(!(rendered instanceof JLabel header)||header.getIcon()==null||header.getIcon().getIconWidth()<30||header.getHorizontalTextPosition()!=SwingConstants.LEFT)throw new AssertionError("Sort and filter icons must stay together at the right");
+                int sortedModel=table.convertColumnIndexToModel(0);table.getTableHeader().dispatchEvent(new MouseEvent(table.getTableHeader(),MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,heading.x+heading.width-30,heading.y+10,1,false,MouseEvent.BUTTON1));equal(sortedModel,table.getRowSorter().getSortKeys().get(0).getColumn());equal(SortOrder.ASCENDING,table.getRowSorter().getSortKeys().get(0).getSortOrder());
+                table.getTableHeader().dispatchEvent(new MouseEvent(table.getTableHeader(),MouseEvent.MOUSE_CLICKED,System.currentTimeMillis(),0,heading.x+heading.width-5,heading.y+10,1,false,MouseEvent.BUTTON1));
                 equal(true,MenuSelectionManager.defaultManager().getSelectedPath().length>0);MenuSelectionManager.defaultManager().clearSelectedPath();
+                table.getRowSorter().setSortKeys(order);
                 table.changeSelection(0,0,false,false);
                 JPopupMenu menu=invoke(actions,"menu",new Class[]{boolean.class},false);
                 equal(true,menuItem(menu,"Insertar nueva fila").isEnabled());equal(true,menuItem(menu,"Eliminar filas seleccionadas").isEnabled());equal(false,menuItem(menu,"Guardar cambios").isEnabled());
@@ -127,7 +130,7 @@ public final class QueryGridIntegrationTest {
         AtomicBoolean busy=new AtomicBoolean();AtomicReference<QueryResultPanel> panelRef=new AtomicReference<>();AtomicReference<JFrame> windowRef=new AtomicReference<>();
         SwingUtilities.invokeAndWait(()->{ResultTableModel model=new ResultTableModel();model.setResult(initial);JTable table=new JTable(model);QueryResultPanel panel=new QueryResultPanel(session,initial,model,table,sql,10,busy::set,text->{},grid->{});panelRef.set(panel);JFrame window=new JFrame();windowRef.set(window);window.setContentPane(panel);window.setSize(700,320);window.setVisible(true);equal(true,button(panel,"query-reload").isEnabled());});
         session.execute("INSERT INTO people(id,name,note) VALUES(99,'Reloaded',NULL)",1);
-        SwingUtilities.invokeAndWait(()->button(panelRef.get(),"query-reload").doClick());await(()->!busy.get());
+        SwingUtilities.invokeAndWait(()->button(panelRef.get(),"query-reload").doClick());await(()->field(panelRef.get(),"reloadWorker",SwingWorker.class)==null);
         SwingUtilities.invokeAndWait(()->{ResultTableModel model=field(panelRef.get(),"model",ResultTableModel.class);equal(before+1,((Number)model.getValueAt(0,0)).intValue());equal(1,model.getColumnCount());windowRef.get().dispose();});
         session.execute("DELETE FROM people WHERE id=99",1);
     }

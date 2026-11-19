@@ -16,6 +16,7 @@ import static com.nexodb.util.I18n.tr;
 
 /** View-only grid operations. Row selections always retain model indexes across sorting/filtering. */
 final class ResultGridActions {
+    private static final int HEADER_ACTION_WIDTH=22;
     interface ColumnEditor { void open(int column,boolean delete); }
     record EditingActions(Runnable edit,Runnable insert,Runnable delete,Runnable save,Runnable discard,Consumer<Object> setValue,Consumer<String> paste,
                           Runnable duplicate,Runnable export,BooleanSupplier canEdit,BooleanSupplier hasChanges,
@@ -124,7 +125,9 @@ final class ResultGridActions {
             protected void processMouseEvent(MouseEvent event){
                 if(event.getID()==MouseEvent.MOUSE_CLICKED&&SwingUtilities.isLeftMouseButton(event)&&event.getClickCount()==1){
                     int column=columnAtPoint(event.getPoint());if(column<0)return;Rectangle cell=getHeaderRect(column);selectColumn(column);
-                    if(event.getX()>=cell.x+cell.width-28){columnFilterMenu(table.convertColumnIndexToModel(column)).show(this,cell.x,cell.y+cell.height);}
+                    int modelColumn=table.convertColumnIndexToModel(column),right=cell.x+cell.width;
+                    if(event.getX()>=right-HEADER_ACTION_WIDTH){columnFilterMenu(modelColumn).show(this,Math.max(cell.x,right-360),cell.y+cell.height);}
+                    else if(event.getX()>=right-HEADER_ACTION_WIDTH*2)cycleSort(modelColumn);
                     return;
                 }
                 super.processMouseEvent(event);
@@ -135,20 +138,21 @@ final class ResultGridActions {
             int index=table.convertColumnIndexToModel(column);Component component=normal.getTableCellRendererComponent(grid,value,selected,focus,row,column);
             if(component instanceof JLabel label){
                 Icon filter=IconFactory.of(IconFactory.Kind.FILTER,14,filters.containsKey(index)?IconFactory.CYAN:IconFactory.SLATE);
-                label.setIcon(new HeaderFilterIcon(label.getIcon(),filter));label.setHorizontalTextPosition(SwingConstants.LEFT);label.setIconTextGap(7);
+                SortOrder order=sortOrder(index);Icon sort=IconFactory.of(order==SortOrder.DESCENDING?IconFactory.Kind.SORT_DESC:IconFactory.Kind.SORT_ASC,14,order==SortOrder.UNSORTED?IconFactory.SLATE:IconFactory.CYAN);
+                label.setIcon(new HeaderActionsIcon(sort,filter));label.setHorizontalTextPosition(SwingConstants.LEFT);label.setIconTextGap(7);
             }
             return component;
         });
-        UiLanguage.tooltip(header,UiLanguage.key("Clic para seleccionar la columna. Pulsa ▾ para filtrar; clic derecho muestra más acciones."));
+        UiLanguage.tooltip(header,UiLanguage.key("Los iconos de la derecha ordenan y filtran; clic derecho muestra más acciones."));
         header.addMouseListener(new MouseAdapter(){private void popup(MouseEvent event){if(event.isPopupTrigger()){selectColumn(header.columnAtPoint(event.getPoint()));menu(true).show(header,event.getX(),event.getY());}}public void mousePressed(MouseEvent e){popup(e);}public void mouseReleased(MouseEvent e){popup(e);}});
     }
     /** Keeps the look-and-feel sort indicator and adds a permanent filter button. */
-    private record HeaderFilterIcon(Icon sort,Icon filter) implements Icon{
-        public int getIconWidth(){return (sort==null?0:sort.getIconWidth()+4)+filter.getIconWidth();}
-        public int getIconHeight(){return Math.max(sort==null?0:sort.getIconHeight(),filter.getIconHeight());}
+    private record HeaderActionsIcon(Icon sort,Icon filter) implements Icon{
+        public int getIconWidth(){return sort.getIconWidth()+5+filter.getIconWidth();}
+        public int getIconHeight(){return Math.max(sort.getIconHeight(),filter.getIconHeight());}
         public void paintIcon(Component component,Graphics graphics,int x,int y){
-            int offset=0;if(sort!=null){sort.paintIcon(component,graphics,x,y+(getIconHeight()-sort.getIconHeight())/2);offset=sort.getIconWidth()+4;}
-            filter.paintIcon(component,graphics,x+offset,y+(getIconHeight()-filter.getIconHeight())/2);
+            sort.paintIcon(component,graphics,x,y+(getIconHeight()-sort.getIconHeight())/2);
+            filter.paintIcon(component,graphics,x+sort.getIconWidth()+5,y+(getIconHeight()-filter.getIconHeight())/2);
         }
     }
     private void selectColumn(int column){if(column<0)return;table.setColumnSelectionInterval(column,column);if(table.getRowCount()>0)table.setRowSelectionInterval(0,table.getRowCount()-1);}
@@ -294,6 +298,7 @@ final class ResultGridActions {
         if(column<0||table.getRowSorter()==null)return SortOrder.UNSORTED;
         return table.getRowSorter().getSortKeys().stream().filter(key->key.getColumn()==column).map(RowSorter.SortKey::getSortOrder).findFirst().orElse(SortOrder.UNSORTED);
     }
+    private void cycleSort(int column){SortOrder current=sortOrder(column);if(current==SortOrder.UNSORTED)sort(column,SortOrder.ASCENDING);else if(current==SortOrder.ASCENDING)sort(column,SortOrder.DESCENDING);else clearSort();}
     private void clearSort(){if(table.getRowSorter()!=null)table.getRowSorter().setSortKeys(List.of());table.getTableHeader().repaint();}
     private void sort(int column,SortOrder order){if(column>=0&&table.getRowSorter()!=null){table.getRowSorter().setSortKeys(List.of(new RowSorter.SortKey(column,order)));table.getTableHeader().repaint();}}
     private List<Integer> allColumns(){List<Integer> result=new ArrayList<>();for(int i=0;i<model.getColumnCount();i++)result.add(i);return result;}

@@ -34,7 +34,7 @@ final class QueryResultPanel extends JPanel {
     private final List<Integer> viewTypes;
     private final QueryEditSupport.Eligibility viewEditing;
     private final List<QueryResult.Origin> viewOrigins;
-    private final Timer viewTimer,countTimer;
+    private final Timer viewTimer,countTimer,prefetchTimer;
     private ResultGridActions.ViewState activeView=new ResultGridActions.ViewState("",Map.of(),List.of()),pendingView=activeView;
     private final JToggleButton edit = UiLanguage.text(new JToggleButton(),UiLanguage.key("Editar"));
     private final JComboBox<String> mode=new JComboBox<>(new String[]{"Solo lectura"});
@@ -66,10 +66,13 @@ final class QueryResultPanel extends JPanel {
     private Runnable exportAction;
     private SwingWorker<Long,Long> exportWorker;
     private SwingWorker<Long,Void> countWorker;
+    private SwingWorker<List<PrefetchedPage>,Void> prefetchWorker;
+    private SwingWorker<QueryResult,Void> reloadWorker;
+    private volatile JdbcSession.ReadLease exportLease,countLease,prefetchLease,reloadLease;
     private long totalRows=-1,estimatedRows;
-    private int countGeneration;
+    private int countGeneration,prefetchGeneration,reloadGeneration;
     private boolean pendingLastPage;
-    private boolean available, saving, pendingCommit, stale;
+    private boolean available, saving, pendingCommit, stale,disposed;
     private List<ForeignKeyLookup.Reference> references=List.of();
     private final JButton referenceButton=UiLanguage.button("Ver referencia");
     private int referenceGeneration;
@@ -81,7 +84,8 @@ final class QueryResultPanel extends JPanel {
     private record PageKey(long offset,int size) {}
     private record PageAnchor(List<QueryPaging.Order> order,List<Object> values) {private PageAnchor{order=List.copyOf(order);values=List.copyOf(values);}}
     private record LoadedPage(QueryResult result,boolean keyset) {}
-    private final Map<PageKey,QueryResult> pageCache=new LinkedHashMap<>(4,0.75f,true){protected boolean removeEldestEntry(Map.Entry<PageKey,QueryResult> eldest){return size()>3;}};
+    private record PrefetchedPage(PageKey key,QueryResult result,boolean keyset) {}
+    private final Map<PageKey,QueryResult> pageCache=new LinkedHashMap<>(5,0.75f,true){protected boolean removeEldestEntry(Map.Entry<PageKey,QueryResult> eldest){return size()>cacheLimit();}};
     private final Map<PageKey,PageAnchor> pageAnchors=new LinkedHashMap<>();
     private final Set<PageKey> keysetPages=new LinkedHashSet<>();
     private boolean keysetActive;
@@ -138,6 +142,7 @@ final class QueryResultPanel extends JPanel {
         scroll=new JScrollPane(table);
         grid=new ResultGridActions(table,model,scroll,filter,this::updateCount,changed);
         viewTimer=new Timer(350,event->applyServerView());viewTimer.setRepeats(false);countTimer=new Timer(700,event->{if(totalRows<0&&countWorker==null&&QueryPaging.cheapCount(viewSql))startCount(false);});countTimer.setRepeats(false);
+        prefetchTimer=new Timer(350,event->prefetchPages());prefetchTimer.setRepeats(false);
         if(serverView){
             grid.serverView(this::scheduleServerView);
             filter.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){private void changed(){scheduleServerView(grid.viewState());}public void insertUpdate(javax.swing.event.DocumentEvent e){changed();}public void removeUpdate(javax.swing.event.DocumentEvent e){changed();}public void changedUpdate(javax.swing.event.DocumentEvent e){changed();}});
@@ -168,7 +173,7 @@ final class QueryResultPanel extends JPanel {
         setAvailable(origin,false);
         estimatedRows=result.rows().size()+(result.truncated()?1:0);if(!result.truncated())totalRows=result.rows().size();
         if(pageable){PageKey first=new PageKey(0,pageSize);pageCache.put(first,result);List<QueryPaging.Order> order=seekOrder();if(initialKeysetReady(order)){keysetPages.add(first);rememberNextAnchor(0,pageSize,result,order);keysetActive=true;}else if(result.truncated()&&!order.isEmpty())SwingUtilities.invokeLater(()->loadPage(0,pageSize,(fresh,error)->{},false));}
-        updateCount();if(totalRows<0&&pageable)countTimer.restart();
+        updateCount();if(totalRows<0&&pageable)countTimer.restart();schedulePrefetch();
         loadReferences();
     }
     private static void button(AbstractButton button,String name,IconFactory.Kind icon,String hint){button.setName(name);button.setIcon(IconFactory.of(icon,16));UiLanguage.tooltip(button,UiLanguage.key(hint));}
@@ -198,10 +203,11 @@ final class QueryResultPanel extends JPanel {
     void setRenderMillis(long value){renderMillis=Math.max(0,value);updateCount();}
     void resetReadOnly(){finishEditing();edit.setSelected(false);updateActions();}
     void setExportAction(Runnable action){exportAction=action;}
-    boolean canCancel(){return exportWorker!=null&&!exportWorker.isDone()||countWorker!=null&&!countWorker.isDone();}
-    void cancelOperation(){if(exportWorker!=null&&!exportWorker.isDone()){exportWorker.cancel(true);try{origin.cancel();}catch(java.sql.SQLException ignored){}changed.accept(tr("Exportación cancelada"));return;}cancelCount(true);}
+    boolean canCancel(){return exportWorker!=null&&!exportWorker.isDone()||countWorker!=null&&!countWorker.isDone()||reloadWorker!=null&&!reloadWorker.isDone();}
+    void cancelOperation(){if(exportWorker!=null&&!exportWorker.isDone()){exportWorker.cancel(true);cancelLease(exportLease);changed.accept(tr("Exportación cancelada"));return;}if(reloadWorker!=null&&!reloadWorker.isDone()){reloadWorker.cancel(true);cancelLease(reloadLease);changed.accept(tr("Actualización cancelada"));return;}cancelCount(true);}
     void exportData(){exportResult(null);}
     private void exportResult(DataExporter.Format initial){
+        if(exportWorker!=null&&!exportWorker.isDone()){changed.accept(tr("Ya existe una exportación en curso."));return;}
         String name=target==null?"resultado":target.qualifiedTable();QueryResult snapshot=model.snapshot();
         boolean full=pageable&&!hasChanges()&&(serverView||pagingRequested||limit==Integer.MAX_VALUE||snapshot.truncated());
         if(!full){ResultExports.write(this,snapshot,name,initial==null?DataExporter.Format.CSV:initial,changed);return;}
@@ -209,14 +215,16 @@ final class QueryResultPanel extends JPanel {
         String exportSql=viewSql;List<Object> parameters=List.copyOf(viewParameters);
         exportWorker=new SwingWorker<Long,Long>(){
             protected Long doInBackground()throws Exception{
-                return DataExporter.writeStreaming(request.path(),request.format(),name,writer->origin.streamResult(exportSql,parameters,Long.MAX_VALUE,new JdbcSession.ResultStream(){
-                    public void start(List<String> columns,List<Integer> types)throws Exception{writer.start(columns);}
-                    public void row(List<Object> values)throws Exception{writer.row(values);}
-                },rows->{if(!isCancelled())publish(rows);}));
+                try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){
+                    exportLease=lease;return DataExporter.writeStreaming(request.path(),request.format(),name,writer->lease.session().streamResult(exportSql,parameters,Long.MAX_VALUE,new JdbcSession.ResultStream(){
+                        public void start(List<String> columns,List<Integer> types)throws Exception{writer.start(columns);}
+                        public void row(List<Object> values)throws Exception{writer.row(values);}
+                    },rows->{if(!isCancelled())publish(rows);}));
+                }finally{exportLease=null;}
             }
             protected void process(List<Long> values){if(!values.isEmpty())changed.accept(tr("Exportando ")+values.get(values.size()-1)+tr(" filas…"));}
-            protected void done(){try{if(isCancelled()){changed.accept(tr("Exportación cancelada"));return;}long rows=get();changed.accept(request.format()+tr(" exportado · ")+rows+tr(" filas · ")+request.path().getFileName());}catch(Exception error){if(!isCancellation(error))showError(root(error),"No se pudo exportar");}finally{exportWorker=null;end();}}
-        };start();UiLanguage.text(status,UiLanguage.key("Exportando resultado completo…"));exportWorker.execute();
+            protected void done(){try{if(isCancelled()){changed.accept(tr("Exportación cancelada"));return;}long rows=get();changed.accept(request.format()+tr(" exportado · ")+rows+tr(" filas · ")+request.path().getFileName());}catch(Exception error){if(!isCancellation(error))showError(root(error),"No se pudo exportar");}finally{exportWorker=null;updateActions();}}
+        };UiLanguage.text(status,UiLanguage.key("Exportando resultado completo en segundo plano…"));exportWorker.execute();updateActions();
     }
     void setColumnEditor(ColumnEditor editor){
         if(editor!=null&&target!=null)grid.columnEditor((column,delete)->{
@@ -234,7 +242,12 @@ final class QueryResultPanel extends JPanel {
         if(JOptionPane.showConfirmDialog(this,tr("Hay cambios sin guardar en este resultado. ¿Deseas descartarlos?"),tr("Cambios pendientes"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)!=JOptionPane.YES_OPTION)return false;
         discardChanges();return true;
     }
-    void setAvailable(JdbcSession current,boolean operationBusy){available=current==origin&&origin!=null&&origin.isOpen()&&!operationBusy;updateActions();}
+    void setAvailable(JdbcSession current,boolean operationBusy){available=!disposed&&current==origin&&origin!=null&&origin.isOpen()&&!operationBusy;updateActions();}
+    void disposePanel(){
+        if(disposed)return;disposed=true;available=false;viewTimer.stop();countTimer.stop();cancelPrefetch();countGeneration++;reloadGeneration++;
+        if(exportWorker!=null)exportWorker.cancel(true);if(countWorker!=null)countWorker.cancel(true);if(reloadWorker!=null)reloadWorker.cancel(true);
+        cancelLease(exportLease);cancelLease(countLease);cancelLease(reloadLease);exportLease=null;countLease=null;reloadLease=null;updateActions();
+    }
     void transactionFinished(boolean rollback){
         if(rollback){cancelEditing();grid.clearChecked();model.discard();}
         if(!pendingCommit)return;
@@ -266,21 +279,50 @@ final class QueryResultPanel extends JPanel {
         boolean cheap=QueryPaging.cheapCount(viewSql);if(requested&&!cheap&&!confirm.test("Conteo exacto",tr("Esta consulta puede requerir un conteo costoso en el servidor y se cancelará automáticamente después de 20 segundos. ¿Continuar?"))){pendingLastPage=false;return;}
         int generation=++countGeneration;String source=viewSql;List<Object> parameters=List.copyOf(viewParameters);UiLanguage.text(status,UiLanguage.key("Calculando total…"));updateCount();
         countWorker=new SwingWorker<>(){
-            protected Long doInBackground()throws Exception{return origin.countRows(source,parameters,20);}
+            protected Long doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){countLease=lease;return lease.session().countRows(source,parameters,20);}finally{countLease=null;}}
             protected void done(){
                 if(generation!=countGeneration)return;boolean openLast=pendingLastPage;pendingLastPage=false;
                 try{totalRows=get();estimatedRows=Math.max(estimatedRows,totalRows);UiLanguage.text(status,UiLanguage.key("Total calculado: "),totalRows,UiLanguage.key(" filas"));}
                 catch(Exception error){Throwable cause=root(error);if(!isCancellation(cause)){String message=cause instanceof java.sql.SQLTimeoutException||java.util.Objects.toString(cause.getMessage(),"").toLowerCase(java.util.Locale.ROOT).contains("timeout")?tr("El conteo superó 20 segundos y fue cancelado. Puedes continuar navegando con la estimación."):tr("No se pudo calcular el total: ")+java.util.Objects.toString(cause.getMessage(),cause.getClass().getSimpleName());UiLanguage.text(status,UiLanguage.key(message));changed.accept(message);}openLast=false;}
-                finally{countWorker=null;busy.accept(false);updateCount();}
+                finally{countWorker=null;updateCount();}
                 if(openLast)SwingUtilities.invokeLater(QueryResultPanel.this::loadLastPage);
             }
-        };busy.accept(true);countWorker.execute();updateCount();
+        };countWorker.execute();updateCount();
     }
     private void cancelCount(boolean report){
-        countTimer.stop();pendingLastPage=false;SwingWorker<Long,Void> worker=countWorker;if(worker==null||worker.isDone())return;countGeneration++;worker.cancel(true);countWorker=null;try{origin.cancel();}catch(java.sql.SQLException ignored){}busy.accept(false);if(report){UiLanguage.text(status,UiLanguage.key("Conteo cancelado"));changed.accept(tr("Conteo cancelado"));}updateCount();
+        countTimer.stop();pendingLastPage=false;SwingWorker<Long,Void> worker=countWorker;if(worker==null||worker.isDone())return;countGeneration++;worker.cancel(true);cancelLease(countLease);countWorker=null;if(report){UiLanguage.text(status,UiLanguage.key("Conteo cancelado"));changed.accept(tr("Conteo cancelado"));}updateCount();
     }
     private void resetTotal(){cancelCount(false);totalRows=-1;estimatedRows=0;pendingLastPage=false;updateCount();}
     private void scheduleCount(){if(totalRows<0&&pageable&&QueryPaging.cheapCount(viewSql))countTimer.restart();}
+    private int cacheLimit(){long available=memoryHeadroom();return available<96L*1024*1024?2:available<384L*1024*1024?3:4;}
+    private static long memoryHeadroom(){Runtime runtime=Runtime.getRuntime();return Math.max(0,runtime.maxMemory()-(runtime.totalMemory()-runtime.freeMemory()));}
+    private boolean canPrefetch(){
+        if(!pageable||!available||saving||hasChanges()||prefetchWorker!=null&&!prefetchWorker.isDone())return false;
+        long estimate=(long)Math.max(1,pageSize)*Math.max(1,viewColumns.size())*96L*2L;
+        return model.definition().timing().totalMillis()<4_000&&memoryHeadroom()>Math.max(48L*1024*1024,estimate);
+    }
+    private void schedulePrefetch(){
+        prefetchTimer.stop();if(!canPrefetch())return;long latency=model.definition().timing().totalMillis();prefetchTimer.setInitialDelay((int)Math.max(250,Math.min(1_500,200+latency*2)));prefetchTimer.restart();
+    }
+    private void cancelPrefetch(){
+        prefetchTimer.stop();prefetchGeneration++;SwingWorker<List<PrefetchedPage>,Void> worker=prefetchWorker;if(worker!=null&&!worker.isDone())worker.cancel(true);cancelLease(prefetchLease);prefetchWorker=null;prefetchLease=null;
+    }
+    private void prefetchPages(){
+        if(!canPrefetch())return;List<PageKey> requested=new java.util.ArrayList<>(2);long nextOffset=pageOffset+model.dataRowCount();
+        if(model.definition().truncated()){PageKey nextKey=new PageKey(nextOffset,pageSize);if(!pageCache.containsKey(nextKey))requested.add(nextKey);}
+        if(pageOffset>0){PageKey previousKey=new PageKey(Math.max(0,pageOffset-pageSize),pageSize);if(!pageCache.containsKey(previousKey)&&(previousKey.offset()<=100_000||pageAnchors.containsKey(previousKey)))requested.add(previousKey);}
+        if(requested.isEmpty())return;int generation=++prefetchGeneration;String source=viewSql;List<Object> parameters=List.copyOf(viewParameters);List<QueryPaging.Order> order=seekOrder();Map<PageKey,PageAnchor> anchors=new LinkedHashMap<>();for(PageKey key:requested){PageAnchor anchor=key.offset()==0?new PageAnchor(order,List.of()):pageAnchors.get(key);if(anchor!=null)anchors.put(key,anchor);}
+        prefetchWorker=new SwingWorker<>(){
+            protected List<PrefetchedPage> doInBackground()throws Exception{
+                try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){
+                    prefetchLease=lease;List<PrefetchedPage> pages=new java.util.ArrayList<>();for(PageKey key:requested){if(isCancelled())break;PageAnchor anchor=anchors.get(key);LoadedPage loaded=executePage(lease.session(),source,parameters,key.size(),key.offset(),order,anchor);pages.add(new PrefetchedPage(key,loaded.result(),loaded.keyset()));}return pages;
+                }finally{prefetchLease=null;}
+            }
+            protected void done(){
+                if(generation!=prefetchGeneration)return;try{for(PrefetchedPage page:get()){pageCache.put(page.key(),page.result());if(page.keyset())keysetPages.add(page.key());else keysetPages.remove(page.key());rememberNextAnchor(page.key().offset(),page.key().size(),page.result(),order);}}catch(Exception ignored){}finally{prefetchWorker=null;updateCount();}
+            }
+        };prefetchWorker.execute();
+    }
 
     private void openPageNumber(){
         if(!pageable||saving)return;try{long page=Long.parseLong(pageNumber.getText().trim());if(page<1)throw new NumberFormatException();long offset=Math.multiplyExact(page-1L,pageSize);if(totalRows>=0&&offset>=Math.max(totalRows,1))throw new NumberFormatException();
@@ -331,14 +373,16 @@ final class QueryResultPanel extends JPanel {
         if(order.isEmpty()||!activeView.sorts().isEmpty())return false;QueryPaging.OrderAnalysis original=QueryPaging.order(sql,viewColumns);return original.present()&&original.supported()&&original.orders().equals(order);
     }
     private LoadedPage executeViewPage(int size,long offset)throws java.sql.SQLException{
-        List<QueryPaging.Order> order=seekOrder();PageAnchor anchor=offset==0?new PageAnchor(order,List.of()):pageAnchors.get(new PageKey(offset,size));
+        List<QueryPaging.Order> order=seekOrder();PageAnchor anchor=offset==0?new PageAnchor(order,List.of()):pageAnchors.get(new PageKey(offset,size));return executePage(origin,viewSql,viewParameters,size,offset,order,anchor);
+    }
+    private LoadedPage executePage(JdbcSession source,String sourceSql,List<Object> parameters,int size,long offset,List<QueryPaging.Order> order,PageAnchor anchor)throws java.sql.SQLException{
         if(!order.isEmpty()&&anchor!=null&&anchor.order().equals(order))try{
-            QueryResult fresh=origin.executeSeekPage(viewSql,viewParameters,size,viewColumns,order,anchor.values());
+            QueryResult fresh=source.executeSeekPage(sourceSql,parameters,size,viewColumns,order,anchor.values());
             return new LoadedPage(fresh.withContext(viewEditing,viewOrigins),true);
         }catch(IllegalArgumentException error){}catch(java.sql.SQLException error){String state=java.util.Objects.toString(error.getSQLState(),"");if(Thread.currentThread().isInterrupted()||state.startsWith("08")||state.equals("57014")||state.equalsIgnoreCase("HY008"))throw error;}
-        QueryResult fresh=origin.executePage(viewSql,viewParameters,size,offset);return new LoadedPage(!viewSql.equals(sql)&&viewEditing!=null?fresh.withContext(viewEditing,viewOrigins):fresh,false);
+        QueryResult fresh=source.executePage(sourceSql,parameters,size,offset);return new LoadedPage(!sourceSql.equals(sql)&&viewEditing!=null?fresh.withContext(viewEditing,viewOrigins):fresh,false);
     }
-    private void resetPagingState(){pageCache.clear();pageAnchors.clear();keysetPages.clear();keysetActive=false;}
+    private void resetPagingState(){cancelPrefetch();pageCache.clear();pageAnchors.clear();keysetPages.clear();keysetActive=false;}
     private void rememberNextAnchor(long offset,int size,QueryResult result,List<QueryPaging.Order> order){
         if(order.isEmpty()||result.rows().isEmpty()||!result.truncated())return;List<Object> row=result.rows().get(result.rows().size()-1),values=new java.util.ArrayList<>();
         for(QueryPaging.Order item:order){if(item.column()>=row.size()||row.get(item.column())==null)return;values.add(row.get(item.column()));}
@@ -361,7 +405,7 @@ final class QueryResultPanel extends JPanel {
         }.execute();
     }
     private void showPage(QueryResult fresh,long offset,int size,boolean keyset){
-        long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();int horizontal=scroll.getHorizontalScrollBar().getValue();pageOffset=offset;pageSize=size;pagingRequested=true;keysetActive=keyset;estimatedRows=Math.max(estimatedRows,offset+fresh.rows().size()+(fresh.truncated()?1:0));if(!fresh.truncated())totalRows=offset+fresh.rows().size();grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);scroll.getViewport().setViewPosition(new Point(horizontal,0));if(keyset)rememberNextAnchor(offset,size,fresh,seekOrder());setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);scheduleCount();loadReferences();
+        long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();int horizontal=scroll.getHorizontalScrollBar().getValue();pageOffset=offset;pageSize=size;pagingRequested=true;keysetActive=keyset;estimatedRows=Math.max(estimatedRows,offset+fresh.rows().size()+(fresh.truncated()?1:0));if(!fresh.truncated())totalRows=offset+fresh.rows().size();grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);scroll.getViewport().setViewPosition(new Point(horizontal,0));if(keyset)rememberNextAnchor(offset,size,fresh,seekOrder());setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);scheduleCount();schedulePrefetch();loadReferences();
     }
     private void installVirtualPaging(){
         scroll.addMouseWheelListener(e->{if(e.getWheelRotation()>0)SwingUtilities.invokeLater(this::loadNextIfNeeded);});
@@ -431,7 +475,7 @@ final class QueryResultPanel extends JPanel {
         int generation=++referenceGeneration;references=List.of();if(origin==null||!origin.isOpen())return;
         QueryResult definition=model.definition();
         new SwingWorker<List<ForeignKeyLookup.Reference>,Void>(){
-            protected List<ForeignKeyLookup.Reference> doInBackground()throws Exception{return ForeignKeyLookup.describe(origin.connection(),definition);}
+            protected List<ForeignKeyLookup.Reference> doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){return ForeignKeyLookup.describe(lease.session().connection(),definition);}}
             protected void done(){if(generation!=referenceGeneration||model.definition()!=definition)return;try{references=get();}catch(Exception unavailable){UiLanguage.tooltip(referenceButton,UiLanguage.key("No se pudieron leer las claves foráneas. Comprueba los permisos de metadatos."));}table.getTableHeader().repaint();table.repaint();updateActions();}
         }.execute();
     }
@@ -445,8 +489,8 @@ final class QueryResultPanel extends JPanel {
                 String database=requested.table().schema();if(database==null||database.isBlank())database=requested.table().catalog();
                 if(database==null||database.isBlank())return Map.of();
                 Map<String,String> types=new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-                synchronized(origin.connection()){
-                    try(var statement=origin.connection().prepareStatement("SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=?")){
+                try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){
+                    try(var statement=lease.session().connection().prepareStatement("SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=?")){
                         statement.setString(1,database);statement.setString(2,requested.table().name());
                         try(var rows=statement.executeQuery()){while(rows.next())types.put(rows.getString(1),rows.getString(2));}
                     }
@@ -546,23 +590,27 @@ final class QueryResultPanel extends JPanel {
     }
     private void reload(){reloadForReport((fresh,error)->{if(error!=null&&!isCancellation(error))showError(error,"Error al ejecutar la consulta");});}
     void reloadForReport(java.util.function.BiConsumer<QueryResult,Throwable> completion){
-        if(!available||saving||!SqlExecutionPolicy.readOnly(sql)){completion.accept(null,new IllegalStateException(tr("El resultado no está disponible para actualizarse.")));return;}
+        if(!available||saving||disposed||!SqlExecutionPolicy.readOnly(sql)){completion.accept(null,new IllegalStateException(tr("El resultado no está disponible para actualizarse.")));return;}
         if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){completion.accept(null,new IllegalStateException(tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de recargar.")));return;}
-        if(pageable){resetTotal();pageCache.clear();loadPage(pageOffset,pageSize,completion,false);return;}
         if(!confirmDiscard()){completion.accept(null,new java.util.concurrent.CancellationException(tr("Actualización cancelada.")));return;}
-        String replay=target==null?sql:QueryEditSupport.qualifiedSelect(sql,target);start();UiLanguage.text(status,UiLanguage.key("Recargando solo esta consulta…"));
-        new SwingWorker<QueryResult,Void>() {
-            protected QueryResult doInBackground()throws Exception{return origin.executeEditable(replay,rowLimit.getAsInt());}
+        if(pageable){resetTotal();resetPagingState();}
+        String replay=target==null?sql:QueryEditSupport.qualifiedSelect(sql,target);long offset=pageOffset;int size=pageSize,generation=++reloadGeneration;List<QueryPaging.Order> order=seekOrder();PageAnchor anchor=offset==0?new PageAnchor(order,List.of()):pageAnchors.get(new PageKey(offset,size));java.util.concurrent.atomic.AtomicBoolean loadedByKey=new java.util.concurrent.atomic.AtomicBoolean();startLocal();UiLanguage.text(status,UiLanguage.key("Recargando en una conexión auxiliar…"));
+        reloadWorker=new SwingWorker<>() {
+            protected QueryResult doInBackground()throws Exception{try(JdbcSession.ReadLease lease=origin.borrowReadOnly()){reloadLease=lease;if(!pageable)return lease.session().executeEditable(replay,rowLimit.getAsInt());LoadedPage loaded=executePage(lease.session(),viewSql,List.copyOf(viewParameters),size,offset,order,anchor);loadedByKey.set(loaded.keyset());return loaded.result();}finally{reloadLease=null;}}
             protected void done(){
-                try{QueryResult fresh=get();long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();completion.accept(fresh,null);}
-                catch(Exception error){completion.accept(null,root(error));}finally{end();}
+                if(generation!=reloadGeneration||disposed)return;
+                try{QueryResult fresh=get();if(pageable)showPage(fresh,offset,size,loadedByKey.get());else{long renderStarted=System.nanoTime();String selected=target==null?null:target.qualifiedTable();grid.clearChecked();grid.refreshing(()->model.setResult(fresh));configureTargets(fresh,selected);stale=false;edit.setSelected(false);resize.accept(table);setHint(fresh);setRenderMillis((System.nanoTime()-renderStarted)/1_000_000L);loadReferences();}completion.accept(fresh,null);}
+                catch(Exception error){completion.accept(null,root(error));}finally{reloadWorker=null;endLocal();}
             }
-        }.execute();
+        };reloadWorker.execute();
     }
     private static boolean isCancellation(Throwable error){while(error!=null){if(error instanceof java.util.concurrent.CancellationException)return true;error=error.getCause();}return false;}
     private static Throwable root(Throwable error){while(error.getCause()!=null)error=error.getCause();return error;}
+    private static void cancelLease(JdbcSession.ReadLease lease){if(lease!=null)try{lease.session().cancel();}catch(java.sql.SQLException ignored){}}
     private void start(){saving=true;updateActions();busy.accept(true);}
-    private void end(){saving=false;busy.accept(false);updateActions();}
+    private void end(){saving=false;busy.accept(false);updateActions();schedulePrefetch();}
+    private void startLocal(){saving=true;updateActions();}
+    private void endLocal(){saving=false;updateActions();schedulePrefetch();}
     private void showError(Throwable error,String title){while(error.getCause()!=null)error=error.getCause();JOptionPane.showMessageDialog(this,error.getMessage(),tr(title),JOptionPane.ERROR_MESSAGE);}
     private record ReferenceHeaderIcon(Icon base,Icon key) implements Icon{
         public int getIconWidth(){return key.getIconWidth()+(base==null?0:4+base.getIconWidth());}public int getIconHeight(){return Math.max(key.getIconHeight(),base==null?0:base.getIconHeight());}

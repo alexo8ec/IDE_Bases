@@ -32,7 +32,12 @@ public final class ManagedConnectionTest {
         equal(1,ambiguous.executions);equal(0,fresh.executions);equal(0,opened.get());
         try(Statement statement=managed.createStatement()){equal(1,opened.get());equal(0,fresh.executions);}
         managed.close();
-        System.out.println("ManagedConnectionTest: OK (idle heartbeat, open-resource/transaction exclusion, selected database/schema/read-only/isolation restoration, no SQL replay and cleanup)");
+
+        Wire primary=new Wire(),sibling=new Wire();opened.set(0);managed=ManagedConnection.wrap(primary.connection(),()->{opened.incrementAndGet();return sibling.connection();},()->{});
+        managed.setCatalog("analytics");managed.setSchema("reporting");managed.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+        try(Connection background=ManagedConnection.openReadOnlySibling(managed)){equal(1,opened.get());equal(true,background.isReadOnly());equal("analytics",background.getCatalog());equal("reporting",background.getSchema());equal(Connection.TRANSACTION_SERIALIZABLE,background.getTransactionIsolation());try(Statement ignored=background.createStatement()){}}
+        equal(false,managed.isClosed());managed.close();
+        System.out.println("ManagedConnectionTest: OK (idle heartbeat, recovery, independent read-only siblings, transaction exclusion, state restoration, no SQL replay and cleanup)");
     }
     private static final class Wire {
         boolean valid=true,closed,autoCommit=true,readOnly,failAfterExecute;String catalog="initial",schema="public";int isolation=Connection.TRANSACTION_READ_COMMITTED,validations,executions;

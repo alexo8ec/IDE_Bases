@@ -725,7 +725,7 @@ public final class QueryPanel extends JPanel {
 
     private void clearResultTabs() {
         for (int i = outputTabs.getTabCount() - 1; i >= 0; i--) {
-            if (outputTabs.getComponentAt(i) != messagesScroll) outputTabs.removeTabAt(i);
+            Component component=outputTabs.getComponentAt(i);if(component != messagesScroll){if(component instanceof QueryResultPanel panel)panel.disposePanel();outputTabs.removeTabAt(i);}
         }
         currentResult = null;
         updateActions();
