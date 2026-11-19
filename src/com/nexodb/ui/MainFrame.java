@@ -477,7 +477,7 @@ public final class MainFrame extends JFrame {
     }
     private void openTasks(com.nexodb.db.ScheduledTasks.Kind kind){
         ScheduledTasksPanel panel=null;for(int i=1;i<workspaceTabs.getTabCount();i++)if(workspaceTabs.getComponentAt(i) instanceof ScheduledTasksPanel found){panel=found;break;}
-        if(panel==null){panel=new ScheduledTasksPanel(scheduledTasks,profileStore::load,session==null?"":session.profile().id(),queryPanel.activeDatabase());addToolTab(tr("Tareas programadas"),panel);}else workspaceTabs.setSelectedComponent(panel);
+        if(panel==null){panel=new ScheduledTasksPanel(scheduledTasks,profileStore::load,session==null?"":session.profile().id(),queryPanel.activeDatabase(),sessions::get);addToolTab(tr("Tareas programadas"),panel);}else workspaceTabs.setSelectedComponent(panel);
         if(kind!=null)panel.create(kind);
     }
     private void importExternal(){
