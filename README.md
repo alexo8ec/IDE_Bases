@@ -1,6 +1,13 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.67**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.68**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Código e historial por archivo al estilo GitHub — 0.18.68
+
+- Cada SQL abierto muestra su ruta y los accesos **Código** e **Historial** en la parte superior del editor.
+- **Historial** abre una línea de tiempo exclusiva del archivo y conserva el seguimiento a través de cambios de nombre.
+- Al elegir un commit y un archivo se puede alternar entre **Cambios**, con líneas agregadas y eliminadas coloreadas, y **Archivo completo**, que muestra exactamente el contenido guardado en esa versión con números de línea.
+- El contenido histórico es de solo lectura y puede copiarse; consultar versiones anteriores no modifica el archivo actual ni ejecuta SQL.
 
 ## Credenciales cifradas exclusivas por tarea — 0.18.67
 
