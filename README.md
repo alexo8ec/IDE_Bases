@@ -1,6 +1,21 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.66**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.67**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Credenciales cifradas exclusivas por tarea — 0.18.67
+
+- Cada respaldo, reporte o script programado conserva su propia copia de la contraseña después de verificarla. La credencial se cifra con Windows DPAPI para el usuario actual y queda separada del perfil de conexión.
+- El ejecutor interno y el ejecutor externo cargan la credencial por identificador de tarea, por lo que reiniciar o cerrar AdisDB ya no convierte una contraseña válida en `using password: NO`.
+- El formulario deja el guardado seguro activado obligatoriamente en Windows. La contraseña no se incluye en comandos, registros, configuración de la tarea ni archivos de respaldo.
+- Al editar una tarea se reutiliza su copia cifrada; solo se vuelve a pedir la clave cuando falta, cambia o el servidor la rechaza. Al eliminar la tarea también se elimina su secreto cifrado.
+- El diagnóstico distingue ahora entre una contraseña rechazada y la ausencia total de contraseña, indicando exactamente cómo reparar las tareas creadas con versiones anteriores.
+
+## Diferencias Git e historial completo por archivo — 0.18.67
+
+- Al seleccionar un commit, **Historial Git** muestra la lista real de archivos agregados, modificados, eliminados o renombrados, junto con sus totales de líneas añadidas y quitadas.
+- El archivo seleccionado abre su parche completo con líneas nuevas en verde, eliminadas en rojo, bloques de cambio resaltados y encabezados diferenciados, tanto en modo claro como oscuro.
+- El nuevo botón **Historial del archivo** filtra todas las revisiones del SQL abierto y sigue sus cambios de nombre, mientras **Ver historial** conserva la vista global de ramas y fusiones.
+- La lectura es informativa y segura: no ejecuta SQL, no modifica archivos y no ofrece acciones destructivas automáticas sobre commits anteriores.
 
 ## Columnas constantes generadas correctamente — 0.18.66
 

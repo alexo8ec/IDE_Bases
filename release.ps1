@@ -58,7 +58,7 @@ $macArmPackage = Join-Path $root "dist\AdisDB-$desktopVersion-macos-arm64.zip"
     --linux-arm64 $linuxArmPackage `
     --macos-x64 $macIntelPackage `
     --macos-arm64 $macArmPackage `
-    --notes "AdisDB ${desktopVersion}: historial Git tabular con ramas y fusiones de colores; el generador SQL crea correctamente columnas constantes como 1 AS ice."
+    --notes "AdisDB ${desktopVersion}: credenciales cifradas exclusivas por tarea, detalle Git por archivo con diferencias coloreadas e historial completo del SQL seleccionado."
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo generar el manifiesto multiplataforma.' }
 & python (Join-Path $root 'tools\verify-platforms.py')
 if ($LASTEXITCODE -ne 0) { throw 'Falló la verificación cruzada de los paquetes Linux/macOS.' }

@@ -17,6 +17,7 @@ public final class SqlProjectService {
     public record GitResult(int exitCode,String output){public boolean ok(){return exitCode==0;}}
     public record GitCommit(String hash,String shortHash,List<String> parents,String refs,String author,String date,String subject){}
     public record GitGraphLine(String graph,GitCommit commit){}
+    public record GitFileChange(String status,String path,long additions,long deletions){}
     private final Path root;
 
     private SqlProjectService(Path root){this.root=root.toAbsolutePath().normalize();}
@@ -65,13 +66,23 @@ public final class SqlProjectService {
     }
     public String history(Path relative)throws IOException{List<String> command=new ArrayList<>(List.of("log","--max-count=100","--date=iso-local","--pretty=format:%h  %ad  %an%n    %s"));if(relative!=null){command.add("--");command.add(portable(root.relativize(resolve(relative,false))));}GitResult result=git(command);return result.output();}
     public List<GitGraphLine> historyGraph(Path relative)throws IOException{
-        List<String> command=new ArrayList<>(List.of("log","--graph","--all","--decorate=short","--max-count=250","--date=iso-strict","--pretty=format:%x1e%H%x1f%h%x1f%P%x1f%D%x1f%an%x1f%ad%x1f%s"));
-        if(relative!=null){command.add("--");command.add(portable(root.relativize(resolve(relative,false))));}
+        List<String> command=new ArrayList<>(List.of("log","--graph"));
+        if(relative==null)command.add("--all");else command.add("--follow");
+        command.addAll(List.of("--decorate=short","--max-count=250","--date=iso-strict","--pretty=format:%x1e%H%x1f%h%x1f%P%x1f%D%x1f%an%x1f%ad%x1f%s"));
+        if(relative!=null){command.add("--");command.add(safeGitPath(relative));}
         GitResult result=git(command);if(!result.ok())throw new IOException(result.output());List<GitGraphLine> lines=new ArrayList<>();
         for(String line:result.output().split("\\R",-1)){int marker=line.indexOf('\u001e');if(marker<0){if(!line.isBlank())lines.add(new GitGraphLine(line,null));continue;}String[] fields=line.substring(marker+1).split("\\x1f",7);if(fields.length<7)continue;List<String> parents=fields[2].isBlank()?List.of():List.of(fields[2].trim().split("\\s+"));GitCommit commit=new GitCommit(fields[0],fields[1],parents,fields[3],fields[4],fields[5],fields[6]);lines.add(new GitGraphLine(line.substring(0,marker),commit));}
         return List.copyOf(lines);
     }
     public String commitDetails(String hash)throws IOException{if(hash==null||!hash.matches("[0-9a-fA-F]{7,64}"))throw new IOException("Identificador de commit no válido.");GitResult result=git(List.of("show","--no-renames","--stat","--format=commit %H%nAutor: %an <%ae>%nFecha: %ad%n%n    %s%n%n%b","--date=iso-local","--max-count=1",hash));if(!result.ok())throw new IOException(result.output());return result.output();}
+    public List<GitFileChange> commitChanges(String hash)throws IOException{
+        requireHash(hash);GitResult names=git(List.of("diff-tree","--root","--no-commit-id","--name-status","-r","-M",hash));if(!names.ok())throw new IOException(names.output());
+        Map<String,String> states=new LinkedHashMap<>();for(String line:names.output().split("\\R")){String[] values=line.split("\\t");if(values.length<2)continue;String state=values[0],path=values[values.length-1];states.put(path,state);}
+        GitResult stats=git(List.of("show","--format=","--numstat","--find-renames","--max-count=1",hash));if(!stats.ok())throw new IOException(stats.output());Map<String,long[]> counts=new LinkedHashMap<>();
+        for(String line:stats.output().split("\\R")){String[] values=line.split("\\t",3);if(values.length<3)continue;counts.put(values[2],new long[]{number(values[0]),number(values[1])});}
+        LinkedHashSet<String> paths=new LinkedHashSet<>(states.keySet());paths.addAll(counts.keySet());List<GitFileChange> result=new ArrayList<>();for(String path:paths){long[] count=counts.getOrDefault(path,new long[]{0,0});result.add(new GitFileChange(states.getOrDefault(path,"M"),path,count[0],count[1]));}return List.copyOf(result);
+    }
+    public String commitPatch(String hash,String path)throws IOException{requireHash(hash);String safe=safeGitPath(Path.of(Objects.toString(path,"")));GitResult result=git(List.of("show","--format=","--find-renames","--patch","--unified=3","--max-count=1",hash,"--",safe));if(!result.ok())throw new IOException(result.output());return result.output();}
     public GitResult runConsole(String command)throws IOException{
         List<String> parts=parseCommand(command);if(!parts.isEmpty()&&parts.get(0).equalsIgnoreCase("git"))parts=new ArrayList<>(parts.subList(1,parts.size()));if(parts.isEmpty())throw new IOException("Escribe un comando Git.");
         Set<String> allowed=Set.of("status","diff","log","show","branch","switch","checkout","merge","rebase","add","restore","commit","fetch","pull","push","tag","remote","stash");String action=parts.get(0).toLowerCase(Locale.ROOT);if(!allowed.contains(action))throw new IOException("Comando no permitido en esta consola: "+action+". Usa solo operaciones Git del proyecto.");
@@ -82,6 +93,9 @@ public final class SqlProjectService {
     private GitResult git(List<String> arguments)throws IOException{if(!isGitRepository())throw new IOException("El proyecto todavía no es un repositorio Git.");return runGit(arguments,root,Duration.ofSeconds(20));}
     private GitResult gitNetwork(List<String> arguments)throws IOException{if(remoteUrl().isBlank())throw new IOException("Configura primero el repositorio remoto de GitHub.");return runGit(arguments,root,Duration.ofMinutes(5));}
     private String requiredBranch()throws IOException{String value=branch();if(value.isBlank())throw new IOException("Crea al menos un commit antes de enviar el proyecto.");return safeBranch(value);}
+    private static void requireHash(String hash)throws IOException{if(hash==null||!hash.matches("[0-9a-fA-F]{7,64}"))throw new IOException("Identificador de commit no válido.");}
+    private static long number(String value){try{return Long.parseLong(value);}catch(NumberFormatException ignored){return 0;}}
+    private String safeGitPath(Path relative)throws IOException{if(relative==null||relative.isAbsolute()||relative.toString().isBlank()||relative.toString().startsWith("-")||relative.toString().indexOf('\n')>=0||relative.toString().indexOf('\r')>=0)throw new IOException("Ruta Git no válida.");Path target=root.resolve(relative).normalize();requireInside(target);if(insideGit(target))throw new IOException("La carpeta interna de Git está protegida.");return portable(root.relativize(target));}
     private static String safeRemote(String value)throws IOException{String remote=Objects.toString(value,"").trim();if(remote.isBlank()||remote.length()>2048||remote.indexOf('\n')>=0||remote.indexOf('\r')>=0)throw new IOException("Escribe una URL válida del repositorio GitHub.");return remote;}
     private static String safeBranch(String value)throws IOException{String branch=Objects.toString(value,"main").trim();if(branch.isBlank()||branch.startsWith("-")||branch.contains("..")||!branch.matches("[A-Za-z0-9._/-]+"))throw new IOException("El nombre de la rama no es válido.");return branch;}
     private Path resolveSql(Path relative,boolean mayCreate)throws IOException{Path path=resolve(relative,mayCreate);if(!isSql(path))throw new IOException("El proyecto solo edita archivos .sql.");return path;}

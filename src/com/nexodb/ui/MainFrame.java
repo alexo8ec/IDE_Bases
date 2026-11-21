@@ -55,6 +55,7 @@ import java.util.Set;
 public final class MainFrame extends JFrame {
     private final ProfileStore profileStore = new ProfileStore();
     private final SecretStore secretStore = new SecretStore();
+    private final com.nexodb.db.ScheduledTaskSecrets scheduledTaskSecrets = new com.nexodb.db.ScheduledTaskSecrets(secretStore);
     private final UpdateService updateService = new UpdateService();
     private final DefaultListModel<ConnectionProfile> profileModel = new DefaultListModel<>();
     private final JList<ConnectionProfile> profileList = new JList<>(profileModel);
@@ -89,7 +90,7 @@ public final class MainFrame extends JFrame {
     private final com.nexodb.db.ScheduledTasks scheduledTasks=new com.nexodb.db.ScheduledTasks(
             Boolean.getBoolean("nexodb.disableDraftPersistence")?null:com.nexodb.util.AppSettings.file().resolveSibling("scheduled-tasks.properties"),
             id->profileStore.load().stream().filter(p->p.id().equals(id)).findFirst().orElse(null),
-            id->secretStore.has(id)?secretStore.load(id):null,
+            id->scheduledTaskSecrets.has(id)?scheduledTaskSecrets.load(id):null,
             message->SwingUtilities.invokeLater(()->setStatus(message)),!Boolean.getBoolean("nexodb.disableDraftPersistence"));
 
     public MainFrame() {

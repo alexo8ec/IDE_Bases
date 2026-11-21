@@ -1,5 +1,6 @@
 package com.nexodb.util;
 
+import com.nexodb.db.ScheduledTaskSecrets;
 import java.util.Arrays;
 import java.util.UUID;
 import java.nio.file.Files;
@@ -35,6 +36,15 @@ public final class SecretStoreTest {
             } finally {
                 if (actual != null) Arrays.fill(actual, '\0');
             }
+            ScheduledTaskSecrets tasks = new ScheduledTaskSecrets(store);
+            tasks.save("backup-1", expected);
+            if (!tasks.has("backup-1")) throw new AssertionError("Per-task encrypted secret was not stored");
+            char[] taskSecret=tasks.load("backup-1");
+            try { if (!Arrays.equals(expected,taskSecret)) throw new AssertionError("Per-task credential roundtrip failed"); }
+            finally { if(taskSecret!=null)Arrays.fill(taskSecret,'\0'); }
+            if(Files.readString(folder.resolve("secrets.dat")).contains("clave temporal"))throw new AssertionError("Task secret was written as plain text");
+            tasks.delete("backup-1");
+            if(tasks.has("backup-1"))throw new AssertionError("Per-task credential was not removed");
         } finally {
             store.delete(id);
             Arrays.fill(expected, '\0');
