@@ -14,6 +14,9 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -40,6 +43,7 @@ public final class SchemaCompareDialog extends JDialog {
     private final JTable results = UiLanguage.headers(new JTable(model));
     private final JButton compare = UiLanguage.text(new JButton(tr("Comparar"), IconFactory.of(IconFactory.Kind.COMPARE, 16)), UiLanguage.key("Comparar"));
     private final JButton generate = UiLanguage.text(new JButton(tr("Generar script"), IconFactory.of(IconFactory.Kind.SQL, 16)), UiLanguage.key("Generar script"));
+    private final JButton saveMigration = UiLanguage.text(new JButton(tr("Guardar como migración"), IconFactory.of(IconFactory.Kind.SAVE, 16)), UiLanguage.key("Guardar como migración"));
     private final JLabel status = UiLanguage.text(new JLabel(tr("Selecciona el origen y el destino.")), UiLanguage.key("Selecciona el origen y el destino."));
     private final JProgressBar progress = new JProgressBar();
     private Comparison lastComparison;
@@ -99,6 +103,8 @@ public final class SchemaCompareDialog extends JDialog {
         compare.addActionListener(e -> compare());
         generate.addActionListener(e -> generateScript());
         generate.setEnabled(false);
+        saveMigration.addActionListener(e -> saveMigration());
+        saveMigration.setEnabled(false);
         close.addActionListener(e -> dispose());
         actions.add(compare);
         progress.setIndeterminate(true);
@@ -106,6 +112,7 @@ public final class SchemaCompareDialog extends JDialog {
         progress.setVisible(false);
         actions.add(progress);
         actions.add(generate);
+        actions.add(saveMigration);
         actions.add(close);
         bottom.add(actions, BorderLayout.EAST);
         root.add(bottom, BorderLayout.SOUTH);
@@ -173,7 +180,7 @@ public final class SchemaCompareDialog extends JDialog {
         compare.setEnabled(ready); chooseObjects.setEnabled(ready);
     }
     private void selectionChanged() {
-        selectionRevision++; lastComparison = null; comparisonTarget = null; generate.setEnabled(false);
+        selectionRevision++; lastComparison = null; comparisonTarget = null; generate.setEnabled(false);saveMigration.setEnabled(false);
         updateActions();
         UiLanguage.text(status, UiLanguage.key("Selecciona las instancias y bases que deseas comparar."));
     }
@@ -224,6 +231,7 @@ public final class SchemaCompareDialog extends JDialog {
         long request = selectionRevision;
         comparing = true; updateActions();
         generate.setEnabled(false);
+        saveMigration.setEnabled(false);
         UiLanguage.text(status, UiLanguage.key("Comparando "), sourceName, UiLanguage.key(" con "), targetName, "…");
         progress.setVisible(true);
         model.setRowCount(0);
@@ -241,6 +249,7 @@ public final class SchemaCompareDialog extends JDialog {
                         model.addRow(new Object[]{displayType(difference.type()), difference.name(), difference.status(), difference.detail()});
                     }
                     generate.setEnabled(!lastComparison.script().isBlank());
+                    saveMigration.setEnabled(!lastComparison.script().isBlank());
                     long changes = lastComparison.differences().stream().filter(d -> !d.status().equals(tr("Igual"))).count();
                     UiLanguage.text(status, (lastComparison.differences().size()), UiLanguage.key(" objetos revisados · "), changes, UiLanguage.key(" diferencias"));
                 } catch (Exception error) {
@@ -349,6 +358,10 @@ public final class SchemaCompareDialog extends JDialog {
         if (lastComparison == null || lastComparison.script().isBlank()) return;
         scriptConsumer.accept(comparisonTarget, lastComparison.script());
         dispose();
+    }
+
+    private void saveMigration(){
+        if(lastComparison==null||lastComparison.script().isBlank())return;JFileChooser chooser=new JFileChooser();chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);String configured=com.nexodb.util.AppSettings.get("migrations.folder","");if(!configured.isBlank())chooser.setCurrentDirectory(Path.of(configured).toFile());if(chooser.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return;String description=JOptionPane.showInputDialog(this,tr("Descripción de la migración:"),"sincronizar_esquema");if(description==null)return;String safe=description.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+","_").replaceAll("^_+|_+$","");if(safe.isBlank()){JOptionPane.showMessageDialog(this,tr("Escribe una descripción válida."));return;}try{Path folder=chooser.getSelectedFile().toPath().toAbsolutePath();Files.createDirectories(folder);String version=java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));Path file=folder.resolve("V"+version+"__"+safe+".sql");Files.writeString(file,lastComparison.script(),StandardCharsets.UTF_8);com.nexodb.util.AppSettings.put("migrations.folder",folder.toString());JOptionPane.showMessageDialog(this,tr("Migración creada para revisión:")+"\n"+file);}catch(Exception error){JOptionPane.showMessageDialog(this,error.getMessage(),tr("Guardar migración"),JOptionPane.ERROR_MESSAGE);}
     }
 
     private String qualified(JdbcSession endpoint, String database, String object) { return quote(endpoint, database) + "." + quote(endpoint, object); }

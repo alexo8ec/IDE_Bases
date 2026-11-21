@@ -15,7 +15,7 @@ public final class AiAssistantPanel extends JPanel {
     private final JComboBox<AiConfig.Provider> provider=new JComboBox<>(AiConfig.Provider.values());
     private final JTextField endpoint=new JTextField(40),model=new JTextField(20);
     private final JPasswordField key=new JPasswordField(25);
-    private final JCheckBox remember=new JCheckBox(tr("Recordar clave cifrada (Windows)"));
+    private final JCheckBox remember=new JCheckBox(tr("Recordar clave en el almacén seguro del sistema"));
     private final JComboBox<AiClient.Task> task=new JComboBox<>(AiClient.Task.values());
     private final JTextArea instruction=new JTextArea(4,60),schema=new JTextArea(),plan=new JTextArea(),answer=new JTextArea();
     private final SqlEditorPane sql=new SqlEditorPane(),proposal=new SqlEditorPane();

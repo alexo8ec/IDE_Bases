@@ -11,6 +11,8 @@ Se necesita un certificado de **firma de código** emitido por una autoridad de 
 ```powershell
 $env:NEXODB_SIGN_CERT_THUMBPRINT = 'HUELLA_DEL_CERTIFICADO_INSTALADO'
 .\installer.ps1 -RequireSigning -DownloadBaseUrl 'https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist'
+# Entrega completa: falla si Windows no queda firmado y verificado.
+.\release.ps1 -RequireWindowsSigning -DownloadBaseUrl 'https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist'
 ```
 
 El modo `-RequireSigning` falla antes de compilar si falta el certificado. Si se proporciona una huella, valida su uso, vigencia y cadena de confianza. Firma el lanzador de la aplicación antes de comprimir el portable; el EXE instalador se construye a partir de esa misma imagen, conservando el lanzador firmado, y se firma también. Verifica Authenticode y el sello de tiempo RFC 3161/SHA-256. Los hashes se calculan después de firmar.
@@ -70,4 +72,4 @@ Referencias: [Developer ID](https://developer.apple.com/developer-id/), [notariz
 
 Conserva la misma identidad de editor entre versiones. Genera el manifiesto de actualización después de obtener los archivos definitivos firmados y notarizados, usando sus hashes finales. Una descarga íntegra por HTTPS y SHA-256 comprueba el archivo esperado; no reemplaza la firma del editor ni la notarización.
 
-No se han firmado ni notarizado los paquetes 0.11.3 en este equipo: faltan certificados y no hay un entorno macOS disponible. Los scripts quedan preparados; la ejecución real debe completarse con esas identidades antes de anunciar que las alertas de confianza están resueltas.
+Cada entrega genera `dist/security-manifest.json`. El informe registra hashes, estado Authenticode, identidad pública del firmante y presencia del sello de tiempo, sin incluir claves privadas. En Windows, `-RequireWindowsSigning` impide terminar una publicación si el instalador o el lanzador no tienen una firma válida. La firma y notarización de macOS deben verificarse en un Mac mediante el flujo documentado; nunca se infieren a partir del nombre del archivo.

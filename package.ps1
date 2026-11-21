@@ -121,7 +121,7 @@ $manifest = [ordered]@{
     version = $version
     downloadUrl = $downloadUrl
     sha256 = $zipHash
-    notes = "AdisDB ${version}: formulario de conexión estable en macOS; conserva el nombre escrito, confirma el texto pendiente y cambia de motor sin encoger ni desplazar la ventana."
+    notes = "AdisDB ${version}: plataforma empresarial en ocho fases con seguridad nativa, migraciones versionadas, respaldos multimotor, editor avanzado, perfilador, linaje, conectores modernos y colaboración segura."
 }
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path $distRoot 'update-manifest.json'),($manifest | ConvertTo-Json),$utf8NoBom)

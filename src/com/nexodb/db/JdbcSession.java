@@ -332,6 +332,7 @@ public final class JdbcSession implements AutoCloseable {
             case SQLITE -> "sqlite-jdbc-";
             case H2 -> "h2-";
             case MONGODB -> "mongodb-jdbc-";
+            case SNOWFLAKE -> "snowflake-jdbc-";
             default -> null;
         };
         if (prefix == null) return null;

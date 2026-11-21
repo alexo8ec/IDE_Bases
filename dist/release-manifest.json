@@ -1,16 +1,16 @@
 {
-    "product":  "AdisDB",
-    "version":  "0.18.68",
-    "publisher":  "Alex Mite Salazar",
-    "contact":  "alexo8ec@hotmail.com",
-    "installer":  {
-                      "file":  "AdisDB-0.18.68.exe",
-                      "url":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/installer/AdisDB-0.18.68.exe",
-                      "sha256":  "d8514a0dacc0420c9a5062673f53cf4db1f877105704980d942303ff6af562dc"
-                  },
-    "portable":  {
-                     "file":  "AdisDB-0.18.68-win64.zip",
-                     "url":  "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.68-win64.zip",
-                     "sha256":  "ab2cf7a170018d561616fa36a893c8cafa08006c23724861cad87bd5c64def0e"
-                 }
+  "product": "AdisDB",
+  "version": "0.18.76",
+  "publisher": "Alex Mite Salazar",
+  "contact": "alexo8ec@hotmail.com",
+  "installer": {
+    "file": "AdisDB-0.18.76.exe",
+    "url": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/installer/AdisDB-0.18.76.exe",
+    "sha256": "8c7ef1da27ea3456a6ef4a8feaf340d1ac579c7613ce8f6ad3397665bcb2bfa4"
+  },
+  "portable": {
+    "file": "AdisDB-0.18.76-win64.zip",
+    "url": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.76-win64.zip",
+    "sha256": "f8b7ee66f5dc45abf90ad4cfa02d98addc328648bc5daef2ce12b9559445d907"
+  }
 }

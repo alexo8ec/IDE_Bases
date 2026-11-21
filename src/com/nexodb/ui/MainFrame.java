@@ -357,6 +357,8 @@ public final class MainFrame extends JFrame {
         query.add(toolMenuItem("Buscar datos",IconFactory.Kind.SEARCH,KeyEvent.VK_D,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK,()->openQueryTool("search")));
         query.add(toolMenuItem("Historial SQL",IconFactory.Kind.SQL,KeyEvent.VK_H,KeyEvent.CTRL_DOWN_MASK|KeyEvent.SHIFT_DOWN_MASK,queryPanel::showHistory));
         query.add(toolMenuItem("Renombrar consulta…",IconFactory.Kind.EDIT,KeyEvent.VK_F2,KeyEvent.ALT_DOWN_MASK,queryPanel::renameCurrentQuery));query.addSeparator();
+        query.add(toolMenuItem("Fragmentos SQL…",IconFactory.Kind.ADD,KeyEvent.VK_J,KeyEvent.CTRL_DOWN_MASK,queryPanel::showSnippetLibrary));
+        query.add(toolMenuItem("Renombrar identificador…",IconFactory.Kind.EDIT,KeyEvent.VK_R,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,queryPanel::renameIdentifier));query.addSeparator();
         JMenuItem executeQuery = UiLanguage.text(new JMenuItem(tr("Ejecutar"), IconFactory.of(IconFactory.Kind.PLAY)), UiLanguage.key("Ejecutar"));
         executeQuery.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0));
         executeQuery.addActionListener(e -> queryPanel.executeCurrent());
@@ -371,10 +373,14 @@ public final class MainFrame extends JFrame {
             Object[] options={tr("Comparar esquemas"),tr("Comparar datos")};int choice=JOptionPane.showOptionDialog(this,tr("Selecciona qué deseas comparar. El script se abrirá en una consulta nueva para revisarlo antes de ejecutar."),tr("Sincronizar bases de datos"),JOptionPane.DEFAULT_OPTION,JOptionPane.PLAIN_MESSAGE,null,options,options[0]);if(choice==0)compareSchemas();if(choice==1)compareData();
         }));
         power.add(toolMenuItem("Comparación visual de datos…",IconFactory.Kind.TABLE,KeyEvent.VK_Q,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,this::compareData));
-        power.add(toolMenuItem("Sincronizar esquemas…",IconFactory.Kind.COMPARE,KeyEvent.VK_Q,KeyEvent.CTRL_DOWN_MASK,this::compareSchemas));power.addSeparator();
+        power.add(toolMenuItem("Sincronizar esquemas…",IconFactory.Kind.COMPARE,KeyEvent.VK_Q,KeyEvent.CTRL_DOWN_MASK,this::compareSchemas));
+        power.add(toolMenuItem("Migraciones versionadas",IconFactory.Kind.HISTORY,0,0,this::openMigrations));power.addSeparator();
         power.add(toolMenuItem("Importar datos externos…",IconFactory.Kind.DATABASE,KeyEvent.VK_O,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,this::importExternal));
         power.add(toolMenuItem("Calidad, enmascaramiento y datos de prueba",IconFactory.Kind.SEARCH,0,0,this::openDataQuality));
-        power.add(toolMenuItem("Diccionario de datos",IconFactory.Kind.SCHEMA,0,0,this::openDataDictionary));power.addSeparator();
+        power.add(toolMenuItem("Diccionario de datos",IconFactory.Kind.SCHEMA,0,0,this::openDataDictionary));
+        power.add(toolMenuItem("Linaje y dependencias",IconFactory.Kind.DIAGRAM,0,0,this::openDataLineage));power.addSeparator();
+        power.add(toolMenuItem("Explorador NoSQL nativo",IconFactory.Kind.DATABASE,0,0,()->addToolTab(tr("MongoDB y Redis"),new NativeDataExplorerPanel())));power.addSeparator();
+        power.add(toolMenuItem("Colaboración y revisiones",IconFactory.Kind.HISTORY,0,0,()->addToolTab(tr("Espacio de equipo"),new TeamWorkspacePanel())));power.addSeparator();
         power.add(toolMenuItem("Programar consultas y reportes…",IconFactory.Kind.SQL,KeyEvent.VK_N,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openTasks(com.nexodb.db.ScheduledTasks.Kind.REPORT)));
         power.add(toolMenuItem("Respaldos programados…",IconFactory.Kind.SAVE,KeyEvent.VK_S,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->openTasks(com.nexodb.db.ScheduledTasks.Kind.BACKUP)));
         power.add(toolMenuItem("Tareas programadas…",IconFactory.Kind.SETTINGS,0,0,()->openTasks(null)));power.addSeparator();
@@ -435,6 +441,10 @@ public final class MainFrame extends JFrame {
     }
     private void openDataDictionary(){
         if(!requireDatabase())return;if(session.profile().type()==DatabaseType.MONGODB||session.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(this,tr("El diccionario requiere un motor relacional reconocido."));return;}JdbcSession origin=session;String database=queryPanel.activeDatabase();for(Component component:workspaceTabs.getComponents())if(component instanceof DataDictionaryPanel panel&&panel.origin()==origin&&panel.database().equalsIgnoreCase(database)){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Diccionario de datos")+" · "+database,new DataDictionaryPanel(origin,database,item->openTable(origin,item,TableWorkbenchPanel.COLUMNS),()->{activateSession(origin);queryPanel.selectDatabase(database);openQueryTool("designer");}));
+    }
+    private void openDataLineage(){if(!requireDatabase())return;if(session.profile().type()==DatabaseType.MONGODB||session.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(this,tr("El linaje requiere un motor relacional reconocido."));return;}JdbcSession origin=session;String database=queryPanel.activeDatabase();for(Component component:workspaceTabs.getComponents())if(component instanceof DataLineagePanel panel&&panel.origin()==origin&&panel.database().equalsIgnoreCase(database)){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Linaje")+" · "+database,new DataLineagePanel(origin,database));}
+    private void openMigrations(){
+        if(!requireDatabase())return;if(!com.nexodb.db.MigrationService.supported(session.profile().type())){JOptionPane.showMessageDialog(this,tr("Las migraciones versionadas requieren un motor SQL relacional reconocido."));return;}JdbcSession origin=session;for(Component component:workspaceTabs.getComponents())if(component instanceof MigrationPanel panel&&panel.origin()==origin){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Migraciones")+" · "+session.profile().name(),new MigrationPanel(origin,sql->{activateSession(origin);workspaceTabs.setSelectedIndex(0);queryPanel.openNewQuery(sql);}));
     }
     private void openSqlProject(boolean create){
         if(!LicenseGate.ensure(this))return;JFileChooser chooser=new JFileChooser();chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);chooser.setDialogTitle(tr(create?"Selecciona la carpeta donde crear el proyecto":"Abrir proyecto SQL"));String last=AppSettings.get("sqlProject.lastPath","");if(!last.isBlank()){Path previous=Path.of(last),folder=Files.isDirectory(previous)?previous:previous.getParent();if(folder!=null&&Files.isDirectory(folder))chooser.setCurrentDirectory(folder.toFile());}
@@ -1567,7 +1577,7 @@ public final class MainFrame extends JFrame {
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
         UiLanguage.tooltip(close, UiLanguage.key("Cerrar pestaña"));
-        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof SqlProjectPanel project&&!project.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof DataQualityPanel quality)quality.disposePanel();if(component instanceof DataDictionaryPanel dictionary)dictionary.disposePanel();if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();if(component instanceof ServerMonitorPanel monitor)monitor.disposePanel();if(component instanceof AuditPanel audit)audit.disposePanel();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
+        close.addActionListener(e -> {if(component instanceof TableWorkbenchPanel table&&!table.canClose())return;if(component instanceof SqlProjectPanel project&&!project.canClose())return;if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return;if(component instanceof StoredProcedureDebugPanel debug){if(!debug.canClose())return;debug.dispose();}if(component instanceof ExecutionPlanPanel plan&&!plan.canClose())return;if(component instanceof AiAssistantPanel ai)ai.dispose();if(component instanceof DataQualityPanel quality)quality.disposePanel();if(component instanceof DataDictionaryPanel dictionary)dictionary.disposePanel();if(component instanceof DataLineagePanel lineage)lineage.disposePanel();if(component instanceof MigrationPanel migrations)migrations.disposePanel();if(component instanceof BackgroundOperationsPanel operations)operations.disposePanel();if(component instanceof ServerMonitorPanel monitor)monitor.disposePanel();if(component instanceof AuditPanel audit)audit.disposePanel();if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report){if(!report.canClose())return;report.dispose();}workspaceTabs.remove(component);});
         tab.add(close);
         return tab;
     }
@@ -1579,7 +1589,7 @@ public final class MainFrame extends JFrame {
     private void transferSql(boolean importing,JdbcSession target,SchemaItem item){
         if(target==null||!target.isOpen()){JOptionPane.showMessageDialog(this,tr("Conecta primero una base de datos."));return;}
         ConnectionProfile profile=target.profile();
-        if(!com.nexodb.db.SqlBackupService.supported(profile.type())){JOptionPane.showMessageDialog(this,tr("El respaldo y la restauración SQL completos están disponibles para MySQL y MariaDB."));return;}
+        if(!com.nexodb.db.SqlBackupService.supported(profile.type())&&!com.nexodb.db.PortableBackupService.supported(profile.type())){JOptionPane.showMessageDialog(this,tr("Este motor todavía no admite respaldo o restauración SQL desde AdisDB."));return;}
         if(importing&&profile.readOnly()){JOptionPane.showMessageDialog(this,tr("Esta conexión es de solo lectura. Edita la conexión y desactiva Solo lectura antes de importar SQL."));return;}
         char[] password=null;
         try{
@@ -1791,6 +1801,8 @@ public final class MainFrame extends JFrame {
         if(!queryPanel.saveDraftBeforeClose())return;
         for(Component component:workspaceTabs.getComponents())if(component instanceof DataQualityPanel quality)quality.disposePanel();
         for(Component component:workspaceTabs.getComponents())if(component instanceof DataDictionaryPanel dictionary)dictionary.disposePanel();
+        for(Component component:workspaceTabs.getComponents())if(component instanceof DataLineagePanel lineage)lineage.disposePanel();
+        for(Component component:workspaceTabs.getComponents())if(component instanceof MigrationPanel migrations)migrations.disposePanel();
         closeAllSessions();
         for(Component component:workspaceTabs.getComponents())if(component instanceof StoredProcedureDebugPanel debug)debug.dispose();
         for(Component component:workspaceTabs.getComponents())if(component instanceof com.nexodb.reporting.ui.ReportDesignerPanel report)report.dispose();

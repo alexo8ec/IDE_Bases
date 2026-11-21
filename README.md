@@ -1,6 +1,28 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.68**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.76**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Plataforma empresarial en ocho fases — 0.18.76
+
+1. **Seguridad multiplataforma y publicación:** almacén nativo de secretos en Windows, macOS y Linux; validación obligatoria de firma cuando la publicación la exige y manifiesto de seguridad con hashes.
+2. **Database DevOps:** migraciones `V<versión>__<descripción>.sql`, historial aplicado en la base, checksum contra cambios retroactivos, ejecución ordenada y creación directa desde una comparación de esquemas.
+3. **Respaldos multimotor:** respaldo y restauración por streaming para MySQL/MariaDB, PostgreSQL, SQL Server, Oracle, SQLite y H2, también disponible en tareas programadas cuando el motor lo admite.
+4. **Productividad del editor:** biblioteca de fragmentos SQL incluidos o personalizados y refactorización de identificadores que no altera cadenas ni comentarios.
+5. **Perfilador del servidor:** el monitor acumula huellas SQL sin valores literales para ordenar consultas por tiempo, muestras, máximos y bloqueos, sin persistir el texto SQL.
+6. **Linaje y documentación:** dependencias por claves foráneas, tabla navegable y exportación Markdown con diagrama Mermaid.
+7. **Conectores de datos modernos:** Snowflake por JDBC oficial, Redis por RESP nativo y MongoDB mediante los controladores oficiales seleccionados por el usuario. Los exploradores NoSQL no guardan credenciales.
+8. **Colaboración:** revisión aprobada/pendiente/cambios solicitados por migración, invalidación automática cuando cambia el checksum, analítica local agregada e informe de equipo sin SQL, datos ni secretos.
+
+Todas las nuevas lecturas usan conexiones auxiliares o procesos en segundo plano cuando corresponde. Ninguna propuesta de migración, refactorización o revisión ejecuta SQL automáticamente.
+
+## Seguridad multiplataforma y publicación verificable — 0.18.69
+
+- Las contraseñas de conexiones, SSH, IA y tareas utilizan el almacén seguro nativo: DPAPI en Windows, Llavero en macOS y Secret Service/libsecret en Linux. Los secretos no se incorporan al perfil, a los comandos ni a los registros.
+- Las credenciales DPAPI existentes conservan el mismo formato y continúan funcionando después de actualizar.
+- La escritura del archivo DPAPI es atómica para evitar perder todas las credenciales si el equipo se apaga durante una actualización.
+- `release.ps1 -RequireWindowsSigning` exige una firma Authenticode válida y con sello de tiempo tanto en el instalador como en el lanzador antes de aceptar una publicación.
+- Cada entrega genera `security-manifest.json` con hashes y el estado verificable de firma, sin guardar certificados privados, PIN ni contraseñas.
+- Las pruebas cubren los tres almacenes, comprueban que el secreto no aparece en argumentos de procesos y vuelven a recorrer toda la aplicación para detectar regresiones.
 
 ## Código e historial por archivo al estilo GitHub — 0.18.68
 
@@ -11,7 +33,7 @@ La versión actual de escritorio es **0.18.68**. Incluye los siguientes cambios 
 
 ## Credenciales cifradas exclusivas por tarea — 0.18.67
 
-- Cada respaldo, reporte o script programado conserva su propia copia de la contraseña después de verificarla. La credencial se cifra con Windows DPAPI para el usuario actual y queda separada del perfil de conexión.
+- Cada respaldo, reporte o script programado conserva su propia copia de la contraseña después de verificarla. La credencial queda separada del perfil y se protege con DPAPI en Windows, el Llavero en macOS o Secret Service/libsecret en Linux.
 - El ejecutor interno y el ejecutor externo cargan la credencial por identificador de tarea, por lo que reiniciar o cerrar AdisDB ya no convierte una contraseña válida en `using password: NO`.
 - El formulario deja el guardado seguro activado obligatoriamente en Windows. La contraseña no se incluye en comandos, registros, configuración de la tarea ni archivos de respaldo.
 - Al editar una tarea se reutiliza su copia cifrada; solo se vuelve a pedir la clave cuando falta, cambia o el servidor la rechaza. Al eliminar la tarea también se elimina su secreto cifrado.
@@ -47,7 +69,7 @@ La versión actual de escritorio es **0.18.68**. Incluye los siguientes cambios 
 ## Tareas programadas y credenciales verificadas — 0.18.64
 
 - Al guardar o editar una tarea, AdisDB abre primero una conexión independiente con la credencial elegida. Una contraseña antigua ya no puede quedar programada mientras la conexión principal funciona con otra mantenida en memoria.
-- Después de una conexión exitosa, la credencial de sesión se sincroniza con el ejecutor interno sin mostrarla ni escribirla en registros. Para trabajar con AdisDB cerrado continúa siendo obligatorio guardarla cifrada con Windows.
+- Después de una conexión exitosa, la credencial de sesión se sincroniza con el ejecutor interno sin mostrarla ni escribirla en registros. Para trabajar con AdisDB cerrado debe guardarse en el almacén seguro del sistema; el ejecutor externo disponible actualmente en Windows usa la misma cuenta del sistema operativo.
 - Al cerrar con un respaldo activo, AdisDB distingue una cancelación del usuario de una interrupción por cierre. Con ejecutor externo activo, la tarea permanece habilitada y queda pendiente para reintentarse; sin ejecutor externo, la aplicación impide el cierre y explica cómo continuar.
 - La ventana de resultado ofrece diagnósticos distintos para cancelación, entrega al ejecutor externo y rechazo real de credenciales.
 
@@ -253,7 +275,7 @@ La versión actual de escritorio es **0.18.68**. Incluye los siguientes cambios 
 - La ventana de conexión incorpora una pestaña **SSH** para llegar a bases de datos que no exponen su puerto directamente.
 - Admite autenticación SSH por contraseña o clave privada con frase de clave opcional.
 - El puerto local puede asignarse automáticamente; también incluye tiempo de espera, keep-alive y verificación mediante `known_hosts`.
-- La contraseña o frase SSH se cifra por separado con Windows DPAPI y nunca se guarda dentro del perfil de conexión.
+- La contraseña o frase SSH se protege por separado con el almacén seguro nativo del sistema y nunca se guarda dentro del perfil de conexión.
 - El túnel se abre antes de JDBC, conserva SSL/TLS de la base de datos y se cierra automáticamente al desconectar.
 
 ## Impresión horizontal fiel a la vista previa — 0.18.36
@@ -396,7 +418,7 @@ La compilación produce además `build/nexodb-reporting.jar`, reutilizable fuera
 
 El pie de cada tabla muestra el **tiempo de consulta en milisegundos**, además del tiempo que se conserva en Mensajes, el rango cargado y los botones **Anterior / Siguiente**. El selector ofrece **100, 500, 1000 y Personalizado (1–10000)**. Para avanzar se vuelve a ejecutar un único SELECT/WITH de lectura y se recupera la ventana solicitada mediante JDBC, conservando LIMIT/TOP escritos en el SQL. Esta alternativa portátil recorre las filas anteriores: páginas lejanas pueden costar más que paginación nativa. Usa ORDER BY para un orden estable; cambios concurrentes pueden mover registros. El orden y filtro de la cuadrícula se aplican a la página cargada. CALL, EXEC y lotes con escrituras no se repiten para paginar. Si cambia la base/esquema, primero hay que volver al origen del resultado.
 
-**Inteligencia artificial → Asistente de IA** genera SQL y propone optimizaciones de consultas o procedimientos. Permite utilizar **Vicky** en el VPS privado mediante Tailscale, **OpenAI Responses**, un endpoint compatible con Chat Completions u **Ollama local**. Al elegir Vicky se configura automáticamente su agente especializado de bases de datos; solo debes guardar el token privado. La solicitud, el SQL, el esquema y el plan son editables y visibles antes de enviar; no se incorporan filas, credenciales ni resultados automáticamente. La propuesta abre una consulta nueva en Solo lectura y nunca se ejecuta automáticamente. La clave puede permanecer en la sesión o guardarse con Windows DPAPI; la configuración ordinaria no guarda la clave. Para OpenAI se utiliza `store:false`; el transporte no sigue redirecciones. Referencias de los contratos: [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create), [compatibilidad de Ollama](https://docs.ollama.com/api/openai-compatibility).
+**Inteligencia artificial → Asistente de IA** genera SQL y propone optimizaciones de consultas o procedimientos. Permite utilizar **Vicky** en el VPS privado mediante Tailscale, **OpenAI Responses**, un endpoint compatible con Chat Completions u **Ollama local**. Al elegir Vicky se configura automáticamente su agente especializado de bases de datos; solo debes guardar el token privado. La solicitud, el SQL, el esquema y el plan son editables y visibles antes de enviar; no se incorporan filas, credenciales ni resultados automáticamente. La propuesta abre una consulta nueva en Solo lectura y nunca se ejecuta automáticamente. La clave puede permanecer en la sesión o guardarse en el almacén seguro nativo; la configuración ordinaria no guarda la clave. Para OpenAI se utiliza `store:false`; el transporte no sigue redirecciones. Referencias de los contratos: [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create), [compatibilidad de Ollama](https://docs.ollama.com/api/openai-compatibility).
 
 **Consulta → Plan de ejecución (Ctrl+L)** muestra operadores conectados, propiedades, una tabla ordenable de costos/tiempos, el documento original y las recomendaciones de índices que entregue el motor. **Analizar con IA** prepara el SQL y el plan en el asistente, sin enviarlos todavía. Los costos estimados se distinguen de los milisegundos observados; los tiempos de operadores pueden incluir hijos o promedios por loop y no deben sumarse.
 
@@ -521,7 +543,7 @@ La versión 0.7.3 limita la búsqueda a la base activa e incluye tablas, vistas,
 
 La versión 0.7.4 permite seleccionar individualmente las tablas que se compararán, añade la acción global `F5`, inicia el selector con “Seleccione una base…” y elimina comentarios redundantes del script de sincronización.
 
-La versión 0.9.0 mantiene varias conexiones abiertas y separadas en el explorador de objetos. También puede recordar la contraseña cifrada con Windows DPAPI para el usuario actual, sin guardarla en el perfil ni mostrarla después.
+AdisDB mantiene varias conexiones abiertas y separadas en el explorador de objetos. También puede recordar la contraseña con el almacén seguro del usuario actual (DPAPI, Llavero o Secret Service), sin guardarla en el perfil ni mostrarla después.
 
 La versión 0.10.0 exporta resultados y tablas a CSV, TSV, JSON, XML, HTML y SQL, permite copiar tablas entre bases o conexiones abiertas y añade resaltado de sintaxis con conversión automática de palabras reservadas a mayúsculas. Expandir una base con doble clic ya no la selecciona en el editor SQL. El editor de tablas permite crear, modificar y eliminar columnas; crear índices normales o únicos; y administrar claves foráneas con reglas de actualización y eliminación.
 

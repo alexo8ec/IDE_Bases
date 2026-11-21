@@ -50,7 +50,7 @@ public final class ConnectionDialog extends JDialog {
     private final java.util.Map<Component, JLabel> rowLabels = new java.util.IdentityHashMap<>();
     private final JTextField username = new JTextField(30);
     private final JPasswordField password = new JPasswordField(30);
-    private final JCheckBox rememberPassword = UiLanguage.text(new JCheckBox(tr("Recordar de forma segura con Windows")), UiLanguage.key("Recordar de forma segura con Windows"));
+    private final JCheckBox rememberPassword = UiLanguage.text(new JCheckBox(tr("Recordar en el almacén seguro del sistema")), UiLanguage.key("Recordar en el almacén seguro del sistema"));
     private final JLabel headingIcon = new JLabel();
     private final JTextField jdbcUrl = new JTextField(30);
     private final JTextField driverClass = new JTextField(30);
@@ -112,7 +112,7 @@ public final class ConnectionDialog extends JDialog {
         }
         rememberPassword.setSelected(hadStoredPassword);
         rememberSshPassword.setSelected(hadStoredSshPassword);
-        UiLanguage.tooltip(rememberPassword, UiLanguage.key("Se cifra con DPAPI para el usuario actual de Windows; nunca se guarda en el perfil."));
+        UiLanguage.tooltip(rememberPassword, UiLanguage.key("Se protege con "), SecretStore.backendName(), UiLanguage.key("; nunca se guarda en el perfil."));
         updateAuthenticationUi();
         currentEngine = (DatabaseType) type.getSelectedItem();
         pack();
@@ -510,6 +510,7 @@ public final class ConnectionDialog extends JDialog {
                 case DISABLED -> addQuery(url, "ssl=false");
                 case REQUIRED, VERIFY_FULL -> addQuery(url, "ssl=true");
             };
+            case SNOWFLAKE -> url;
             default -> url;
         };
         jdbcUrl.setText(url);
@@ -639,13 +640,15 @@ public final class ConnectionDialog extends JDialog {
             UiLanguage.text(authenticationNote, UiLanguage.key("<html>Indica host, puerto y nombre de servicio Oracle (por ejemplo, XEPDB1).<br>Para SID, TNS o SSL configura la URL JDBC avanzada.</html>"));
         } else if (engine == DatabaseType.MONGODB) {
             UiLanguage.text(authenticationNote, UiLanguage.key("<html>MongoDB usa aquí su Atlas SQL Interface compatible con JDBC.<br>"), UiLanguage.key("Para MongoDB Community nativo se incorporará un explorador de documentos independiente.</html>"));
+        } else if(engine==DatabaseType.SNOWFLAKE){
+            UiLanguage.text(authenticationNote,UiLanguage.key("<html>Escribe el host completo de la cuenta (por ejemplo, cuenta.region.snowflakecomputing.com).<br>Selecciona el controlador JDBC oficial de Snowflake en las opciones avanzadas.</html>"));
         } else if (!SecretStore.isSupported()) {
             UiLanguage.text(authenticationNote, UiLanguage.key("<html>El usuario es obligatorio; la contraseña puede quedar vacía.<br>"), UiLanguage.key("La contraseña se solicita al conectar y no se guarda en disco."), "</html>");
         } else UiLanguage.text(authenticationNote, (windows
                 ? tr("<html>El usuario identifica la cuenta MariaDB (por ejemplo, root).<br>") + tr("La contraseña no se envía: se usa explícitamente la sesión actual de Windows mediante GSSAPI/SSPI.</html>")
                 : hadStoredPassword && rememberPassword.isSelected() && password.getDocument().getLength() == 0
-                    ? tr("<html>La contraseña guardada está protegida por Windows y no se muestra.<br>") + tr("Déjala vacía para conservarla, o escribe otra para reemplazarla.</html>")
-                    : tr("<html>El usuario es obligatorio; la contraseña puede quedar vacía.<br>")), UiLanguage.key("Si eliges recordarla se cifra con Windows y no se guarda en el perfil.</html>"));
+                    ? tr("<html>La contraseña guardada está protegida por el almacén seguro del sistema y no se muestra.<br>") + tr("Déjala vacía para conservarla, o escribe otra para reemplazarla.</html>")
+                    : tr("<html>El usuario es obligatorio; la contraseña puede quedar vacía.<br>")), UiLanguage.key("Si eliges recordarla se protege con el almacén seguro del sistema y no se guarda en el perfil.</html>"));
     }
 
     private void rowVisible(Component component, boolean visible) {
@@ -674,7 +677,7 @@ public final class ConnectionDialog extends JDialog {
                 : tr("Base de datos, servicio o archivo al que deseas conectarte"));
         boolean supported = engine == DatabaseType.POSTGRESQL || engine == DatabaseType.MYSQL
                 || engine == DatabaseType.MARIADB || engine == DatabaseType.SQLSERVER
-                || engine == DatabaseType.MONGODB;
+                || engine == DatabaseType.MONGODB || engine==DatabaseType.SNOWFLAKE;
         tlsMode.setEnabled(supported);
         tlsMode.setToolTipText(supported
                 ? tr("Elige cómo debe protegerse la conexión con el servidor")

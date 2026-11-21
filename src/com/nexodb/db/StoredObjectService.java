@@ -72,7 +72,7 @@ public final class StoredObjectService {
             case POSTGRESQL,ORACLE,H2->replaceCreatePrefix(proposed,"CREATE OR REPLACE");
             case SQLSERVER->replaceCreatePrefix(proposed,"CREATE OR ALTER");
             case SQLITE->throw new IllegalArgumentException("SQLite no admite ALTER VIEW ni CREATE OR REPLACE VIEW; la vista debe recrearse dentro de una transacción explícita.");
-            case MONGODB,GENERIC->throw new IllegalArgumentException("El motor "+type+" no ofrece una sentencia segura para reemplazar vistas.");
+            case MONGODB,SNOWFLAKE,GENERIC->throw new IllegalArgumentException("El motor "+type+" no ofrece una sentencia segura para reemplazar vistas mediante este editor.");
         };
     }
     private static String replaceCreatePrefix(String sql,String replacement){

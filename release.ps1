@@ -1,5 +1,7 @@
 param(
-    [string]$DownloadBaseUrl = 'https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist'
+    [string]$DownloadBaseUrl = 'https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist',
+    [string]$CertificateThumbprint = $env:NEXODB_SIGN_CERT_THUMBPRINT,
+    [switch]$RequireWindowsSigning
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,7 +36,12 @@ if ($readme -notmatch ('escritorio es \*\*' + [regex]::Escape($desktopVersion) +
 }
 [IO.File]::WriteAllText($readmePath, $readme, [Text.UTF8Encoding]::new($false))
 
-& (Join-Path $root 'installer.ps1') -DownloadBaseUrl $DownloadBaseUrl
+$installerArguments = @{
+    DownloadBaseUrl = $DownloadBaseUrl
+    CertificateThumbprint = $CertificateThumbprint
+    RequireSigning = $RequireWindowsSigning
+}
+& (Join-Path $root 'installer.ps1') @installerArguments
 if ($LASTEXITCODE -ne 0) { throw 'Falló la entrega de Windows.' }
 & (Join-Path $root 'android\build.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Falló la entrega de Android.' }
@@ -58,7 +65,7 @@ $macArmPackage = Join-Path $root "dist\AdisDB-$desktopVersion-macos-arm64.zip"
     --linux-arm64 $linuxArmPackage `
     --macos-x64 $macIntelPackage `
     --macos-arm64 $macArmPackage `
-    --notes "AdisDB ${desktopVersion}: vista Codigo e Historial por archivo, timeline completo y alternancia entre diferencias coloreadas y contenido completo de cada version."
+    --notes "AdisDB ${desktopVersion}: plataforma empresarial en ocho fases con seguridad nativa, migraciones versionadas, respaldos multimotor, editor avanzado, perfilador, linaje, conectores modernos y colaboración segura."
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo generar el manifiesto multiplataforma.' }
 & python (Join-Path $root 'tools\verify-platforms.py')
 if ($LASTEXITCODE -ne 0) { throw 'Falló la verificación cruzada de los paquetes Linux/macOS.' }
@@ -74,6 +81,8 @@ $verifyArgs = @((Join-Path $root 'tools\verify-android.py'), '--sdk', $sdk)
 if ($previous) { $verifyArgs += @('--previous', $previous.FullName) }
 & python @verifyArgs
 if ($LASTEXITCODE -ne 0) { throw 'Falló la verificación de Android.' }
+& (Join-Path $root 'tools\verify-release-security.ps1') -RequireWindowsSigning:$RequireWindowsSigning
+if ($LASTEXITCODE -ne 0) { throw 'Falló la verificación de firma de la entrega.' }
 
 $manifest = Get-Content -LiteralPath (Join-Path $root 'dist\update-manifest.json') -Raw | ConvertFrom-Json
 if ($manifest.version -ne $desktopVersion -or -not $manifest.downloadUrl -or -not $manifest.sha256) {

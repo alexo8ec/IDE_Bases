@@ -12,6 +12,7 @@ public enum DatabaseType {
     SQLITE("SQLite", 0, "org.sqlite.JDBC"),
     H2("H2", 0, "org.h2.Driver"),
     MONGODB("MongoDB (Atlas SQL)", 27017, "com.mongodb.jdbc.MongoDriver"),
+    SNOWFLAKE("Snowflake", 443, "net.snowflake.client.jdbc.SnowflakeDriver"),
     GENERIC("JDBC genérico", 0, "");
 
     private final String displayName;
@@ -42,6 +43,7 @@ public enum DatabaseType {
             case SQLITE -> "jdbc:sqlite:" + db;
             case H2 -> "jdbc:h2:" + db;
             case MONGODB -> "jdbc:mongodb://" + h + ":" + p + "/" + db;
+            case SNOWFLAKE -> "jdbc:snowflake://"+h+"/?db="+URLEncoder.encode(db,StandardCharsets.UTF_8).replace("+","%20");
             case GENERIC -> "jdbc:";
         };
     }

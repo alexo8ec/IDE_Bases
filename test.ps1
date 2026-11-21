@@ -122,6 +122,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de perfil, enmascaramiento y datos
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas visuales del panel de calidad de datos fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp "$testClasspath;$projectRoot/build/h2-test.jar" com.nexodb.db.DataDictionaryServiceTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diccionario de datos fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp "$testClasspath;$projectRoot/build/h2-test.jar" com.nexodb.db.MigrationServiceTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de migraciones versionadas fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp "$testClasspath;$projectRoot/build/h2-test.jar" com.nexodb.ui.DataDictionaryPanelTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas visuales del diccionario de datos fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.QueryEditSqlTest
@@ -159,6 +161,18 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'build/h2-test.jar')) {
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del diagnostico del asistente IA fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.QueryPagingTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de paginacion fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp "$testClasspath;$projectRoot/build/h2-test.jar" com.nexodb.db.PortableBackupServiceTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de respaldos SQL multimotor fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.util.SqlProductivityTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de productividad SQL fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.QueryProfilerTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del perfilador SQL fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.DataLineageServiceTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del linaje de datos fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.NativeConnectorTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de conectores NoSQL nativos fallaron.' }
+    & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.tools.TeamWorkspaceServiceTest
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de colaboración de equipos fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.ResultQueryTest
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de filtros y orden global fallaron.' }
     & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.db.StreamingExportTest

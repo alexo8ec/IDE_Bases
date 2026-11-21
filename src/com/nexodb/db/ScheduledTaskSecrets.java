@@ -9,7 +9,7 @@ public final class ScheduledTaskSecrets {
     private final SecretStore store;
     public ScheduledTaskSecrets(SecretStore store){this.store=Objects.requireNonNull(store);}
     public static String secretId(String taskId){String value=Objects.toString(taskId,"").trim();if(value.isBlank())throw new IllegalArgumentException("La tarea no tiene identificador.");return PREFIX+value;}
-    public boolean supported(){return SecretStore.isSupported();}
+    public boolean supported(){return store.supported();}
     public boolean has(String taskId){return store.has(secretId(taskId));}
     public char[] load(String taskId)throws Exception{return store.load(secretId(taskId));}
     public void save(String taskId,char[] password)throws Exception{store.save(secretId(taskId),password);}

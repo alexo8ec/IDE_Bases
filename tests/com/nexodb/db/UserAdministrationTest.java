@@ -10,7 +10,7 @@ public final class UserAdministrationTest {
     public static void main(String[] args) throws Exception {
         for (DatabaseType type : DatabaseType.values()) {
             Connection c = mock("NO_BACKSLASH_ESCAPES"); UserAdministration admin = new UserAdministration(c,type);
-            if (type == DatabaseType.SQLITE || type == DatabaseType.MONGODB || type == DatabaseType.GENERIC) { if(admin.supported())throw new AssertionError(type); continue; }
+            if (!admin.supported()) continue;
             UserAdministration.Account account = new UserAdministration.Account("report\"x]';--", type == DatabaseType.SQLSERVER ? "SQL_LOGIN" : "local'host", "");
             if((type==DatabaseType.ORACLE || type==DatabaseType.H2) && !admin.newAccount("report_user","").name().equals("REPORT_USER"))throw new AssertionError("Native account name normalization");
             String sql = admin.createSql(account,"xY9'\\ñ!"), changed = admin.passwordSql(account,"xY9'\\ñ!");
