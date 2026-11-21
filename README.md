@@ -1,6 +1,19 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.65**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.66**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Columnas constantes generadas correctamente — 0.18.66
+
+- El asistente de IA entiende peticiones como “crea una columna llamada `ice` con contenido 1” y genera la expresión SQL en el orden correcto: `1 AS ice`.
+- Las instrucciones del generador distinguen explícitamente el valor de su alias y evitan producir formas invertidas como `'ice' AS 1`.
+- La propuesta continúa siendo editable y nunca se ejecuta automáticamente; el usuario puede revisar la constante, su tipo y el nombre de la columna antes de abrirla en una consulta.
+
+## Historial Git empresarial y legible — 0.18.66
+
+- **Proyecto SQL › Historial Git** muestra ahora una tabla visual con columnas para ramas, fecha relativa, autor, mensaje y referencias, en lugar de una lista compacta de dos líneas.
+- El grafo conserva líneas de colores para ramas y fusiones; los commits de fusión llevan una marca `M` y las ramas o etiquetas aparecen como distintivos de color.
+- Cada autor tiene un identificador visual, el hash corto queda debajo del mensaje y la fecha exacta permanece disponible como ayuda contextual.
+- Al seleccionar un commit se conserva el panel inferior con sus archivos y estadísticas. No se añadió un rollback destructivo de un clic: las operaciones que reescriben historial continúan realizándose conscientemente desde la consola Git.
 
 ## Contraseña inequívoca en respaldos programados — 0.18.65
 

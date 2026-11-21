@@ -65,7 +65,7 @@ public final class SqlProjectService {
     }
     public String history(Path relative)throws IOException{List<String> command=new ArrayList<>(List.of("log","--max-count=100","--date=iso-local","--pretty=format:%h  %ad  %an%n    %s"));if(relative!=null){command.add("--");command.add(portable(root.relativize(resolve(relative,false))));}GitResult result=git(command);return result.output();}
     public List<GitGraphLine> historyGraph(Path relative)throws IOException{
-        List<String> command=new ArrayList<>(List.of("log","--graph","--all","--decorate=short","--max-count=250","--date=short","--pretty=format:%x1e%H%x1f%h%x1f%P%x1f%D%x1f%an%x1f%ad%x1f%s"));
+        List<String> command=new ArrayList<>(List.of("log","--graph","--all","--decorate=short","--max-count=250","--date=iso-strict","--pretty=format:%x1e%H%x1f%h%x1f%P%x1f%D%x1f%an%x1f%ad%x1f%s"));
         if(relative!=null){command.add("--");command.add(portable(root.relativize(resolve(relative,false))));}
         GitResult result=git(command);if(!result.ok())throw new IOException(result.output());List<GitGraphLine> lines=new ArrayList<>();
         for(String line:result.output().split("\\R",-1)){int marker=line.indexOf('\u001e');if(marker<0){if(!line.isBlank())lines.add(new GitGraphLine(line,null));continue;}String[] fields=line.substring(marker+1).split("\\x1f",7);if(fields.length<7)continue;List<String> parents=fields[2].isBlank()?List.of():List.of(fields[2].trim().split("\\s+"));GitCommit commit=new GitCommit(fields[0],fields[1],parents,fields[3],fields[4],fields[5],fields[6]);lines.add(new GitGraphLine(line.substring(0,marker),commit));}
