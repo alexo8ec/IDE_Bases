@@ -1,6 +1,12 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.76**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.77**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Corrección de permisos de usuarios — 0.18.77
+
+- El editor de permisos distingue entre los privilegios del usuario seleccionado y los de la cuenta conectada que ejecutará el `GRANT` o `REVOKE`.
+- Los ámbitos globales o por base se muestran como solo consulta cuando la cuenta conectada no tiene `GRANT OPTION` suficiente.
+- El diálogo explica qué cuenta debe utilizarse y evita enviar una operación que el servidor rechazará con `Access denied`.
 
 ## Plataforma empresarial en ocho fases — 0.18.76
 

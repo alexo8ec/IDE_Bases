@@ -17,16 +17,31 @@ public final class UserAdministration {
             inherited = Collections.unmodifiableSet(new LinkedHashSet<>(inherited));
         }
     }
-    public record AccountCapabilities(boolean allGlobal, boolean managesAccounts, boolean delegatesGlobally, Set<String> globalPrivileges, Set<String> databasePatterns) {
+    public record AccountCapabilities(boolean allGlobal, boolean managesAccounts, boolean delegatesGlobally, Set<String> globalPrivileges, Set<String> databasePatterns, Set<String> grantableDatabases) {
         public AccountCapabilities {
             globalPrivileges = Collections.unmodifiableSet(new LinkedHashSet<>(globalPrivileges));
             databasePatterns = Collections.unmodifiableSet(new LinkedHashSet<>(databasePatterns));
+            grantableDatabases = Collections.unmodifiableSet(new LinkedHashSet<>(grantableDatabases));
+        }
+        /** Compatibility constructor for callers that only need the displayed account capabilities. */
+        public AccountCapabilities(boolean allGlobal, boolean managesAccounts, boolean delegatesGlobally, Set<String> globalPrivileges, Set<String> databasePatterns) {
+            this(allGlobal, managesAccounts, delegatesGlobally, globalPrivileges, databasePatterns, Set.of());
+        }
+        public boolean canGrantDatabase(String database) {
+            if (delegatesGlobally()) return true;
+            if (database == null) return false;
+            for (String pattern : grantableDatabases()) if (mysqlPatternMatches(pattern, database)) return true;
+            return false;
         }
     }
-    public record PermissionSnapshot(List<PrivilegeScope> scopes, Map<PrivilegeScope, PrivilegeState> states, AccountCapabilities capabilities) {
+    public record PermissionSnapshot(List<PrivilegeScope> scopes, Map<PrivilegeScope, PrivilegeState> states, AccountCapabilities capabilities, AccountCapabilities operatorCapabilities) {
         public PermissionSnapshot {
             scopes = List.copyOf(scopes);
             states = Collections.unmodifiableMap(new LinkedHashMap<>(states));
+        }
+        /** Compatibility constructor for snapshots created by older integrations. */
+        public PermissionSnapshot(List<PrivilegeScope> scopes, Map<PrivilegeScope, PrivilegeState> states, AccountCapabilities capabilities) {
+            this(scopes, states, capabilities, new AccountCapabilities(false, false, false, Set.of(), Set.of()));
         }
     }
     private final Connection connection;
@@ -143,6 +158,10 @@ public final class UserAdministration {
     public PermissionSnapshot permissionSnapshot(Account account) throws SQLException {
         if (!usesHost()) throw new IllegalStateException(tr("La edición visual de permisos existentes está disponible para MySQL y MariaDB."));
         List<String> grants = mysqlGrantLines(account);
+        // SHOW GRANTS FOR <selected account> describes the target, not the account
+        // connected to AdisDB. The latter is the authority that can actually apply
+        // the GRANT/REVOKE statements, so inspect it separately before enabling the editor.
+        List<String> operatorGrants = mysqlCurrentGrantLines();
         List<PrivilegeScope> scopes = new ArrayList<>(privilegeScopes());
         Set<String> known = new HashSet<>(); for (PrivilegeScope scope : scopes) known.add(scope.name().toLowerCase(Locale.ROOT));
         for (String line : grants) {
@@ -152,7 +171,13 @@ public final class UserAdministration {
         }
         Map<PrivilegeScope, PrivilegeState> states = new LinkedHashMap<>();
         for (PrivilegeScope scope : scopes) states.put(scope, mysqlPrivilegeState(scope, grants));
-        return new PermissionSnapshot(scopes, states, mysqlCapabilities(grants));
+        return new PermissionSnapshot(scopes, states, mysqlCapabilities(grants), mysqlCapabilities(operatorGrants));
+    }
+
+    /** Returns whether the connected account can grant in the selected scope. */
+    public boolean canGrant(PrivilegeScope scope, AccountCapabilities operator) {
+        if (scope == null || operator == null) return false;
+        return scope.global() ? operator.delegatesGlobally() : operator.canGrantDatabase(scope.name());
     }
 
     /** Produces only the GRANT/REVOKE statements needed to reach the selected direct state. */
@@ -190,6 +215,14 @@ public final class UserAdministration {
         return result;
     }
 
+    private List<String> mysqlCurrentGrantLines() throws SQLException {
+        List<String> result = new ArrayList<>();
+        try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery("SHOW GRANTS")) {
+            while (rows.next()) result.add(Objects.toString(rows.getString(1), ""));
+        }
+        return result;
+    }
+
     private PrivilegeState mysqlPrivilegeState(PrivilegeScope scope, List<String> grants) {
         Set<String> allowed = new LinkedHashSet<>(privileges(scope));
         Set<String> direct = new LinkedHashSet<>(), inherited = new LinkedHashSet<>();
@@ -214,14 +247,16 @@ public final class UserAdministration {
     }
 
     private AccountCapabilities mysqlCapabilities(List<String> grants) {
-        Set<String> global = new LinkedHashSet<>(), patterns = new LinkedHashSet<>(); boolean all = false, delegate = false;
+        Set<String> global = new LinkedHashSet<>(), patterns = new LinkedHashSet<>(), grantable = new LinkedHashSet<>(); boolean all = false, delegate = false;
         for (String line : grants) {
             ParsedGrant parsed = parseMysqlGrant(line);
             if (parsed == null) continue;
-            String pattern = mysqlDatabaseTarget(parsed.target()); if (pattern != null && hasMysqlWildcard(pattern)) patterns.add(parsed.target());
+            String pattern = mysqlDatabaseTarget(parsed.target());
+            if (pattern != null && hasMysqlWildcard(pattern)) patterns.add(parsed.target());
+            if (pattern != null && parsed.grantOption()) grantable.add(pattern);
             if (parsed.target().equals("*.*")) { all |= parsed.all(); delegate |= parsed.grantOption(); global.addAll(parsed.privileges()); }
         }
-        return new AccountCapabilities(all, all || global.contains("CREATE USER"), delegate, global, patterns);
+        return new AccountCapabilities(all, all || global.contains("CREATE USER"), delegate, global, patterns, grantable);
     }
 
     private ParsedGrant parseMysqlGrant(String sql) {

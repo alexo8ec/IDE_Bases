@@ -152,7 +152,7 @@ public final class UserManagerDialog extends JDialog {
         JPanel form = new JPanel(new BorderLayout(8, 12));
         JPanel choices = new JPanel(); List<JCheckBox> checks = new ArrayList<>();
         JCheckBox grantOption = UiLanguage.text(new JCheckBox(), UiLanguage.key("Permitir delegar permisos (GRANT OPTION)"));
-        JLabel capability = new JLabel(capabilityText(snapshot.capabilities()));
+        JLabel capability = new JLabel(capabilityText(snapshot.capabilities(), snapshot.operatorCapabilities()));
         capability.setBorder(new EmptyBorder(2, 2, 5, 2));
         JTextArea help = new JTextArea(4, 70); help.setEditable(false); help.setLineWrap(true); help.setWrapStyleWord(true); help.setOpaque(false);
         JButton global = UiLanguage.text(new JButton(), UiLanguage.key("Editar permisos globales / administrador"));
@@ -162,23 +162,28 @@ public final class UserManagerDialog extends JDialog {
             PrivilegeScope selectedScope = (PrivilegeScope) scope.getSelectedItem(); if (selectedScope == null) return;
             administratorPreset[0] = false;
             PrivilegeState state = snapshot.states().get(selectedScope);
+            boolean canEdit = admin.canGrant(selectedScope, snapshot.operatorCapabilities());
             choices.removeAll(); checks.clear(); choices.setLayout(new GridLayout(0, 2, 12, 8));
             for (String privilege : admin.privileges(selectedScope)) {
                 JCheckBox check = new JCheckBox(privilege, state.direct().contains(privilege) || state.inherited().contains(privilege));
                 check.addActionListener(e -> administratorPreset[0] = false);
-                if (state.inherited().contains(privilege)) {
+                if (state.inherited().contains(privilege) || !canEdit) {
                     check.setEnabled(false); check.setToolTipText(tr("Heredado de *.* o de un patrón de bases; edita el ámbito que lo concede."));
                 }
                 checks.add(check); choices.add(check);
             }
             grantOption.setSelected(state.grantOption() || state.inheritedGrantOption());
-            grantOption.setEnabled(!state.inheritedGrantOption());
-            grantOption.setToolTipText(state.inheritedGrantOption() ? tr("Heredado de GRANT OPTION en *.* o en un patrón de bases; edita ese ámbito.") : null);
-            help.setText(selectedScope.global()
+            grantOption.setEnabled(!state.inheritedGrantOption() && canEdit);
+            grantOption.setToolTipText(state.inheritedGrantOption() ? tr("Heredado de GRANT OPTION en *.* o en un patrón de bases; edita ese ámbito.") : !canEdit ? tr("La cuenta conectada no tiene GRANT OPTION para este ámbito.") : null);
+            help.setText(!canEdit
+                    ? tr("La cuenta seleccionada puede tener estos permisos, pero la cuenta conectada a AdisDB no puede concederlos en este ámbito. Puedes consultar el estado; para guardar, conecta una cuenta con GRANT OPTION sobre la base o sobre *.*.")
+                    : selectedScope.global()
                     ? tr("Estás editando los permisos globales del usuario seleccionado, no los de la cuenta conectada. CREATE USER administra cuentas y GRANT OPTION permite conceder o revocar permisos.")
                     : tr("Las casillas deshabilitadas se heredan de *.* o de un patrón como `%`.*. Pulsa Editar permisos globales para cambiar el ámbito que las concede."));
             global.setVisible(!selectedScope.global() && (!state.inherited().isEmpty() || state.inheritedGrantOption()));
             administrator.setVisible(selectedScope.global());
+            administrator.setEnabled(canEdit);
+            administrator.setToolTipText(canEdit ? null : tr("La cuenta conectada no tiene GRANT OPTION global."));
             choices.revalidate(); choices.repaint(); form.revalidate(); form.repaint();
         };
         scope.addActionListener(e -> loadScope.run());
@@ -186,6 +191,7 @@ public final class UserManagerDialog extends JDialog {
         global.addActionListener(e -> snapshot.scopes().stream().filter(PrivilegeScope::global).findFirst().ifPresent(scope::setSelectedItem));
         administrator.addActionListener(e -> {
             PrivilegeScope server = snapshot.scopes().stream().filter(PrivilegeScope::global).findFirst().orElse(null); if (server == null) return;
+            if (!admin.canGrant(server, snapshot.operatorCapabilities())) { JOptionPane.showMessageDialog(this, tr("La cuenta conectada no tiene GRANT OPTION global. Conecta una cuenta administradora o solicita ese permiso al administrador del servidor."), tr("Permisos insuficientes"), JOptionPane.WARNING_MESSAGE); return; }
             scope.setSelectedItem(server); administratorPreset[0] = true;
             for (JCheckBox check : checks) check.setSelected(true);
             grantOption.setSelected(true);
@@ -200,6 +206,10 @@ public final class UserManagerDialog extends JDialog {
             snapshot.scopes().stream().filter(PrivilegeScope::global).findFirst().ifPresent(scope::setSelectedItem);
         if (JOptionPane.showConfirmDialog(this, form, tr("Editar permisos de ") + admin.display(account), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         PrivilegeScope selectedScope = (PrivilegeScope) scope.getSelectedItem(); if (selectedScope == null) return;
+        if (!admin.canGrant(selectedScope, snapshot.operatorCapabilities())) {
+            JOptionPane.showMessageDialog(this, tr("La cuenta conectada no tiene permisos para conceder o revocar en este ámbito. El servidor rechazará la operación; conecta una cuenta con GRANT OPTION y vuelve a intentarlo."), tr("Permisos insuficientes"), JOptionPane.WARNING_MESSAGE);
+            return;
+        }
         PrivilegeState before = snapshot.states().get(selectedScope);
         Set<String> selected = new LinkedHashSet<>(); for (JCheckBox check : checks) if (check.isSelected()) selected.add(check.getText());
         boolean delegate = grantOption.isEnabled() ? grantOption.isSelected() : before.grantOption();
@@ -211,13 +221,17 @@ public final class UserManagerDialog extends JDialog {
                 + tr("El programa aplicará únicamente los GRANT y REVOKE necesarios.");
         change(detail, false, () -> sql, () -> {});
     }
-    private String capabilityText(AccountCapabilities capabilities) {
+    private String capabilityText(AccountCapabilities capabilities) { return capabilityText(capabilities, capabilities); }
+    private String capabilityText(AccountCapabilities capabilities, AccountCapabilities operator) {
         String level = capabilities.allGlobal() ? tr("Administrador global: ALL PRIVILEGES ON *.*")
                 : capabilities.managesAccounts() ? tr("Puede administrar cuentas: CREATE USER")
                 : tr("No tiene permiso global para administrar cuentas");
         String delegation = capabilities.delegatesGlobally() ? tr("Puede delegar permisos globalmente") : tr("No puede delegar permisos globalmente");
         String patterns = capabilities.databasePatterns().isEmpty() ? "" : " · " + tr("Acceso por patrón: ") + String.join(", ", capabilities.databasePatterns());
-        return "<html><b>" + escape(level) + "</b> · " + escape(delegation + patterns) + "</html>";
+        String operatorLevel = operator.delegatesGlobally() ? tr("cuenta conectada: puede delegar globalmente")
+                : operator.grantableDatabases().isEmpty() ? tr("cuenta conectada: sin GRANT OPTION detectable")
+                : tr("cuenta conectada: puede delegar en ") + String.join(", ", operator.grantableDatabases());
+        return "<html><b>" + escape(level) + "</b> · " + escape(delegation + patterns) + "<br>" + escape(operatorLevel) + "</html>";
     }
     private void grantPrivilegesLegacy(Account a) {
         run(tr("Leyendo permisos…"), () -> { synchronized (session.connection()) { return admin.scopes(); } }, scopes -> {
