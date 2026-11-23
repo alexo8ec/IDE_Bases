@@ -110,10 +110,15 @@ final class QueryResultPanel extends JPanel {
             public Component getTableCellEditorComponent(JTable grid,Object value,boolean selected,int row,int column){
                 original=value;Component field=super.getTableCellEditorComponent(grid,value==QueryEditSupport.DefaultValue.INSTANCE?"":value,selected,row,column);
                 int modelRow=grid.convertRowIndexToModel(row),modelColumn=grid.convertColumnIndexToModel(column);
-                ((JTextField)field).getInputMap().remove(KeyStroke.getKeyStroke("control SPACE"));
+                JTextField text=(JTextField)field;
+                // Start with the complete value selected. A key typed immediately after
+                // entering edit mode replaces the cell, matching SQLyog and spreadsheet
+                // behavior; users can still press an arrow or click to append/edit.
+                text.selectAll();
+                text.getInputMap().remove(KeyStroke.getKeyStroke("control SPACE"));
                 if(!hasReference(modelColumn))return field;
                 Runnable open=()->{if(stopCellEditing())openReferenceModel(modelRow,modelColumn);};
-                ((JTextField)field).getInputMap().put(KeyStroke.getKeyStroke("control SPACE"),"reference");((JTextField)field).getActionMap().put("reference",new AbstractAction(){public void actionPerformed(ActionEvent e){open.run();}});
+                text.getInputMap().put(KeyStroke.getKeyStroke("control SPACE"),"reference");text.getActionMap().put("reference",new AbstractAction(){public void actionPerformed(ActionEvent e){open.run();}});
                 JPanel panel=new JPanel(new BorderLayout());panel.add(field);JButton lookup=new JButton("…");lookup.setName("reference-cell-button");lookup.setMargin(new Insets(0,5,0,5));lookup.addActionListener(e->open.run());panel.add(lookup,BorderLayout.EAST);return panel;
             }
             public Object getCellEditorValue(){Object value=super.getCellEditorValue();return "".equals(value)&&(original==null||original==QueryEditSupport.DefaultValue.INSTANCE)?original:value;}

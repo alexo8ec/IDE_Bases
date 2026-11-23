@@ -1,6 +1,11 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.77**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.78**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Edición de celdas y permisos más claros — 0.18.78
+
+- Al entrar a una celda editable, su contenido queda seleccionado; escribir reemplaza el valor completo y las flechas permiten ajustar la posición manualmente.
+- El editor de permisos informa por separado los permisos del usuario seleccionado y la autoridad real de la cuenta conectada.
 
 ## Corrección de permisos de usuarios — 0.18.77
 
