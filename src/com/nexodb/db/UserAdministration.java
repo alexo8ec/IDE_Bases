@@ -220,7 +220,30 @@ public final class UserAdministration {
         try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery("SHOW GRANTS")) {
             while (rows.next()) result.add(Objects.toString(rows.getString(1), ""));
         }
+        // Some MySQL/MariaDB configurations expose the effective administrator
+        // through mysql.user (or a role) but do not include WITH GRANT OPTION in
+        // the abbreviated SHOW GRANTS output returned by the JDBC driver.  Use
+        // Grant_priv as a server-side fallback so a valid administrator is not
+        // incorrectly shown as read-only.  If the account cannot read mysql.user
+        // we keep the SHOW GRANTS result and let the server be authoritative.
+        if (result.stream().noneMatch(this::containsGrantOption)) {
+            try (Statement statement = connection.createStatement();
+                 ResultSet rows = statement.executeQuery("SELECT Grant_priv, Create_user_priv FROM mysql.user WHERE User = SUBSTRING_INDEX(CURRENT_USER(), '@', 1) AND Host = SUBSTRING_INDEX(CURRENT_USER(), '@', -1)")) {
+                if (rows.next()) {
+                    boolean grant = "Y".equalsIgnoreCase(Objects.toString(rows.getString(1), ""));
+                    boolean createUser = "Y".equalsIgnoreCase(Objects.toString(rows.getString(2), ""));
+                    if (grant) result.add("GRANT ALL PRIVILEGES ON *.* TO CURRENT_USER WITH GRANT OPTION");
+                    else if (createUser) result.add("GRANT CREATE USER ON *.* TO CURRENT_USER");
+                }
+            } catch (SQLException ignored) {
+                // SHOW GRANTS is still useful when mysql.user is protected.
+            }
+        }
         return result;
+    }
+
+    private boolean containsGrantOption(String grant) {
+        return grant != null && grant.toUpperCase(Locale.ROOT).contains("WITH GRANT OPTION");
     }
 
     private PrivilegeState mysqlPrivilegeState(PrivilegeScope scope, List<String> grants) {
@@ -260,13 +283,17 @@ public final class UserAdministration {
     }
 
     private ParsedGrant parseMysqlGrant(String sql) {
-        String upper = sql.toUpperCase(Locale.ROOT); int start = upper.indexOf("GRANT "), on = upper.indexOf(" ON "), to = upper.indexOf(" TO ", on + 4);
+        if (sql == null || sql.isBlank()) return null;
+        // SHOW GRANTS may contain indentation or line breaks depending on the
+        // server/driver. Normalize whitespace before locating the clauses.
+        String normalized = sql.trim().replaceAll("\\s+", " ");
+        String upper = normalized.toUpperCase(Locale.ROOT); int start = upper.indexOf("GRANT "), on = upper.indexOf(" ON "), to = upper.indexOf(" TO ", on + 4);
         if (start != 0 || on < 0 || to < 0) return null; // Role grants do not contain ON and are intentionally ignored here.
         String privilegeText = upper.substring(6, on).trim();
         Set<String> parsed = normalizePrivileges(Arrays.asList(privilegeText.split("\\s*,\\s*")));
         boolean all = parsed.remove("ALL PRIVILEGES") | parsed.remove("ALL");
         parsed.remove("USAGE"); parsed.remove("GRANT OPTION");
-        return new ParsedGrant(sql.substring(on + 4, to).trim(), parsed, all, upper.contains(" WITH GRANT OPTION"));
+        return new ParsedGrant(normalized.substring(on + 4, to).trim(), parsed, all, upper.contains(" WITH GRANT OPTION"));
     }
 
     private static Set<String> normalizePrivileges(Collection<String> values) {

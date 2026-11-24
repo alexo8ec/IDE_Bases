@@ -1,6 +1,12 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.78**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.79**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Permisos de administración más fiables — 0.18.79
+
+- La autoridad de la cuenta conectada se comprueba con `SHOW GRANTS` y, cuando el servidor no expone correctamente `WITH GRANT OPTION` por JDBC, con `mysql.user.Grant_priv` y `Create_user_priv`.
+- Se normalizan espacios y saltos de línea de las respuestas de MySQL/MariaDB para no marcar como inválida una cuenta administradora.
+- La aplicación continúa respetando al servidor: solo se habilitan cambios globales cuando la cuenta realmente puede delegarlos.
 
 ## Edición de celdas y permisos más claros — 0.18.78
 
