@@ -249,10 +249,14 @@ final class QueryResultPanel extends JPanel {
     boolean finishEditing(){return !table.isEditing()||table.getCellEditor().stopCellEditing();}
     private void cancelEditing(){if(table.isEditing())table.getCellEditor().cancelCellEditing();}
     boolean confirmDiscard(){
+        if (!mayDiscardChanges()) return false;
+        if (hasChanges()) discardChanges();
+        return true;
+    }
+    boolean mayDiscardChanges(){
         if(!finishEditing())return false;
         if(!hasChanges())return true;
-        if(JOptionPane.showConfirmDialog(this,tr("Hay cambios sin guardar en este resultado. ¿Deseas descartarlos?"),tr("Cambios pendientes"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)!=JOptionPane.YES_OPTION)return false;
-        discardChanges();return true;
+        return JOptionPane.showConfirmDialog(this,tr("Hay cambios sin guardar en este resultado. ¿Deseas descartarlos?"),tr("Cambios pendientes"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)==JOptionPane.YES_OPTION;
     }
     void setAvailable(JdbcSession current,boolean operationBusy){available=!disposed&&current==origin&&origin!=null&&origin.isOpen()&&!operationBusy;if(!available)cancelPrefetch();else schedulePrefetch();updateActions();}
     void disposePanel(){
@@ -573,7 +577,7 @@ final class QueryResultPanel extends JPanel {
         changed.accept(tr("Valor pegado en la celda. Pulsa Guardar o cambia de fila para aplicarlo."));
     }
     private void requestDiscard(){if(!hasChanges()||confirm.test("Descartar cambios",tr("Se perderán %s cambios pendientes del resultado. Los datos de la base no se modificarán. ¿Descartar?",model.changeCount())))discardChanges();}
-    private void discardChanges(){cancelEditing();grid.clearChecked();model.discard();setHint(model.definition());}
+    void discardChanges(){cancelEditing();grid.clearChecked();model.discard();setHint(model.definition());}
     private void insertRow(boolean duplicate){
         if(!finishEditing()||!enableEditing())return;
         if(!confirm.test(duplicate?"Duplicar fila":"Agregar fila",target.qualifiedTable()+"\n"+tr(duplicate?"Se duplicará la fila seleccionada en el resultado. Se insertará al pulsar Guardar. ¿Continuar?":"Se agregará una fila al resultado. Se insertará al pulsar Guardar. ¿Continuar?")))return;

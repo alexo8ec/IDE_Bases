@@ -466,10 +466,11 @@ public final class MainFrame extends JFrame {
     }
     private void openReports(){
         if(!LicenseGate.ensure(this))return;
-        var sources=queryPanel.reportSources();
-        var panel=new com.nexodb.reporting.ui.ReportDesignerPanel(queryPanel::reportSources,sources.isEmpty()?null:sources.get(0),
+        var source=queryPanel.currentReportSource();
+        var sources=source.snapshots().get();
+        var panel=new com.nexodb.reporting.ui.ReportDesignerPanel(source.snapshots(),sources.isEmpty()?null:sources.get(0),
                 (data,path,format)->DataExporter.write(new QueryResult(data.columns(),data.rows(),-1,0,data.limited()),path,
-                        format==com.nexodb.reporting.ReportExporter.Format.XLSX?DataExporter.Format.XLSX:DataExporter.Format.CSV,"reporte"),this::setStatus,queryPanel::refreshReportSource);
+                        format==com.nexodb.reporting.ReportExporter.Format.XLSX?DataExporter.Format.XLSX:DataExporter.Format.CSV,"reporte"),this::setStatus,source.refresh());
         addToolTab(tr("Reportería"),panel);
     }
     private void openAi(){
@@ -982,7 +983,7 @@ public final class MainFrame extends JFrame {
 
     private void disconnect() {
         if (session == null) return;
-        if(!queryPanel.confirmDiscardResults())return;
+        if(!queryPanel.confirmDiscardResults(session))return;
         JdbcSession closing = session;
         sessions.remove(closing.profile().id());
         closeSpecificSession(closing);

@@ -1,5 +1,7 @@
 package com.nexodb.ui;
 
+import static com.nexodb.util.I18n.tr;
+
 import com.nexodb.MetadataFixture;
 import com.nexodb.db.*;
 import com.nexodb.model.*;
@@ -25,6 +27,13 @@ public final class QueryBatchTest {
                 run(panel,busy,"SELECT 1; SELECT 2",caret,-1);
                 equal(List.of(1,2),values(panel));
             }
+            SwingUtilities.invokeAndWait(() -> {
+                var tabs = field(panel, "outputTabs", JTabbedPane.class);
+                equal(3, tabs.getTabCount());
+                equal(tabs.getComponentAt(0), tabs.getSelectedComponent());
+                equal(true, tabs.getComponentAt(1) instanceof QueryResultPanel);
+                equal(tr("Mensajes"), tabs.getTitleAt(2));
+            });
             run(panel,busy,"SELECT 1; SELECT 2; SELECT 3",10,18);equal(List.of(2),values(panel));
             run(panel,busy,"SELECT ';' AS marker; -- ignored ;\n SELECT 4; -- trailing comment",0,-1);equal(List.of(";",4),values(panel));
             run(panel,busy,"SELECT 5; SELECT * FROM missing_table; SELECT 6",0,-1);equal(List.of(5,6),values(panel));
@@ -36,11 +45,18 @@ public final class QueryBatchTest {
             SwingUtilities.invokeAndWait(()->{field(panel,"readOnly",JCheckBox.class).setSelected(false);set(panel,"confirm",(java.util.function.BiPredicate<String,String>)(title,text)->{confirmations.incrementAndGet();return true;});});
             run(panel,busy,"INSERT INTO writes VALUES(1); INSERT INTO writes VALUES(1); INSERT INTO writes VALUES(2)",0,-1);
             equal(1,confirmations.get());equal(List.of(List.of(1)),session.execute("SELECT id FROM writes",10).rows());
+            SwingUtilities.invokeAndWait(() -> {
+                var tabs = field(panel, "outputTabs", JTabbedPane.class);
+                equal(3, tabs.getTabCount());
+                equal(tr("Sentencia ") + 1, tabs.getTitleAt(0));
+                equal(true, tabs.getComponentAt(1) instanceof SqlErrorPanel);
+                equal(tr("Mensajes"), tabs.getTitleAt(2));
+            });
         }
         verifySessionVariableBatch(DatabaseType.MYSQL, "MySQL", false);
         verifySessionVariableBatch(DatabaseType.GENERIC, "MariaDB", false);
         verifySessionVariableBatch(DatabaseType.MARIADB, "MariaDB", true);
-        System.out.println("QueryBatchTest: OK (selection and batch results, read/write error behavior, session-variable CTE on the same read-only connection)");
+        System.out.println("QueryBatchTest: OK (selection, separate SELECT results, DML and errors, one grid for a session-variable CTE)");
     }
 
     private static void verifySessionVariableBatch(DatabaseType profileType, String databaseProduct, boolean failAssignment) throws Exception {
@@ -85,19 +101,32 @@ public final class QueryBatchTest {
             if (failAssignment) {
                 equal(expected.subList(0, 3), executed);
                 equal(List.of(), values(panel));
-                if (!field(panel, "messages", JTextArea.class).getText().contains("Fixture rejected variable assignment")) {
-                    throw new AssertionError("Failed variable assignment was not reported");
-                }
+                SwingUtilities.invokeAndWait(() -> {
+                    var tabs = field(panel, "outputTabs", JTabbedPane.class);
+                    equal(2, tabs.getTabCount());
+                    equal(true, tabs.getSelectedComponent() instanceof SqlErrorPanel);
+                    equal(tr("Mensajes"), tabs.getTitleAt(1));
+                    String messages = field(panel, "messages", JTextArea.class).getText();
+                    equal(true, messages.contains("Fixture rejected variable assignment"));
+                    equal(Set.of(4), field(panel, "editor", SqlEditorPane.class).errorLines().keySet());
+                });
             } else {
                 equal(expected, executed);
                 equal(List.of("EMP-DEMO"), values(panel));
                 SwingUtilities.invokeAndWait(() -> {
                     var tabs = field(panel, "outputTabs", JTabbedPane.class);
-                    var grid = Arrays.stream(tabs.getComponents()).filter(QueryResultPanel.class::isInstance)
-                            .map(QueryResultPanel.class::cast).findFirst().orElseThrow();
+                    equal(2, tabs.getTabCount());
+                    equal(tabs.getComponentAt(0), tabs.getSelectedComponent());
+                    equal(tr("Mensajes"), tabs.getTitleAt(1));
+                    var grid = (QueryResultPanel) tabs.getSelectedComponent();
                     equal(session, grid.origin());
                     equal(false, field(grid, "reload", JButton.class).isEnabled());
                     equal(false, field(grid, "pageable", Boolean.class));
+                    String messages = field(panel, "messages", JTextArea.class).getText();
+                    for (int statement = 1; statement < expected.size(); statement++) {
+                        String heading = "] " + tr("Sentencia ") + statement + "\n";
+                        if (!messages.contains(heading)) throw new AssertionError("Missing SET completion: " + statement);
+                    }
                 });
             }
         }

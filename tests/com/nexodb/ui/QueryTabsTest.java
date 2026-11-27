@@ -8,6 +8,7 @@ import javax.swing.text.StyleConstants;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.lang.reflect.*;
+import java.math.BigDecimal;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.atomic.*;
@@ -50,11 +51,95 @@ public final class QueryTabsTest {
                 });
                 long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(10);while(busy.get()&&System.nanoTime()<deadline)Thread.sleep(20);SwingUtilities.invokeAndWait(()->{});
                 equal(false,busy.get());equal(1,session.execute("SELECT * FROM keep_me",10).rows().size());equal(1,session.execute("SELECT * FROM generated",10).rows().size());
+                verifyRetainedResults(session,file.resolveSibling("consulta.sql"));
             }
         }
         verifySearchAndSelection();
-        System.out.println("QueryTabsTest: OK (isolated generated scripts, original DELETE never executed, all tabs restored, legacy header migration, keyword highlighting/casing/completion)");
+        System.out.println("QueryTabsTest: OK (isolated queries and retained results, all tabs restored, legacy header migration, search and highlighting)");
     }
+
+    private static void verifyRetainedResults(JdbcSession session, Path savedSql) throws Exception {
+        String firstSql = "SELECT id FROM keep_me";
+        String secondSql = "SELECT id FROM generated";
+        Files.writeString(savedSql, firstSql);
+        String diskHash = SqlFiles.diskHash(savedSql);
+        AtomicReference<QueryPanel> reference = new AtomicReference<>();
+        AtomicBoolean busy = new AtomicBoolean();
+        SwingUtilities.invokeAndWait(() -> {
+            QueryPanel panel = new QueryPanel(text -> {}, busy::set, null);
+            try {
+                Field field = QueryPanel.class.getDeclaredField("session");
+                field.setAccessible(true);
+                field.set(panel, session);
+            } catch (ReflectiveOperationException error) {
+                throw new AssertionError(error);
+            }
+            editor(panel).restoreText(firstSql);
+            panel.markSaved(editor(panel), savedSql, firstSql, diskHash);
+            reference.set(panel);
+        });
+        QueryPanel panel = reference.get();
+        executeAndWait(panel, busy);
+        AtomicReference<String> firstMessages = new AtomicReference<>();
+        AtomicReference<QueryPanel.ReportSource> firstReport = new AtomicReference<>();
+        SwingUtilities.invokeAndWait(() -> {
+            equal(List.of(List.of(1)), selectedResult(panel).result().rows());
+            firstMessages.set(messages(panel).getText());
+            firstReport.set(panel.currentReportSource());
+            outputTabs(panel).setSelectedIndex(1);
+            equal(true, panel.openNewQuery(secondSql));
+            equal(1, outputTabs(panel).getTabCount());
+            equal("", messages(panel).getText());
+        });
+        executeAndWait(panel, busy);
+        // Switching to the first tab must display its snapshot even after the table changes.
+        session.setReadOnly(false);
+        session.execute("UPDATE keep_me SET id = 3", 10);
+        AtomicReference<String> secondMessages = new AtomicReference<>();
+        SwingUtilities.invokeAndWait(() -> {
+            QueryResultPanel second = selectedResult(panel);
+            equal(List.of(List.of(2)), second.result().rows());
+            equal(List.of(List.of(BigDecimal.ONE)), firstReport.get().snapshots().get().get(0).rows());
+            field(second, "table", JTable.class).setRowSelectionInterval(0, 0);
+            secondMessages.set(messages(panel).getText());
+            tabs(panel).setSelectedIndex(0);
+            equal(2, outputTabs(panel).getTabCount());
+            equal(1, outputTabs(panel).getSelectedIndex());
+            equal(firstMessages.get(), messages(panel).getText());
+            outputTabs(panel).setSelectedIndex(0);
+            equal(List.of(List.of(1)), selectedResult(panel).result().rows());
+        });
+        executeAndWait(panel, busy);
+        SwingUtilities.invokeAndWait(() -> {
+            equal(List.of(List.of(3)), selectedResult(panel).result().rows());
+            tabs(panel).setSelectedIndex(1);
+            equal(List.of(List.of(2)), selectedResult(panel).result().rows());
+            equal(0, field(selectedResult(panel), "table", JTable.class).getSelectedRow());
+            equal(secondMessages.get(), messages(panel).getText());
+            JPanel firstTabHeader = (JPanel) tabs(panel).getTabComponentAt(0);
+            ((JButton) firstTabHeader.getComponent(1)).doClick(0);
+            equal(1, tabs(panel).getTabCount());
+            equal(List.of(), firstReport.get().snapshots().get());
+            equal(secondSql, editor(panel).getText());
+            equal(List.of(List.of(2)), selectedResult(panel).result().rows());
+            equal(secondMessages.get(), messages(panel).getText());
+        });
+    }
+
+    private static void executeAndWait(QueryPanel panel, AtomicBoolean busy) throws Exception {
+        SwingUtilities.invokeAndWait(panel::executeCurrent);
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+        while (busy.get() && System.nanoTime() < deadline) Thread.sleep(20);
+        SwingUtilities.invokeAndWait(() -> equal(false, busy.get()));
+    }
+
+    private static QueryResultPanel selectedResult(QueryPanel panel) {
+        if (outputTabs(panel).getSelectedComponent() instanceof QueryResultPanel result) return result;
+        throw new AssertionError("Expected the selected SQL tab to show a result grid");
+    }
+
+    private static JTextArea messages(QueryPanel panel) { return field(panel, "messages", JTextArea.class); }
+    private static JTabbedPane outputTabs(QueryPanel panel) { return field(panel, "outputTabs", JTabbedPane.class); }
 
     private static void verifySearchAndSelection() throws Exception {
         String sql = "SELECT 'saldo total 007', 'SALDO TOTAL 007', 'saldo total 9', saldo_total100, 1007;";

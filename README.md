@@ -1,6 +1,11 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.80**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.81**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Resultados independientes por pestaña SQL — 0.18.81
+
+- Cada pestaña de consulta mantiene sus cuadrículas, mensajes y selección al navegar entre las demás pestañas.
+- En MySQL y MariaDB, las asignaciones simples `SET @variable` se registran en Mensajes sin abrir pestañas adicionales.
 
 ## Búsqueda en el editor y variables de sesión SQL — 0.18.80
 
