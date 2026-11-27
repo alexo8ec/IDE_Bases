@@ -106,6 +106,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de descarga HTTPS fallaron.' }
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de cambio de idioma en vivo fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.LanguageWindowTest
 if ($LASTEXITCODE -ne 0) { throw 'La prueba de idioma en la ventana real fallo.' }
+& java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.ui.DialogPositionTest
+if ($LASTEXITCODE -ne 0) { throw 'La prueba de centrado de dialogos fallo.' }
 & java '-Dnexodb.disableDraftPersistence=true' -cp $testClasspath com.nexodb.db.SchemaMetadataReaderTest
 if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de lectura de esquemas fallaron.' }
 & java '-Dnexodb.disableDraftPersistence=true' '-Djava.awt.headless=true' -cp $testClasspath com.nexodb.ui.ComparisonSelectionTest

@@ -37,14 +37,14 @@ public final class ExportChooser {
             String name = stripExtension(chooser.getSelectedFile() == null ? clean(baseName) : chooser.getSelectedFile().getName());
             chooser.setSelectedFile(new File(name + "." + selected.extension()));
         });
-        if (chooser.showSaveDialog(owner) != JFileChooser.APPROVE_OPTION) return null;
+        if (chooser.showSaveDialog(DialogPosition.owner(owner)) != JFileChooser.APPROVE_OPTION) return null;
         DataExporter.Format format = formats.get(chooser.getFileFilter());
         if (format == null) format = DataExporter.Format.CSV;
         File selected = chooser.getSelectedFile();
         String expected = "." + format.extension();
         if (!selected.getName().toLowerCase().endsWith(expected)) selected = new File(selected.getParentFile(), selected.getName() + expected);
         if (selected.exists()) {
-            int replace = JOptionPane.showConfirmDialog(owner, tr("El archivo ya existe. ¿Deseas reemplazarlo?"), tr("Reemplazar archivo"),
+            int replace = JOptionPane.showConfirmDialog(DialogPosition.owner(owner), tr("El archivo ya existe. ¿Deseas reemplazarlo?"), tr("Reemplazar archivo"),
                     JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
             if (replace != JOptionPane.YES_OPTION) return null;
         }

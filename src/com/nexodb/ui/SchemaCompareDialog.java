@@ -30,7 +30,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 /** Compares catalogs/schemas from one or two active connections. */
-public final class SchemaCompareDialog extends JDialog {
+public final class SchemaCompareDialog extends CenteredDialog {
     private final JComboBox<SessionOption> sourceConnection = new JComboBox<>();
     private final JComboBox<SessionOption> targetConnection = new JComboBox<>();
     private final BiConsumer<JdbcSession, String> scriptConsumer;
@@ -78,7 +78,6 @@ public final class SchemaCompareDialog extends JDialog {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setMinimumSize(new Dimension(850, 560));
         setSize(1040, 680);
-        setLocationRelativeTo(owner);
         setContentPane(buildContent());
         configureTable();
         chooseObjects.addActionListener(event -> chooseObjects());
@@ -213,7 +212,7 @@ public final class SchemaCompareDialog extends JDialog {
                         selectedObjects.clear(); selectedObjects.addAll(selected); selectionConfigured = true;
                         choices.tables(selectedObjects, true, true); updateSelectionCaption(); selectionChanged();
                     });
-                } catch (Exception error) { JOptionPane.showMessageDialog(SchemaCompareDialog.this, rootCause(error).getMessage(), tr("No se pudieron cargar las tablas"), JOptionPane.ERROR_MESSAGE); }
+                } catch (Exception error) { JOptionPane.showMessageDialog(DialogPosition.owner(SchemaCompareDialog.this), rootCause(error).getMessage(), tr("No se pudieron cargar las tablas"), JOptionPane.ERROR_MESSAGE); }
             }
         }.execute();
     }
@@ -225,7 +224,7 @@ public final class SchemaCompareDialog extends JDialog {
         String targetName = (String) target.getSelectedItem();
         if (sourceSession == null || targetSession == null || sourceName == null || targetName == null) return;
         if (sourceSession == targetSession && sourceName.equalsIgnoreCase(targetName)) {
-            JOptionPane.showMessageDialog(this, tr("Selecciona un origen y un destino diferentes."), tr("Comparar esquemas"), JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("Selecciona un origen y un destino diferentes."), tr("Comparar esquemas"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         long request = selectionRevision;
@@ -255,7 +254,7 @@ public final class SchemaCompareDialog extends JDialog {
                 } catch (Exception error) {
                     Throwable cause = rootCause(error);
                     UiLanguage.text(status, UiLanguage.key("Error al comparar"));
-                    JOptionPane.showMessageDialog(SchemaCompareDialog.this, cause.getMessage(),
+                    JOptionPane.showMessageDialog(DialogPosition.owner(SchemaCompareDialog.this), cause.getMessage(),
                             tr("No se pudieron comparar los esquemas"), JOptionPane.ERROR_MESSAGE);
                 }
             }
@@ -361,7 +360,7 @@ public final class SchemaCompareDialog extends JDialog {
     }
 
     private void saveMigration(){
-        if(lastComparison==null||lastComparison.script().isBlank())return;JFileChooser chooser=new JFileChooser();chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);String configured=com.nexodb.util.AppSettings.get("migrations.folder","");if(!configured.isBlank())chooser.setCurrentDirectory(Path.of(configured).toFile());if(chooser.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return;String description=JOptionPane.showInputDialog(this,tr("Descripción de la migración:"),"sincronizar_esquema");if(description==null)return;String safe=description.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+","_").replaceAll("^_+|_+$","");if(safe.isBlank()){JOptionPane.showMessageDialog(this,tr("Escribe una descripción válida."));return;}try{Path folder=chooser.getSelectedFile().toPath().toAbsolutePath();Files.createDirectories(folder);String version=java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));Path file=folder.resolve("V"+version+"__"+safe+".sql");Files.writeString(file,lastComparison.script(),StandardCharsets.UTF_8);com.nexodb.util.AppSettings.put("migrations.folder",folder.toString());JOptionPane.showMessageDialog(this,tr("Migración creada para revisión:")+"\n"+file);}catch(Exception error){JOptionPane.showMessageDialog(this,error.getMessage(),tr("Guardar migración"),JOptionPane.ERROR_MESSAGE);}
+        if(lastComparison==null||lastComparison.script().isBlank())return;JFileChooser chooser=new JFileChooser();chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);String configured=com.nexodb.util.AppSettings.get("migrations.folder","");if(!configured.isBlank())chooser.setCurrentDirectory(Path.of(configured).toFile());if(chooser.showSaveDialog(DialogPosition.owner(this))!=JFileChooser.APPROVE_OPTION)return;String description=JOptionPane.showInputDialog(DialogPosition.owner(this),tr("Descripción de la migración:"),"sincronizar_esquema");if(description==null)return;String safe=description.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+","_").replaceAll("^_+|_+$","");if(safe.isBlank()){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Escribe una descripción válida."));return;}try{Path folder=chooser.getSelectedFile().toPath().toAbsolutePath();Files.createDirectories(folder);String version=java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));Path file=folder.resolve("V"+version+"__"+safe+".sql");Files.writeString(file,lastComparison.script(),StandardCharsets.UTF_8);com.nexodb.util.AppSettings.put("migrations.folder",folder.toString());JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Migración creada para revisión:")+"\n"+file);}catch(Exception error){JOptionPane.showMessageDialog(DialogPosition.owner(this),error.getMessage(),tr("Guardar migración"),JOptionPane.ERROR_MESSAGE);}
     }
 
     private String qualified(JdbcSession endpoint, String database, String object) { return quote(endpoint, database) + "." + quote(endpoint, object); }

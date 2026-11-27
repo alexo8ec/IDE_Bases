@@ -1,28 +1,28 @@
 {
   "version": "0.18.81",
   "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.81-win64.zip",
-  "sha256": "05027eade98e1486b925df34f2d02e47e86734ad5a5117cc64f9d7b6bb0dae39",
-  "notes": "AdisDB 0.18.81: conserva resultados y mensajes al cambiar de pestaña. Las asignaciones SET @variable se registran en Mensajes sin abrir resultados adicionales.",
+  "sha256": "527826c14265463a18bcf56bd1b7c0746c886cc9c4df0429c1921bf2c4a3fed2",
+  "notes": "AdisDB 0.18.81: plataforma empresarial en ocho fases con seguridad nativa, migraciones versionadas, respaldos multimotor, editor avanzado, perfilador, linaje, conectores modernos y colaboración segura.",
   "platforms": {
     "windows-x64": {
       "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.81-win64.zip",
-      "sha256": "05027eade98e1486b925df34f2d02e47e86734ad5a5117cc64f9d7b6bb0dae39"
+      "sha256": "527826c14265463a18bcf56bd1b7c0746c886cc9c4df0429c1921bf2c4a3fed2"
     },
     "linux-x64": {
       "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.81-linux-x64.deb",
-      "sha256": "b728a58d52bffe02471e3b9c258737486138c746c60d8651b3cbef8fc504b7bf"
+      "sha256": "ac792f02fc3fe3892df6b1f4bf5d8cefc8811ae1616d7de00d1462295a4b4162"
     },
     "linux-arm64": {
       "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.81-linux-arm64.deb",
-      "sha256": "7450b2bd5d52c94afd3ccc9ec087915f3cdec3791c8daff33a0dabf4871e2065"
+      "sha256": "4aa8c6502e258f53d4438ac2def6b839b202e8f4c48843fad46fd3b95a42336a"
     },
     "macos-x64": {
       "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.81-macos-x64.zip",
-      "sha256": "a8b34ad052362b728217e8a8f4f1f0a158e21a9a367bf2e202437207d40b08ae"
+      "sha256": "4a8b737ad2df9ae73468923033897bc4c91a159144100b600ac11fa3b012ea47"
     },
     "macos-arm64": {
       "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.81-macos-arm64.zip",
-      "sha256": "6eadb32b7c8e5d401dc1c88f1f1f163cde2efe639bb0f9b134b4c0053cf02165"
+      "sha256": "74090ea3568d825f5dafb85ad75ede89aab51e307a6bfa6fbebe5492a2770819"
     }
   }
 }

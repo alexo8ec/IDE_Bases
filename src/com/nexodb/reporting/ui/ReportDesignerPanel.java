@@ -1,6 +1,7 @@
 package com.nexodb.reporting.ui;
 
 import com.nexodb.reporting.*;
+import com.nexodb.ui.DialogPosition;
 import com.nexodb.util.BackgroundOperations;
 import static com.nexodb.reporting.ReportDesign.*;
 import javax.swing.*;
@@ -106,13 +107,13 @@ public final class ReportDesignerPanel extends JPanel {
         panel.add(new JScrollPane(blocks),BorderLayout.NORTH);
         JPanel form=new JPanel(new GridBagLayout());int row=0;row=field(form,row,"Texto / título",blockText);row=field(form,row,"Campo del indicador",blockField);row=field(form,row,"Operación",aggregate);
         row=field(form,row,"Posición X",bx);row=field(form,row,"Posición Y",by);row=field(form,row,"Ancho",bw);row=field(form,row,"Alto",bh);row=field(form,row,"Tamaño de letra",font);row=field(form,row,"",bold);
-        JButton color=new JButton("Color…");color.addActionListener(e->{Color picked=JColorChooser.showDialog(this,"Color del objeto",new Color(blockColor));if(picked!=null)blockColor=picked.getRGB()&0xffffff;});field(form,row,"",color);
+        JButton color=new JButton("Color…");color.addActionListener(e->{Color picked=JColorChooser.showDialog(DialogPosition.owner(this),"Color del objeto",new Color(blockColor));if(picked!=null)blockColor=picked.getRGB()&0xffffff;});field(form,row,"",color);
         panel.add(new JScrollPane(form));JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEFT));button(actions,"Aplicar",this::applyBlock);button(actions,"Duplicar",this::duplicateBlock);button(actions,"Eliminar",this::deleteBlock);panel.add(actions,BorderLayout.SOUTH);return panel;
     }
     private JComponent pageSettings() {
         JPanel panel=new JPanel(new BorderLayout());JPanel form=new JPanel(new GridBagLayout());form.setBorder(new EmptyBorder(8,8,8,8));
         int row=field(form,0,"Nombre del reporte",reportTitle);landscape.addActionListener(e->{if(!updating)applyOrientation();});row=field(form,row,"Orientación",landscape);row=field(form,row,"Inicio del detalle",band);row=field(form,row,"Pie de página",footer);
-        JButton color=new JButton("Color de encabezados…");color.addActionListener(e->{Color value=JColorChooser.showDialog(this,"Color de encabezados",new Color(design.accent()));if(value!=null)attempt(()->change(new ReportDesign(design.title(),design.landscape(),design.headerHeight(),design.footer(),value.getRGB()&0xffffff,design.sourceColumns(),design.columns(),design.groups(),design.blocks())));});row=field(form,row,"",color);
+        JButton color=new JButton("Color de encabezados…");color.addActionListener(e->{Color value=JColorChooser.showDialog(DialogPosition.owner(this),"Color de encabezados",new Color(design.accent()));if(value!=null)attempt(()->change(new ReportDesign(design.title(),design.landscape(),design.headerHeight(),design.footer(),value.getRGB()&0xffffff,design.sourceColumns(),design.columns(),design.groups(),design.blocks())));});row=field(form,row,"",color);
         JButton apply=new JButton("Aplicar página");apply.addActionListener(e->attempt(()->change(new ReportDesign(reportTitle.getText(),landscape.isSelected(),(Integer)band.getValue(),footer.getText(),design.accent(),design.sourceColumns(),design.columns(),design.groups(),design.blocks()))));field(form,row,"",apply);
         panel.add(form,BorderLayout.NORTH);JTextArea help=new JTextArea("El encabezado contiene los objetos que puedes ubicar libremente. El detalle repite las columnas y los encabezados de grupo, calcula subtotales y continúa en las páginas siguientes. El pie incluye origen y número de página.\n\nCSV y Excel conservan columnas, agrupaciones y totales como datos. HTML y PDF conservan el diseño visual.");help.setEditable(false);help.setLineWrap(true);help.setWrapStyleWord(true);help.setOpaque(false);help.setBorder(new EmptyBorder(12,12,12,12));panel.add(help);return panel;
     }
@@ -122,7 +123,7 @@ public final class ReportDesignerPanel extends JPanel {
     private static <T> List<T> append(List<T> list,T value){var result=new ArrayList<>(list);result.add(value);return result;}
     private void attempt(Runnable action){try{action.run();}catch(RuntimeException error){error(error);}}
     private void applyOrientation(){try{change(new ReportDesign(design.title(),landscape.isSelected(),design.headerHeight(),design.footer(),design.accent(),design.sourceColumns(),design.columns(),design.groups(),design.blocks()));}catch(RuntimeException error){landscape.setSelected(design.landscape());error(error);}}
-    private void error(Throwable error){JOptionPane.showMessageDialog(this,error.getMessage(),"Reportería",JOptionPane.ERROR_MESSAGE);}
+    private void error(Throwable error){JOptionPane.showMessageDialog(DialogPosition.owner(this),error.getMessage(),"Reportería",JOptionPane.ERROR_MESSAGE);}
     private void change(ReportDesign next){if(next.equals(design))return;undo.push(design);while(undo.size()>80)undo.removeLast();redo.clear();design=next;dirty=true;page=0;sync();previewTimer.restart();}
     private void undo(){if(!undo.isEmpty()){redo.push(design);design=undo.pop();dirty=true;sync();previewTimer.restart();}}
     private void redo(){if(!redo.isEmpty()){undo.push(design);design=redo.pop();dirty=true;sync();previewTimer.restart();}}
@@ -169,7 +170,7 @@ public final class ReportDesignerPanel extends JPanel {
     }
     private void useData(ReportData next) {
         if(!design.sourceColumns().equals(next.columns())) {
-            if(JOptionPane.showConfirmDialog(this,"Las columnas son distintas. ¿Crear un diseño nuevo para este resultado?","Cambiar origen",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
+            if(JOptionPane.showConfirmDialog(DialogPosition.owner(this),"Las columnas son distintas. ¿Crear un diseño nuevo para este resultado?","Cambiar origen",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
             if(!confirmClose())return;data=next;design=ReportDesign.create(next);template=null;undo.clear();redo.clear();dirty=false;selected=null;
         } else data=next;
         sync();buildPreview();
@@ -184,23 +185,23 @@ public final class ReportDesignerPanel extends JPanel {
     private static Throwable root(Throwable error){while(error.getCause()!=null)error=error.getCause();return error;}
     private void showPage(int value){if(layout!=null){page=Math.max(0,Math.min(layout.pages().size()-1,value));pageLabel.setText((page+1)+" / "+layout.pages().size());canvas.repaint();}}
     private void open() {
-        if(!confirmClose())return;JFileChooser chooser=templateChooser();if(chooser.showOpenDialog(this)!=JFileChooser.APPROVE_OPTION)return;
+        if(!confirmClose())return;JFileChooser chooser=templateChooser();if(chooser.showOpenDialog(DialogPosition.owner(this))!=JFileChooser.APPROVE_OPTION)return;
         try{ReportDesign next=ReportStore.load(chooser.getSelectedFile().toPath());if(!data.columns().isEmpty())next.requireCompatible(data);else data=new ReportData("Plantilla sin datos",next.sourceColumns(),List.of(),false);design=next;template=chooser.getSelectedFile().toPath();dirty=false;undo.clear();redo.clear();selected=null;sync();buildPreview();}catch(Exception error){error(error);}
     }
     private boolean save(boolean as) {
         if(columns.isEditing()&&!columns.getCellEditor().stopCellEditing())return false;
         Path target=as?null:template;
-        if(target==null){JFileChooser chooser=templateChooser();chooser.setSelectedFile(new java.io.File("reporte.nxreport"));if(chooser.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return false;target=extension(chooser.getSelectedFile().toPath(),"nxreport");if(Files.exists(target)&&JOptionPane.showConfirmDialog(this,"¿Reemplazar la plantilla existente?","Guardar plantilla",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return false;}
+        if(target==null){JFileChooser chooser=templateChooser();chooser.setSelectedFile(new java.io.File("reporte.nxreport"));if(chooser.showSaveDialog(DialogPosition.owner(this))!=JFileChooser.APPROVE_OPTION)return false;target=extension(chooser.getSelectedFile().toPath(),"nxreport");if(Files.exists(target)&&JOptionPane.showConfirmDialog(DialogPosition.owner(this),"¿Reemplazar la plantilla existente?","Guardar plantilla",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return false;}
         try{ReportStore.save(target,design);template=target;dirty=false;sync();status.accept("Plantilla de reporte guardada: "+target.getFileName());return true;}catch(Exception error){error(error);return false;}
     }
     private static JFileChooser templateChooser(){JFileChooser chooser=new JFileChooser();chooser.setFileFilter(new FileNameExtensionFilter("Plantilla AdisDB (*.nxreport)","nxreport"));chooser.setAcceptAllFileFilterUsed(false);return chooser;}
     private static Path extension(Path path,String extension){return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith("."+extension)?path:path.resolveSibling(path.getFileName()+"."+extension);}
     public boolean canClose() {
         if(columns.isEditing()&&!columns.getCellEditor().stopCellEditing())return false;
-        if(exporting||printing){JOptionPane.showMessageDialog(this,"Espera a que termine la operación del reporte.");return false;}
+        if(exporting||printing){JOptionPane.showMessageDialog(DialogPosition.owner(this),"Espera a que termine la operación del reporte.");return false;}
         return confirmClose();
     }
-    private boolean confirmClose(){if(!dirty)return true;int answer=JOptionPane.showOptionDialog(this,"El diseño tiene cambios sin guardar.","Plantilla de reporte",JOptionPane.DEFAULT_OPTION,JOptionPane.QUESTION_MESSAGE,null,new String[]{"Guardar","Descartar","Cancelar"},"Guardar");return answer==1||answer==0&&save(false);}
+    private boolean confirmClose(){if(!dirty)return true;int answer=JOptionPane.showOptionDialog(DialogPosition.owner(this),"El diseño tiene cambios sin guardar.","Plantilla de reporte",JOptionPane.DEFAULT_OPTION,JOptionPane.QUESTION_MESSAGE,null,new String[]{"Guardar","Descartar","Cancelar"},"Guardar");return answer==1||answer==0&&save(false);}
     public void dispose(){previewGeneration++;previewTimer.stop();if(previewWorker!=null)previewWorker.cancel(true);if(exportOperation!=null)exportOperation.requestCancel();else if(exportWorker!=null)exportWorker.cancel(true);if(printOperation!=null)printOperation.requestCancel();else if(printWorker!=null)printWorker.cancel(true);}
     private void export() {
         if(columns.isEditing()&&!columns.getCellEditor().stopCellEditing())return;
@@ -208,8 +209,8 @@ public final class ReportDesignerPanel extends JPanel {
         for(var format:ReportExporter.Format.values()){var filter=new FileNameExtensionFilter(format+" (*."+format.extension()+")",format.extension());formats.put(filter,format);chooser.addChoosableFileFilter(filter);}
         chooser.setFileFilter(formats.keySet().iterator().next());chooser.setSelectedFile(new java.io.File("reporte.html"));
         chooser.addPropertyChangeListener(JFileChooser.FILE_FILTER_CHANGED_PROPERTY,e->{var format=formats.get(chooser.getFileFilter());if(format!=null){String name=chooser.getSelectedFile()==null?"reporte":chooser.getSelectedFile().getName();int dot=name.lastIndexOf('.');if(dot>0)name=name.substring(0,dot);chooser.setSelectedFile(new java.io.File(name+"."+format.extension()));}});
-        if(chooser.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return;var format=formats.get(chooser.getFileFilter());Path target=extension(chooser.getSelectedFile().toPath(),format.extension());
-        if(Files.exists(target)&&JOptionPane.showConfirmDialog(this,"¿Reemplazar el archivo existente?","Exportar reporte",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
+        if(chooser.showSaveDialog(DialogPosition.owner(this))!=JFileChooser.APPROVE_OPTION)return;var format=formats.get(chooser.getFileFilter());Path target=extension(chooser.getSelectedFile().toPath(),format.extension());
+        if(Files.exists(target)&&JOptionPane.showConfirmDialog(DialogPosition.owner(this),"¿Reemplazar el archivo existente?","Exportar reporte",JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
         ReportDesign snapshot=design;ReportData input=data;ReportLayout preview=layout!=null&&layout.plan().design()==snapshot?layout:null;exporting=true;sync();state.setText("Exportando "+format+"…");
         BackgroundOperations.Operation operation=BackgroundOperations.create(BackgroundOperations.Kind.REPORT,"Exportar reporte",input.name(),()->{SwingWorker<Void,Void> active=exportWorker;if(active!=null)active.cancel(true);},()->SwingUtilities.invokeLater(this::export));exportOperation=operation;
         exportWorker=new SwingWorker<Void,Void>() {
@@ -246,7 +247,7 @@ public final class ReportDesignerPanel extends JPanel {
                     if(resize)draft=original.bounds(original.x(),original.y(),Math.max(40,Math.min(design.pageWidth()-24-original.x(),snap(original.width()+dx))),Math.max(24,Math.min(design.headerHeight()-8-original.y(),snap(original.height()+dy))));
                     else draft=original.bounds(Math.max(24,Math.min(design.pageWidth()-24-original.width(),snap(original.x()+dx))),Math.max(24,Math.min(design.headerHeight()-8-original.height(),snap(original.y()+dy))),original.width(),original.height());repaint();}
                 public void mouseReleased(MouseEvent e){if(movingBand){int value=draftBand;movingBand=false;change(new ReportDesign(design.title(),design.landscape(),value,design.footer(),design.accent(),design.sourceColumns(),design.columns(),design.groups(),design.blocks()));}else if(draft!=null)change(design.replace(draft));anchor=null;original=null;draft=null;repaint();}
-                public void mouseClicked(MouseEvent e){if(e.getClickCount()==2&&selectedBlock()!=null&&editing&&page==0){Block b=selectedBlock();String text=JOptionPane.showInputDialog(ReportDesignerPanel.this,"Texto / título",b.text());if(text!=null)change(design.replace(new Block(b.id(),b.kind(),b.x(),b.y(),b.width(),b.height(),text,b.fontSize(),b.bold(),b.color(),b.field(),b.aggregate())));}}
+                public void mouseClicked(MouseEvent e){if(e.getClickCount()==2&&selectedBlock()!=null&&editing&&page==0){Block b=selectedBlock();String text=JOptionPane.showInputDialog(DialogPosition.owner(ReportDesignerPanel.this),"Texto / título",b.text());if(text!=null)change(design.replace(new Block(b.id(),b.kind(),b.x(),b.y(),b.width(),b.height(),text,b.fontSize(),b.bold(),b.color(),b.field(),b.aggregate())));}}
             };addMouseListener(mouse);addMouseMotionListener(mouse);
             getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE,0),"delete-block");getActionMap().put("delete-block",new AbstractAction(){public void actionPerformed(ActionEvent e){if(editing)deleteBlock();}});
         }

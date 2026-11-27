@@ -22,7 +22,7 @@ import java.awt.im.InputContext;
 import java.io.File;
 import java.util.Arrays;
 
-public final class ConnectionDialog extends JDialog {
+public final class ConnectionDialog extends CenteredDialog {
     public record Result(ConnectionProfile profile,char[] password,char[] sshSecret,boolean connect,boolean rememberPassword,boolean rememberSshSecret) {}
     private record ConnectionCheck(String server, String database, long elapsedMillis) {}
 
@@ -116,7 +116,6 @@ public final class ConnectionDialog extends JDialog {
         updateAuthenticationUi();
         currentEngine = (DatabaseType) type.getSelectedItem();
         pack();
-        setLocationRelativeTo(owner);
     }
 
     public Result showDialog() {
@@ -280,7 +279,7 @@ public final class ConnectionDialog extends JDialog {
         updateSshUi();return panel;
     }
 
-    private void browseSshFile(JTextField target,String title){JFileChooser chooser=new JFileChooser();chooser.setDialogTitle(title);if(!target.getText().isBlank())chooser.setSelectedFile(new File(target.getText()));if(chooser.showOpenDialog(this)==JFileChooser.APPROVE_OPTION)target.setText(chooser.getSelectedFile().getAbsolutePath());}
+    private void browseSshFile(JTextField target,String title){JFileChooser chooser=new JFileChooser();chooser.setDialogTitle(title);if(!target.getText().isBlank())chooser.setSelectedFile(new File(target.getText()));if(chooser.showOpenDialog(DialogPosition.owner(this))==JFileChooser.APPROVE_OPTION)target.setText(chooser.getSelectedFile().getAbsolutePath());}
 
     private void addRow(JPanel panel, GridBagConstraints gc, String label, Component component) {
         gc.gridx = 0;
@@ -390,7 +389,7 @@ public final class ConnectionDialog extends JDialog {
                     status.setForeground(UIManager.getColor("Label.foreground"));
                     UiLanguage.text(status, UiLanguage.key("Controlador de "), engine.displayName(), UiLanguage.key(" listo."));
                     String location = check.file() == null ? tr("Incluido dentro de AdisDB") : check.file().getAbsolutePath();
-                    JOptionPane.showMessageDialog(ConnectionDialog.this,
+                    JOptionPane.showMessageDialog(DialogPosition.owner(ConnectionDialog.this),
                             (downloaded ? tr("El controlador fue descargado, verificado e instalado correctamente.")
                                     : tr("El controlador ya estaba instalado y funciona correctamente."))
                                     + tr("\n\nClase: ") + profile.driverClass() + tr("\nUbicación: ") + location,
@@ -524,7 +523,7 @@ public final class ConnectionDialog extends JDialog {
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle(tr("Selecciona el controlador JDBC (.jar)"));
         if (!driverJar.getText().isBlank()) chooser.setSelectedFile(new File(driverJar.getText()));
-        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) driverJar.setText(chooser.getSelectedFile().getAbsolutePath());
+        if (chooser.showOpenDialog(DialogPosition.owner(this)) == JFileChooser.APPROVE_OPTION) driverJar.setText(chooser.getSelectedFile().getAbsolutePath());
     }
 
     private void browseDatabase() {
@@ -532,7 +531,7 @@ public final class ConnectionDialog extends JDialog {
         chooser.setDialogTitle(tr("Selecciona tu base de datos SQLite"));
         chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(tr("Bases SQLite (*.sqlite, *.sqlite3, *.db, *.db3)"), "sqlite", "sqlite3", "db", "db3"));
         if (!database.getText().isBlank()) chooser.setSelectedFile(new File(database.getText()));
-        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+        if (chooser.showOpenDialog(DialogPosition.owner(this)) == JFileChooser.APPROVE_OPTION) {
             File file = chooser.getSelectedFile(); database.setText(file.getAbsolutePath());
             if (!nameManuallyEdited) setSuggestedName(file.getName());
         }
@@ -695,7 +694,7 @@ public final class ConnectionDialog extends JDialog {
     }
 
     private boolean fail(String message, JComponent component) {
-        JOptionPane.showMessageDialog(this, message, tr("Revisa la conexión"), JOptionPane.WARNING_MESSAGE);
+        JOptionPane.showMessageDialog(DialogPosition.owner(this), message, tr("Revisa la conexión"), JOptionPane.WARNING_MESSAGE);
         component.requestFocusInWindow();
         return false;
     }
@@ -762,7 +761,7 @@ public final class ConnectionDialog extends JDialog {
                     status.setForeground(UIManager.getColor("Label.foreground"));
                     status.setIcon(IconFactory.of(IconFactory.Kind.TEST, 20));
                     UiLanguage.text(status, UiLanguage.key("Conexión correcta: "), check.server());
-                    JOptionPane.showMessageDialog(ConnectionDialog.this,
+                    JOptionPane.showMessageDialog(DialogPosition.owner(ConnectionDialog.this),
                             ConnectionTestFeedback.success(profile, check.server(), check.database(), check.elapsedMillis()),
                             tr("Resultado de la prueba de conexión"), JOptionPane.PLAIN_MESSAGE);
                     if (availableDatabases != null && isDisplayable() && profile.equals(profileFromForm())) {
@@ -794,14 +793,14 @@ public final class ConnectionDialog extends JDialog {
         if (handshake && !message.contains("No se pudo descargar el controlador")) {
             message = tr("No se pudo descargar el controlador mediante una conexión HTTPS segura. Revisa el proxy o los certificados de tu red.");
         }
-        JOptionPane.showMessageDialog(this, message, tr("Controlador JDBC"), JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(DialogPosition.owner(this), message, tr("Controlador JDBC"), JOptionPane.ERROR_MESSAGE);
     }
 
     private void showConnectionError(Exception exception) {
         String message = connectionFailureMessage(exception);
         if (message != null && message.toLowerCase().contains("handshake_failure")) {
             Object[] options = {tr("Usar sin SSL/TLS"), tr("Cancelar")};
-            int answer = JOptionPane.showOptionDialog(this,
+            int answer = JOptionPane.showOptionDialog(DialogPosition.owner(this),
                     tr("El controlador JDBC está disponible, pero el servidor rechazó la negociación SSL/TLS.\n\n")
                             + tr("Puedes revisar el certificado del servidor o reintentar sin cifrado únicamente si es una red confiable."),
                     tr("El servidor rechazó SSL/TLS"), JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE,
@@ -814,7 +813,7 @@ public final class ConnectionDialog extends JDialog {
             }
             return;
         }
-        JOptionPane.showMessageDialog(this, ConnectionTestFeedback.failure(message), tr("Error de conexión"), JOptionPane.PLAIN_MESSAGE);
+        JOptionPane.showMessageDialog(DialogPosition.owner(this), ConnectionTestFeedback.failure(message), tr("Error de conexión"), JOptionPane.PLAIN_MESSAGE);
     }
 
     /**

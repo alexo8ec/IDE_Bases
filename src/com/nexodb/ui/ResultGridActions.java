@@ -230,7 +230,7 @@ final class ResultGridActions {
         gc.gridx=0;gc.gridy++;form.add(secondOperator,gc);gc.gridx=1;form.add(secondValue,gc);
         gc.gridx=0;gc.gridy++;gc.gridwidth=2;form.add(caseSensitive,gc);
         Component dialogOwner=SwingUtilities.getWindowAncestor(table);if(dialogOwner==null)dialogOwner=table;
-        if(JOptionPane.showConfirmDialog(dialogOwner,form,tr("Filtro personalizado · ")+model.getColumnName(column),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE)!=JOptionPane.OK_OPTION)return;
+        if(JOptionPane.showConfirmDialog(DialogPosition.owner(dialogOwner),form,tr("Filtro personalizado · ")+model.getColumnName(column),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE)!=JOptionPane.OK_OPTION)return;
         Condition first=condition((Operator)firstOperator.getSelectedItem(),firstValue.getText()),second=condition((Operator)secondOperator.getSelectedItem(),secondValue.getText());
         if(first==null){filters.remove(column);applyFilter();return;}filters.put(column,new Filter(first,(Junction)junction.getSelectedItem(),second,caseSensitive.isSelected()));applyFilter();
     }

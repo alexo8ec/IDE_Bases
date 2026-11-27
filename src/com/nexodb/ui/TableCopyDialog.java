@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Set;
 
 /** Copies a table between databases or active connections without exposing credentials. */
-public final class TableCopyDialog extends JDialog {
+public final class TableCopyDialog extends CenteredDialog {
     private final JdbcSession source;
     private final SchemaItem sourceTable;
     private final JComboBox<SessionOption> targetConnection = new JComboBox<>();
@@ -48,7 +48,6 @@ public final class TableCopyDialog extends JDialog {
         bind();
         setMinimumSize(new Dimension(650, 400));
         pack();
-        setLocationRelativeTo(owner);
         selectInitialTarget();
         loadDatabases();
     }
@@ -175,14 +174,14 @@ public final class TableCopyDialog extends JDialog {
                     CopyReport report = get();
                     UiLanguage.text(state, UiLanguage.key("Copia completada: "), report.inserted(), UiLanguage.key(" nuevas; "), report.skipped(), UiLanguage.key(" ya existían."));
                     completed.run();
-                    JOptionPane.showMessageDialog(TableCopyDialog.this,
+                    JOptionPane.showMessageDialog(DialogPosition.owner(TableCopyDialog.this),
                             tr("La copia terminó correctamente.\n\nDestino: ") + report.destination()
                                     + tr("\nFilas insertadas: ") + report.inserted() + tr("\nFilas que ya existían: ") + report.skipped(),
                             tr("Copia completada"), JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception error) {
                     Throwable cause = error.getCause() == null ? error : error.getCause();
                     UiLanguage.text(state, UiLanguage.key("No se pudo copiar la tabla."));
-                    JOptionPane.showMessageDialog(TableCopyDialog.this, cause.getMessage(), tr("Error al copiar"), JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(DialogPosition.owner(TableCopyDialog.this), cause.getMessage(), tr("Error al copiar"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();
@@ -217,11 +216,11 @@ public final class TableCopyDialog extends JDialog {
                             : tr("Filas en origen: ") + result.sourceRows() + tr("\nFilas en destino: ") + result.targetRows()
                                 + tr("\n\nLa tabla no tiene clave primaria; solamente se pudieron comparar los conteos.");
                     UiLanguage.text(state, (result.missing() == 0 ? tr("Verificación completa: no faltan filas.") : tr("Verificación: faltan ") + result.missing()), UiLanguage.key(" filas."));
-                    JOptionPane.showMessageDialog(TableCopyDialog.this, detail, tr("Resultado de la verificación"), JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(DialogPosition.owner(TableCopyDialog.this), detail, tr("Resultado de la verificación"), JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception error) {
                     Throwable cause = error.getCause() == null ? error : error.getCause();
                     UiLanguage.text(state, UiLanguage.key("No se pudo verificar la copia."));
-                    JOptionPane.showMessageDialog(TableCopyDialog.this, cause.getMessage(), tr("Error al verificar"), JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(DialogPosition.owner(TableCopyDialog.this), cause.getMessage(), tr("Error al verificar"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();
@@ -434,7 +433,7 @@ public final class TableCopyDialog extends JDialog {
     private static String namespace(SchemaItem item) { return item.catalog() != null && !item.catalog().isBlank() ? item.catalog() : item.schema() == null ? "" : item.schema(); }
     private static boolean catalogNamespace(DatabaseType type) { return type == DatabaseType.MYSQL || type == DatabaseType.MARIADB || type == DatabaseType.SQLSERVER; }
     private static String safe(ResultSet rs, String column) { try { return rs.getString(column); } catch (SQLException ignored) { return ""; } }
-    private void warn(String message) { JOptionPane.showMessageDialog(this, message, tr("Revisa la copia"), JOptionPane.WARNING_MESSAGE); }
+    private void warn(String message) { JOptionPane.showMessageDialog(DialogPosition.owner(this), message, tr("Revisa la copia"), JOptionPane.WARNING_MESSAGE); }
     private static String html(String value) { return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"); }
 
     private record SessionOption(JdbcSession session) {

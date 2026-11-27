@@ -148,7 +148,7 @@ final class QueryResultPanel extends JPanel {
         UiLanguage.tooltip(pageSizeChoice,UiLanguage.key(serverView?"La paginación, los filtros y el orden se ejecutan sobre todo el resultado en la base de datos.":"Cambiar de página vuelve a ejecutar el SELECT. Usa ORDER BY para mantener un orden estable."));
         firstPage.addActionListener(e->loadPage(0,pageSize));previous.addActionListener(e->loadPage(Math.max(0,pageOffset-pageSize),pageSize));next.addActionListener(e->loadPage(pageOffset+model.dataRowCount(),pageSize));lastPage.addActionListener(e->openLastPage());pageNumber.addActionListener(e->openPageNumber());countRows.addActionListener(e->{if(countWorker!=null&&!countWorker.isDone())cancelCount(true);else startCount(true);});
         pageSizeChoice.addActionListener(e->{if(changingPageSize||!pageable)return;String choice=(String)pageSizeChoice.getSelectedItem();int size=pageSize;
-            try{if("Personalizado…".equals(choice)){String value=JOptionPane.showInputDialog(this,tr("Filas por página (1 a 10000):"),pageSize);if(value==null){restorePageChoice();return;}size=Integer.parseInt(value.trim());}else size=Integer.parseInt(choice);if(size<1||size>10000)throw new NumberFormatException();loadPage(0,size);}catch(NumberFormatException error){JOptionPane.showMessageDialog(this,tr("El tamaño de página debe estar entre 1 y 10.000 filas."));restorePageChoice();}});
+            try{if("Personalizado…".equals(choice)){String value=JOptionPane.showInputDialog(DialogPosition.owner(this),tr("Filas por página (1 a 10000):"),pageSize);if(value==null){restorePageChoice();return;}size=Integer.parseInt(value.trim());}else size=Integer.parseInt(choice);if(size<1||size>10000)throw new NumberFormatException();loadPage(0,size);}catch(NumberFormatException error){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("El tamaño de página debe estar entre 1 y 10.000 filas."));restorePageChoice();}});
         scroll=new JScrollPane(table);
         grid=new ResultGridActions(table,model,scroll,filter,this::updateCount,changed);
         viewTimer=new Timer(350,event->applyServerView());viewTimer.setRepeats(false);countTimer=new Timer(700,event->{if(totalRows<0&&countWorker==null&&QueryPaging.cheapCount(viewSql))startCount(false);});countTimer.setRepeats(false);
@@ -256,7 +256,7 @@ final class QueryResultPanel extends JPanel {
     boolean mayDiscardChanges(){
         if(!finishEditing())return false;
         if(!hasChanges())return true;
-        return JOptionPane.showConfirmDialog(this,tr("Hay cambios sin guardar en este resultado. ¿Deseas descartarlos?"),tr("Cambios pendientes"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)==JOptionPane.YES_OPTION;
+        return JOptionPane.showConfirmDialog(DialogPosition.owner(this),tr("Hay cambios sin guardar en este resultado. ¿Deseas descartarlos?"),tr("Cambios pendientes"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)==JOptionPane.YES_OPTION;
     }
     void setAvailable(JdbcSession current,boolean operationBusy){available=!disposed&&current==origin&&origin!=null&&origin.isOpen()&&!operationBusy;if(!available)cancelPrefetch();else schedulePrefetch();updateActions();}
     void disposePanel(){
@@ -291,7 +291,7 @@ final class QueryResultPanel extends JPanel {
         boolean counting=countWorker!=null&&!countWorker.isDone();countRows.setText(tr(counting?"Cancelar conteo":"Contar"));countRows.setEnabled(pageable&&(counting||available&&!saving&&totalRows<0));
     }
 
-    private void showDiagnosis(){if(latestDiagnosis.isEmpty())return;StringBuilder html=new StringBuilder("<html><body style='width:560px;font-family:sans-serif'><h2>").append(tr("Diagnóstico del resultado")).append("</h2><p>").append(tr("Estas conclusiones se basan en tiempos medidos y volumen; no ejecutan ni modifican SQL.")).append("</p>");for(var finding:latestDiagnosis)html.append("<h3>").append(finding.severity()).append(" · ").append(finding.title()).append("</h3><p>").append(finding.detail()).append("</p>");html.append("<hr><b>").append(tr("Siguiente comprobación recomendada:")).append("</b> ").append(tr("abre Plan de ejecución si domina el servidor; abre Monitor de sesiones si sospechas bloqueos; reduce columnas o filas si domina la lectura o la interfaz.")).append("</body></html>");JEditorPane content=new JEditorPane("text/html",html.toString());content.setEditable(false);content.setCaretPosition(0);JScrollPane scroll=new JScrollPane(content);scroll.setPreferredSize(new Dimension(640,430));JOptionPane.showMessageDialog(this,scroll,tr("Diagnóstico de lentitud"),JOptionPane.INFORMATION_MESSAGE);}
+    private void showDiagnosis(){if(latestDiagnosis.isEmpty())return;StringBuilder html=new StringBuilder("<html><body style='width:560px;font-family:sans-serif'><h2>").append(tr("Diagnóstico del resultado")).append("</h2><p>").append(tr("Estas conclusiones se basan en tiempos medidos y volumen; no ejecutan ni modifican SQL.")).append("</p>");for(var finding:latestDiagnosis)html.append("<h3>").append(finding.severity()).append(" · ").append(finding.title()).append("</h3><p>").append(finding.detail()).append("</p>");html.append("<hr><b>").append(tr("Siguiente comprobación recomendada:")).append("</b> ").append(tr("abre Plan de ejecución si domina el servidor; abre Monitor de sesiones si sospechas bloqueos; reduce columnas o filas si domina la lectura o la interfaz.")).append("</body></html>");JEditorPane content=new JEditorPane("text/html",html.toString());content.setEditable(false);content.setCaretPosition(0);JScrollPane scroll=new JScrollPane(content);scroll.setPreferredSize(new Dimension(640,430));JOptionPane.showMessageDialog(DialogPosition.owner(this),scroll,tr("Diagnóstico de lentitud"),JOptionPane.INFORMATION_MESSAGE);}
 
     private void startCount(boolean requested){
         if(!pageable||!available||saving||totalRows>=0)return;if(countWorker!=null&&!countWorker.isDone()){if(requested)cancelCount(true);return;}
@@ -349,7 +349,7 @@ final class QueryResultPanel extends JPanel {
     private void openPageNumber(){
         if(!pageable||saving)return;try{long page=Long.parseLong(pageNumber.getText().trim());if(page<1)throw new NumberFormatException();long offset=Math.multiplyExact(page-1L,pageSize);if(totalRows>=0&&offset>=Math.max(totalRows,1))throw new NumberFormatException();
             if(offset>100_000&&!pageAnchors.containsKey(new PageKey(offset,pageSize))&&!confirm.test("Abrir página",tr("Ir directamente a una página profunda puede ser lento porque todavía no existe un cursor para esa posición. ¿Continuar?"))){updateCount();return;}loadPage(offset,pageSize);
-        }catch(ArithmeticException|NumberFormatException error){JOptionPane.showMessageDialog(this,totalRows>=0?tr("Escribe una página entre 1 y ")+Math.max(1,(totalRows+pageSize-1)/pageSize)+".":tr("Escribe un número de página válido."));updateCount();}
+        }catch(ArithmeticException|NumberFormatException error){JOptionPane.showMessageDialog(DialogPosition.owner(this),totalRows>=0?tr("Escribe una página entre 1 y ")+Math.max(1,(totalRows+pageSize-1)/pageSize)+".":tr("Escribe un número de página válido."));updateCount();}
     }
     private void openLastPage(){if(totalRows<0){pendingLastPage=true;startCount(true);return;}loadLastPage();}
     private void loadLastPage(){
@@ -635,7 +635,7 @@ final class QueryResultPanel extends JPanel {
     private void end(){saving=false;busy.accept(false);updateActions();schedulePrefetch();}
     private void startLocal(){saving=true;updateActions();}
     private void endLocal(){saving=false;updateActions();schedulePrefetch();}
-    private void showError(Throwable error,String title){while(error.getCause()!=null)error=error.getCause();JOptionPane.showMessageDialog(this,error.getMessage(),tr(title),JOptionPane.ERROR_MESSAGE);}
+    private void showError(Throwable error,String title){while(error.getCause()!=null)error=error.getCause();JOptionPane.showMessageDialog(DialogPosition.owner(this),error.getMessage(),tr(title),JOptionPane.ERROR_MESSAGE);}
     private record ReferenceHeaderIcon(Icon base,Icon key) implements Icon{
         public int getIconWidth(){return key.getIconWidth()+(base==null?0:4+base.getIconWidth());}public int getIconHeight(){return Math.max(key.getIconHeight(),base==null?0:base.getIconHeight());}
         public void paintIcon(Component c,Graphics g,int x,int y){key.paintIcon(c,g,x,y);if(base!=null)base.paintIcon(c,g,x+key.getIconWidth()+4,y);}

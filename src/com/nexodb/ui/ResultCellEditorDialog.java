@@ -37,11 +37,7 @@ final class ResultCellEditorDialog {
 
     private ResultCellEditorDialog() {}
 
-
-    private static Component dialogOwner(Component parent) {
-        Window owner=parent instanceof Window window?window:SwingUtilities.getWindowAncestor(parent);
-        return owner==null?parent:owner;
-    }    static Kind kind(int jdbcType,Object value) {
+    static Kind kind(int jdbcType,Object value) {
         return switch (jdbcType) {
             case Types.LONGVARCHAR,Types.LONGNVARCHAR,Types.CLOB,Types.NCLOB,Types.SQLXML -> Kind.TEXT;
             case Types.DATE -> Kind.DATE;
@@ -72,29 +68,25 @@ final class ResultCellEditorDialog {
         setNull.addActionListener(e->text.setEnabled(!setNull.isSelected()));if(setNull.isSelected())text.setEnabled(false);
         JButton copy=UiLanguage.button("Copiar todo"),save=UiLanguage.button("Guardar en archivo…"),load=UiLanguage.button("Cargar desde archivo…"),format=UiLanguage.button("Formatear XML");
         copy.addActionListener(e->Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text.getText()),null));
-        save.addActionListener(e->chooseFile(parent,false,text));load.addActionListener(e->chooseFile(parent,true,text));load.setVisible(editable);
-        format.setVisible(looksLikeXml(original));format.addActionListener(e->{try{text.setText(formatXml(text.getText()));text.setCaretPosition(0);}catch(Exception error){JOptionPane.showMessageDialog(parent,tr("El contenido no es un XML válido.")+"\n"+error.getMessage(),tr("No se pudo formatear XML"),JOptionPane.WARNING_MESSAGE);}});
+        save.addActionListener(e->chooseFile(false,text));load.addActionListener(e->chooseFile(true,text));load.setVisible(editable);
+        format.setVisible(looksLikeXml(original));format.addActionListener(e->{try{text.setText(formatXml(text.getText()));text.setCaretPosition(0);}catch(Exception error){JOptionPane.showMessageDialog(DialogPosition.owner(text),tr("El contenido no es un XML válido.")+"\n"+error.getMessage(),tr("No se pudo formatear XML"),JOptionPane.WARNING_MESSAGE);}});
         JPanel tools=new JPanel(new FlowLayout(FlowLayout.LEFT,6,0));tools.add(setNull);tools.add(copy);tools.add(load);tools.add(save);tools.add(format);tools.add(size);
         JPanel content=new JPanel(new BorderLayout(6,6));content.add(tools,BorderLayout.NORTH);content.add(scroll);
-        Window owner = (Window) dialogOwner(parent);
-        content.setSize(content.getPreferredSize());
-        Point ownerLocation = owner.getLocationOnScreen();
-        Point center = new Point(
-            ownerLocation.x + (owner.getWidth() - content.getWidth()) / 2,
-            ownerLocation.y + (owner.getHeight() - content.getHeight()) / 2
-        );
-        content.setLocation(center);
-        int answer=JOptionPane.showConfirmDialog(owner,content,
+        int answer=JOptionPane.showConfirmDialog(DialogPosition.owner(parent),content,
                 (editable?tr("Editar contenido · "):tr("Ver contenido · "))+column,
-                JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);        if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
+                JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
+        if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
         return new Outcome(true,editable?(setNull.isSelected()?null:editedText(value,text.getText(),changed.get())):value);
-    }    private static void chooseFile(Component parent,boolean load,JTextArea text) {
+    }
+
+    private static void chooseFile(boolean load,JTextArea text) {
         JFileChooser chooser=new JFileChooser();
-        if(chooser.showDialog(parent,tr(load?"Cargar":"Guardar"))!=JFileChooser.APPROVE_OPTION)return;
+        Window owner=DialogPosition.owner(text);
+        if(chooser.showDialog(owner,tr(load?"Cargar":"Guardar"))!=JFileChooser.APPROVE_OPTION)return;
         try {
             if(load)text.setText(Files.readString(chooser.getSelectedFile().toPath(),StandardCharsets.UTF_8));
             else Files.writeString(chooser.getSelectedFile().toPath(),text.getText(),StandardCharsets.UTF_8);
-        }catch(IOException error){JOptionPane.showMessageDialog(parent,error.getMessage(),tr("No se pudo abrir el archivo"),JOptionPane.ERROR_MESSAGE);}
+        }catch(IOException error){JOptionPane.showMessageDialog(owner,error.getMessage(),tr("No se pudo abrir el archivo"),JOptionPane.ERROR_MESSAGE);}
     }
 
     static Object editedText(Object original,String editorText,boolean changed) {
@@ -129,19 +121,14 @@ final class ResultCellEditorDialog {
         setNull.addActionListener(e->picker.setEnabledDeep(editable&&!setNull.isSelected()));
         if(setNull.isSelected())picker.setEnabledDeep(false);
         JPanel content=new JPanel(new BorderLayout(6,6));content.add(setNull,BorderLayout.NORTH);content.add(picker);
-        Window owner = (Window) dialogOwner(parent);
-        content.setSize(content.getPreferredSize());
-        Point ownerLocation = owner.getLocationOnScreen();
-        Point center = new Point(
-            ownerLocation.x + (owner.getWidth() - content.getWidth()) / 2,
-            ownerLocation.y + (owner.getHeight() - content.getHeight()) / 2
-        );
-        content.setLocation(center);
-        int answer=JOptionPane.showConfirmDialog(owner,content,
+        int answer=JOptionPane.showConfirmDialog(DialogPosition.owner(parent),content,
                 (editable?tr("Editar fecha y hora · "):tr("Ver fecha y hora · "))+column,
-                JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);        if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
+                JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
+        if(answer!=JOptionPane.OK_OPTION)return new Outcome(false,value);
         return new Outcome(true,editable?(setNull.isSelected()?null:picker.value()):value);
-    }    static String normalizeTemporal(Kind kind,Object value) {
+    }
+
+    static String normalizeTemporal(Kind kind,Object value) {
         TemporalValue parsed=TemporalValue.parse(kind,value);
         return parsed.format(kind);
     }

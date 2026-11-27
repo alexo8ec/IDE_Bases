@@ -10,7 +10,7 @@ import java.util.*;
 import java.util.List;
 
 /** Read-only parent rows; selecting a row only returns values to the staged child grid. */
-final class ForeignKeyLookupDialog extends JDialog {
+final class ForeignKeyLookupDialog extends CenteredDialog {
     private final JdbcSession session;
     private final ForeignKeyLookup.Reference reference;
     private final List<Object> child;
@@ -31,7 +31,7 @@ final class ForeignKeyLookupDialog extends JDialog {
     ForeignKeyLookupDialog(Window owner,JdbcSession session,ForeignKeyLookup.Reference reference,List<Object> child,int clicked,boolean writable){
         super(owner,tr("Registro relacionado")+" · "+reference.parentTable(),ModalityType.APPLICATION_MODAL);
         this.session=session;this.reference=reference;this.child=new ArrayList<>(child);this.clicked=clicked;this.writable=writable&&reference.complete();
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);setMinimumSize(new Dimension(720,430));setSize(960,570);setLocationRelativeTo(owner);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);setMinimumSize(new Dimension(720,430));setSize(960,570);
         JPanel root=new JPanel(new BorderLayout(10,12));root.setBorder(BorderFactory.createEmptyBorder(14,14,14,14));
         JPanel header=new JPanel(new BorderLayout(8,10));JLabel heading=new JLabel(reference.childTable()+" → "+reference.parentTable(),IconFactory.of(IconFactory.Kind.KEY,22),JLabel.LEFT);heading.setFont(heading.getFont().deriveFont(Font.BOLD,16));
         header.add(heading,BorderLayout.NORTH);
@@ -62,11 +62,11 @@ final class ForeignKeyLookupDialog extends JDialog {
                     for(int i=0;i<table.getColumnCount();i++)table.getColumnModel().getColumn(i).setPreferredWidth(Math.max(110,Math.min(280,result.columns().get(i).length()*10+30)));
                     if(table.getRowCount()>0)table.setRowSelectionInterval(0,0);
                     next.setEnabled(maximum>0&&result.truncated());previous.setEnabled(maximum>0&&first>0);status.setText(result.rows().size()+tr(" filas")+" · "+tr(page.exact()?"Coincidencia exacta":"Resultados de búsqueda"));
-                }catch(Exception error){result=null;rows.setRowCount(0);Throwable cause=error;while(cause.getCause()!=null)cause=cause.getCause();status.setText(tr("No se pudo consultar la referencia."));JOptionPane.showMessageDialog(ForeignKeyLookupDialog.this,cause.getMessage(),tr("Registro relacionado"),JOptionPane.ERROR_MESSAGE);}
+                }catch(Exception error){result=null;rows.setRowCount(0);Throwable cause=error;while(cause.getCause()!=null)cause=cause.getCause();status.setText(tr("No se pudo consultar la referencia."));JOptionPane.showMessageDialog(DialogPosition.owner(ForeignKeyLookupDialog.this),cause.getMessage(),tr("Registro relacionado"),JOptionPane.ERROR_MESSAGE);}
                 finally{find.setEnabled(true);size.setEnabled(limit.isSelected());offset.setEnabled(limit.isSelected());limit.setEnabled(true);column.setEnabled(true);others.setEnabled(true);select.setEnabled(writable&&result!=null&&table.getSelectedRow()>=0);}
             }
         };worker.execute();
     }
-    private void choose(){if(!writable||worker!=null||result==null||table.getSelectedRow()<0)return;try{selection=ForeignKeyLookup.selection(reference,result,table.convertRowIndexToModel(table.getSelectedRow()));dispose();}catch(IllegalArgumentException error){JOptionPane.showMessageDialog(this,error.getMessage(),tr("Registro relacionado"),JOptionPane.INFORMATION_MESSAGE);}}
+    private void choose(){if(!writable||worker!=null||result==null||table.getSelectedRow()<0)return;try{selection=ForeignKeyLookup.selection(reference,result,table.convertRowIndexToModel(table.getSelectedRow()));dispose();}catch(IllegalArgumentException error){JOptionPane.showMessageDialog(DialogPosition.owner(this),error.getMessage(),tr("Registro relacionado"),JOptionPane.INFORMATION_MESSAGE);}}
     @Override public void dispose(){if(worker!=null)worker.cancel(true);super.dispose();}
 }

@@ -17,7 +17,7 @@ import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
 /** A dedicated connection keeps transfers independent of the SQL editor's transactions. */
-public final class SqlTransferDialog extends JDialog {
+public final class SqlTransferDialog extends CenteredDialog {
     private final boolean importing;
     private final ConnectionProfile profile;
     private final char[] password;
@@ -66,7 +66,7 @@ public final class SqlTransferDialog extends JDialog {
         database.addActionListener(e->{if(!loading&&!importing&&dedicated!=null)loadObjects();updateStart();});
         file.getDocument().addDocumentListener(new DocumentListener(){private void changed(){analysis=null;summary.setText(" ");updateStart();}public void insertUpdate(DocumentEvent e){changed();}public void removeUpdate(DocumentEvent e){changed();}public void changedUpdate(DocumentEvent e){}});
         objects.addTableModelListener(e->updateStart());
-        cancel.setVisible(false);progress.setVisible(false);setMinimumSize(new Dimension(790,590));setSize(900,680);setLocationRelativeTo(owner);
+        cancel.setVisible(false);progress.setVisible(false);setMinimumSize(new Dimension(790,590));setSize(900,680);
         SwingUtilities.invokeLater(this::connect);
     }
     public boolean restored(){return restored;}
@@ -110,7 +110,7 @@ public final class SqlTransferDialog extends JDialog {
     }
     private void chooseFile(){
         JFileChooser chooser=new JFileChooser();chooser.setFileFilter(new FileNameExtensionFilter(tr("Archivo SQL"),"sql"));if(!file.getText().isBlank())chooser.setSelectedFile(new java.io.File(file.getText()));
-        if((importing?chooser.showOpenDialog(this):chooser.showSaveDialog(this))!=JFileChooser.APPROVE_OPTION)return;
+        if((importing?chooser.showOpenDialog(DialogPosition.owner(this)):chooser.showSaveDialog(DialogPosition.owner(this)))!=JFileChooser.APPROVE_OPTION)return;
         String path=chooser.getSelectedFile().getAbsolutePath();if(!importing&&!path.toLowerCase(Locale.ROOT).endsWith(".sql"))path+=".sql";file.setText(path);if(importing)review();
     }
     private void review(){
@@ -121,13 +121,13 @@ public final class SqlTransferDialog extends JDialog {
         if(!LicenseGate.ensure(this))return;
         if(table.isEditing())table.getCellEditor().stopCellEditing();List<SqlBackupService.ObjectInfo> selected=objects.selected();if(selected.isEmpty())return;
         String selectedDatabase=selectedDatabase();Path target;try{target=Path.of(file.getText().trim()).toAbsolutePath();}catch(Exception error){showError(error);return;}
-        if(Files.exists(target)&&JOptionPane.showConfirmDialog(this,tr("¿Reemplazar el archivo existente?")+"\n"+target,tr("Respaldo SQL"),JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
+        if(Files.exists(target)&&JOptionPane.showConfirmDialog(DialogPosition.owner(this),tr("¿Reemplazar el archivo existente?")+"\n"+target,tr("Respaldo SQL"),JOptionPane.YES_NO_OPTION)!=JOptionPane.YES_OPTION)return;
         var selectedMode=SqlBackupService.Mode.values()[mode.getSelectedIndex()];List<String> nonTransactional=SqlBackupService.supported(profile.type())?SqlBackupService.nonTransactional(selected):List.of();
-        if(consistent.isSelected()&&selectedMode!=SqlBackupService.Mode.STRUCTURE&&!nonTransactional.isEmpty()&&JOptionPane.showConfirmDialog(this,tr("Hay tablas que no son InnoDB. Su lectura no garantiza un estado consistente si cambian durante el respaldo. ¿Continuar?")+"\n"+String.join(", ",nonTransactional.subList(0,Math.min(nonTransactional.size(),12))),tr("Lectura del respaldo"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)!=JOptionPane.YES_OPTION)return;
+        if(consistent.isSelected()&&selectedMode!=SqlBackupService.Mode.STRUCTURE&&!nonTransactional.isEmpty()&&JOptionPane.showConfirmDialog(DialogPosition.owner(this),tr("Hay tablas que no son InnoDB. Su lectura no garantiza un estado consistente si cambian durante el respaldo. ¿Continuar?")+"\n"+String.join(", ",nonTransactional.subList(0,Math.min(nonTransactional.size(),12))),tr("Lectura del respaldo"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)!=JOptionPane.YES_OPTION)return;
         var options=new SqlBackupService.Options(selectedMode,create.isSelected(),drop.isSelected(),fk.isSelected(),consistent.isSelected(),omit.isSelected());
         if(!Confirmations.ask(this,"Crear respaldo SQL",profile.name()+" · "+selectedDatabase+"\n"+tr("Se guardarán %s objetos en el archivo indicado. No se modificarán los datos de origen.",selected.size())+"\n"+target+"\n"+tr("¿Crear el respaldo?")))return;
         run("Creando respaldo…",()->{if(SqlBackupService.supported(profile.type())){var result=SqlBackupService.write(dedicated.connection(),profile.type(),selectedDatabase,selected,options,target,control,p->updateProgress(p.object()+" · "+p.rows()+" "+tr("filas")));return new PortableBackupService.Report(result.objects(),result.rows(),result.file());}return PortableBackupService.write(dedicated.connection(),profile.type(),selectedDatabase,selected,options,target,control,p->updateProgress(p.object()+" · "+p.rows()+" "+tr("filas")));},report->{
-            status.setText(tr("Respaldo completo: %s objetos · %s filas",report.objects(),report.rows()));JOptionPane.showMessageDialog(this,status.getText()+"\n"+report.file(),tr("Respaldo SQL"),JOptionPane.INFORMATION_MESSAGE);
+            status.setText(tr("Respaldo completo: %s objetos · %s filas",report.objects(),report.rows()));JOptionPane.showMessageDialog(DialogPosition.owner(this),status.getText()+"\n"+report.file(),tr("Respaldo SQL"),JOptionPane.INFORMATION_MESSAGE);
         });
     }
     private void restore(){
@@ -138,7 +138,7 @@ public final class SqlTransferDialog extends JDialog {
         JTextArea confirmation=new JTextArea(profile.name()+" · "+profile.host()+":"+profile.port()+"\n"+scope+"\n"+analysis.file()+"\n\n"+tr("%s sentencias · %s modifican o eliminan objetos/datos",analysis.statements(),analysis.destructive())+"\n\n"+tr("¿Importar este archivo ahora? Los cambios de estructura pueden permanecer si hay un error."));confirmation.setEditable(false);confirmation.setLineWrap(true);confirmation.setWrapStyleWord(true);confirmation.setColumns(55);confirmation.setRows(9);confirmation.setOpaque(false);
         if(!Confirmations.ask(this,"Confirmar importación SQL",confirmation.getText()))return;
         var options=new SqlImportService.Options(target,createTarget.isSelected(),preserve.isSelected(),omit.isSelected());SqlImportService.Analysis reviewed=analysis;
-        run("Importando SQL…",()->SqlBackupService.supported(profile.type())?SqlImportService.restore(dedicated.connection(),reviewed,options,control,p->updateProgress(tr("%s de %s sentencias · línea %s",p.completed(),p.total(),p.line()))):PortableBackupService.restore(dedicated.connection(),profile.type(),reviewed,control,p->updateProgress(tr("%s de %s sentencias · línea %s",p.completed(),p.total(),p.line()))),report->{restored=true;status.setText(tr("Importación completa: %s sentencias ejecutadas",report.executed()));JOptionPane.showMessageDialog(this,status.getText(),tr("Importar / restaurar SQL"),JOptionPane.INFORMATION_MESSAGE);});
+        run("Importando SQL…",()->SqlBackupService.supported(profile.type())?SqlImportService.restore(dedicated.connection(),reviewed,options,control,p->updateProgress(tr("%s de %s sentencias · línea %s",p.completed(),p.total(),p.line()))):PortableBackupService.restore(dedicated.connection(),profile.type(),reviewed,control,p->updateProgress(tr("%s de %s sentencias · línea %s",p.completed(),p.total(),p.line()))),report->{restored=true;status.setText(tr("Importación completa: %s sentencias ejecutadas",report.executed()));JOptionPane.showMessageDialog(DialogPosition.owner(this),status.getText(),tr("Importar / restaurar SQL"),JOptionPane.INFORMATION_MESSAGE);});
     }
     private void updateProgress(String text){SwingUtilities.invokeLater(()->{if(!closed)status.setText(text);});}
     private void updateStart(){
@@ -163,7 +163,7 @@ public final class SqlTransferDialog extends JDialog {
             }finally{updateStart();}}
         };worker=task;updateStart();task.execute();
     }
-    private void showError(Throwable error){String message=Objects.toString(error.getMessage(),error.getClass().getSimpleName());if(error instanceof SqlImportService.ImportFailure failure)message=tr("La importación se detuvo en la línea %s, después de %s sentencias. Los cambios de estructura ya aplicados pueden permanecer.",failure.line(),failure.completed())+"\n\n"+message;status.setText(tr("La operación no se completó."));JTextArea text=new JTextArea(message,8,60);text.setLineWrap(true);text.setWrapStyleWord(true);text.setEditable(false);JOptionPane.showMessageDialog(this,new JScrollPane(text),tr("Operación SQL"),JOptionPane.ERROR_MESSAGE);}
+    private void showError(Throwable error){String message=Objects.toString(error.getMessage(),error.getClass().getSimpleName());if(error instanceof SqlImportService.ImportFailure failure)message=tr("La importación se detuvo en la línea %s, después de %s sentencias. Los cambios de estructura ya aplicados pueden permanecer.",failure.line(),failure.completed())+"\n\n"+message;status.setText(tr("La operación no se completó."));JTextArea text=new JTextArea(message,8,60);text.setLineWrap(true);text.setWrapStyleWord(true);text.setEditable(false);JOptionPane.showMessageDialog(DialogPosition.owner(this),new JScrollPane(text),tr("Operación SQL"),JOptionPane.ERROR_MESSAGE);}
     private void cancelOperation(){SqlTransferControl active=control;if(active==null)return;cancel.setEnabled(false);status.setText(tr("Cancelando…"));Thread thread=new Thread(active::cancel,"nexodb-transfer-cancel");thread.setDaemon(true);thread.start();}
     private void requestClose(){if(worker!=null){cancelOperation();return;}closed=true;Arrays.fill(password,'\0');if(dedicated!=null){JdbcSession closing=dedicated;dedicated=null;Thread thread=new Thread(()->{try{closing.close();}catch(Exception ignored){}},"nexodb-transfer-close");thread.setDaemon(true);thread.start();}dispose();}
     private static final class ObjectsModel extends AbstractTableModel {

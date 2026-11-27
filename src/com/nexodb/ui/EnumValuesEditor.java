@@ -28,11 +28,11 @@ final class EnumValuesEditor {
         JPanel editor=new JPanel(new BorderLayout(7,7));editor.setName("enum-values-editor");editor.add(new JScrollPane(values));editor.add(south,BorderLayout.SOUTH);editor.setPreferredSize(new Dimension(520,430));
         if(!model.isEmpty())values.setSelectedIndex(0);update.run();
         while(true){
-            int choice=JOptionPane.showConfirmDialog(parent,editor,tr("Valores de ")+type.toUpperCase(Locale.ROOT),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
+            int choice=JOptionPane.showConfirmDialog(DialogPosition.owner(parent),editor,tr("Valores de ")+type.toUpperCase(Locale.ROOT),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
             if(choice!=JOptionPane.OK_OPTION)return Optional.empty();
             List<String> result=new ArrayList<>();for(int i=0;i<model.size();i++)result.add(model.get(i));
-            if(result.isEmpty()){JOptionPane.showMessageDialog(parent,tr("Agrega al menos un valor para ENUM/SET."),tr("Valores ENUM/SET"),JOptionPane.WARNING_MESSAGE);continue;}
-            if(new HashSet<>(result).size()!=result.size()){JOptionPane.showMessageDialog(parent,tr("No repitas valores en ENUM/SET."),tr("Valores ENUM/SET"),JOptionPane.WARNING_MESSAGE);continue;}
+            if(result.isEmpty()){JOptionPane.showMessageDialog(DialogPosition.owner(parent),tr("Agrega al menos un valor para ENUM/SET."),tr("Valores ENUM/SET"),JOptionPane.WARNING_MESSAGE);continue;}
+            if(new HashSet<>(result).size()!=result.size()){JOptionPane.showMessageDialog(DialogPosition.owner(parent),tr("No repitas valores en ENUM/SET."),tr("Valores ENUM/SET"),JOptionPane.WARNING_MESSAGE);continue;}
             return Optional.of(List.copyOf(result));
         }
     }

@@ -39,7 +39,7 @@ final class BackgroundOperationsPanel extends JPanel {
         cancel.addActionListener(e->{Snapshot selected=selected();if(selected!=null)BackgroundOperations.cancel(selected.id());});
         retry.addActionListener(e->{Snapshot selected=selected();if(selected!=null)BackgroundOperations.retry(selected.id());});
         clear.addActionListener(e->BackgroundOperations.clearFinished());
-        apply.addActionListener(e->{try{BackgroundOperations.configure((Integer)concurrency.getValue(),(Integer)perConnection.getValue(),(Integer)timeout.getValue(),adaptive.isSelected());refresh();}catch(IllegalStateException error){JOptionPane.showMessageDialog(this,error.getMessage(),tr("Preferencias"),JOptionPane.WARNING_MESSAGE);}});
+        apply.addActionListener(e->{try{BackgroundOperations.configure((Integer)concurrency.getValue(),(Integer)perConnection.getValue(),(Integer)timeout.getValue(),adaptive.isSelected());refresh();}catch(IllegalStateException error){JOptionPane.showMessageDialog(DialogPosition.owner(this),error.getMessage(),tr("Preferencias"),JOptionPane.WARNING_MESSAGE);}});
         BackgroundOperations.addListener(listener);timer.start();refresh();
     }
     void disposePanel(){timer.stop();BackgroundOperations.removeListener(listener);}

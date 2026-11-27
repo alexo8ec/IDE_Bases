@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /** Native account administration, with explicit capability and scope per engine. */
-public final class UserManagerDialog extends JDialog {
+public final class UserManagerDialog extends CenteredDialog {
     private final JdbcSession session;
     private UserAdministration admin;
     private final List<Account> accounts = new ArrayList<>();
@@ -47,7 +47,7 @@ public final class UserManagerDialog extends JDialog {
         this.session = session;
         UiLanguage.title(this, UiLanguage.key("Administrar usuarios"));
         setDefaultCloseOperation(DISPOSE_ON_CLOSE); setMinimumSize(new Dimension(860, 520)); setSize(980, 620);
-        setContentPane(buildContent()); setLocationRelativeTo(owner); loadUsers();
+        setContentPane(buildContent()); loadUsers();
     }
     public void showDialog() { setVisible(true); }
     private JComponent buildContent() {
@@ -121,11 +121,11 @@ public final class UserManagerDialog extends JDialog {
         char[] passwordChars = null;
         try {
             while (true) {
-                int answer = JOptionPane.showOptionDialog(this, form, heading.getText(), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE, null, buttons, buttons[0]);
+                int answer = JOptionPane.showOptionDialog(DialogPosition.owner(this), form, heading.getText(), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE, null, buttons, buttons[0]);
                 if (answer != 0) return;
                 String user = name.getText().trim(), userHost = Objects.toString(host.getSelectedItem(), "").trim();
                 String error = user.isBlank() || user.chars().anyMatch(Character::isISOControl) ? tr("Indica un nombre válido.") : admin.usesHost() && userHost.isBlank() ? tr("Indica el host de acceso.") : secret.validation();
-                if (!error.isEmpty()) { JOptionPane.showMessageDialog(this, error, tr("Revisa los datos"), JOptionPane.WARNING_MESSAGE); continue; }
+                if (!error.isEmpty()) { JOptionPane.showMessageDialog(DialogPosition.owner(this), error, tr("Revisa los datos"), JOptionPane.WARNING_MESSAGE); continue; }
                 passwordChars = secret.password.getPassword();
                 Account account = existing == null ? admin.newAccount(user, userHost) : existing;
                 char[] retained = passwordChars;
@@ -147,7 +147,7 @@ public final class UserManagerDialog extends JDialog {
         grantPrivilegesLegacy(a);
     }
     private void editMysqlPrivileges(Account account, PermissionSnapshot snapshot) {
-        if (snapshot.scopes().isEmpty()) { JOptionPane.showMessageDialog(this, tr("No hay ámbitos disponibles para asignar permisos.")); return; }
+        if (snapshot.scopes().isEmpty()) { JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("No hay ámbitos disponibles para asignar permisos.")); return; }
         JComboBox<PrivilegeScope> scope = new JComboBox<>(snapshot.scopes().toArray(PrivilegeScope[]::new));
         JPanel form = new JPanel(new BorderLayout(8, 12));
         JPanel choices = new JPanel(); List<JCheckBox> checks = new ArrayList<>();
@@ -191,7 +191,7 @@ public final class UserManagerDialog extends JDialog {
         global.addActionListener(e -> snapshot.scopes().stream().filter(PrivilegeScope::global).findFirst().ifPresent(scope::setSelectedItem));
         administrator.addActionListener(e -> {
             PrivilegeScope server = snapshot.scopes().stream().filter(PrivilegeScope::global).findFirst().orElse(null); if (server == null) return;
-            if (!admin.canGrant(server, snapshot.operatorCapabilities())) { JOptionPane.showMessageDialog(this, tr("La cuenta conectada no tiene GRANT OPTION global. Conecta una cuenta administradora o solicita ese permiso al administrador del servidor."), tr("Permisos insuficientes"), JOptionPane.WARNING_MESSAGE); return; }
+            if (!admin.canGrant(server, snapshot.operatorCapabilities())) { JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("La cuenta conectada no tiene GRANT OPTION global. Conecta una cuenta administradora o solicita ese permiso al administrador del servidor."), tr("Permisos insuficientes"), JOptionPane.WARNING_MESSAGE); return; }
             scope.setSelectedItem(server); administratorPreset[0] = true;
             for (JCheckBox check : checks) check.setSelected(true);
             grantOption.setSelected(true);
@@ -204,10 +204,10 @@ public final class UserManagerDialog extends JDialog {
         loadScope.run();
         if (snapshot.capabilities().allGlobal() || !snapshot.capabilities().globalPrivileges().isEmpty())
             snapshot.scopes().stream().filter(PrivilegeScope::global).findFirst().ifPresent(scope::setSelectedItem);
-        if (JOptionPane.showConfirmDialog(this, form, tr("Editar permisos de ") + admin.display(account), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
+        if (JOptionPane.showConfirmDialog(DialogPosition.owner(this), form, tr("Editar permisos de ") + admin.display(account), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         PrivilegeScope selectedScope = (PrivilegeScope) scope.getSelectedItem(); if (selectedScope == null) return;
         if (!admin.canGrant(selectedScope, snapshot.operatorCapabilities())) {
-            JOptionPane.showMessageDialog(this, tr("La cuenta conectada no tiene permisos para conceder o revocar en este ámbito. El servidor rechazará la operación; conecta una cuenta con GRANT OPTION y vuelve a intentarlo."), tr("Permisos insuficientes"), JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("La cuenta conectada no tiene permisos para conceder o revocar en este ámbito. El servidor rechazará la operación; conecta una cuenta con GRANT OPTION y vuelve a intentarlo."), tr("Permisos insuficientes"), JOptionPane.WARNING_MESSAGE);
             return;
         }
         PrivilegeState before = snapshot.states().get(selectedScope);
@@ -215,8 +215,8 @@ public final class UserManagerDialog extends JDialog {
         boolean delegate = grantOption.isEnabled() ? grantOption.isSelected() : before.grantOption();
         List<String> sql;
         try { sql = administratorPreset[0] ? admin.administratorSql(account) : admin.updatePrivilegeSql(account, selectedScope, selected, delegate, before); }
-        catch (Exception error) { JOptionPane.showMessageDialog(this, error.getMessage(), tr("Revisa los datos"), JOptionPane.WARNING_MESSAGE); return; }
-        if (sql.isEmpty()) { JOptionPane.showMessageDialog(this, tr("No hay cambios de permisos para aplicar.")); return; }
+        catch (Exception error) { JOptionPane.showMessageDialog(DialogPosition.owner(this), error.getMessage(), tr("Revisa los datos"), JOptionPane.WARNING_MESSAGE); return; }
+        if (sql.isEmpty()) { JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("No hay cambios de permisos para aplicar.")); return; }
         String detail = tr("Editar permisos de ") + admin.display(account) + "\n" + selectedScope.label() + "\n"
                 + tr("El programa aplicará únicamente los GRANT y REVOKE necesarios.");
         change(detail, false, () -> sql, () -> {});
@@ -241,9 +241,9 @@ public final class UserManagerDialog extends JDialog {
             form.add(scope, BorderLayout.NORTH); form.add(choices); JTextArea help = new JTextArea(admin.explanation(), 3, 65); help.setEditable(false); help.setLineWrap(true); help.setWrapStyleWord(true); help.setOpaque(false);
             JCheckBox grantOption=UiLanguage.text(new JCheckBox(),UiLanguage.key("Permitir delegar permisos (GRANT OPTION)"));grantOption.setVisible(admin.usesHost());
             JPanel footer=new JPanel(new BorderLayout(8,8));footer.add(help);footer.add(grantOption,BorderLayout.SOUTH);form.add(footer,BorderLayout.SOUTH);
-            if (JOptionPane.showConfirmDialog(this, form, tr("Asignar permisos a ") + admin.display(a), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
+            if (JOptionPane.showConfirmDialog(DialogPosition.owner(this), form, tr("Asignar permisos a ") + admin.display(a), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
             List<String> chosen = checks.stream().filter(JCheckBox::isSelected).map(JCheckBox::getText).toList();
-            if (chosen.isEmpty() || scope.getSelectedItem() == null) { JOptionPane.showMessageDialog(this, tr("Selecciona al menos un permiso y un ámbito.")); return; }
+            if (chosen.isEmpty() || scope.getSelectedItem() == null) { JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("Selecciona al menos un permiso y un ámbito.")); return; }
             String target = scope.getSelectedItem().toString();
             boolean delegate=admin.usesHost() && grantOption.isSelected();
             change(tr("Asignar permisos a ") + admin.display(a) + "\n" + target + "\n" + String.join(", ", chosen) + (delegate ? "\nWITH GRANT OPTION" : ""), false,
@@ -254,7 +254,7 @@ public final class UserManagerDialog extends JDialog {
         Account a = selected(); if (a == null || busy) return;
         run(tr("Leyendo permisos…"), () -> { synchronized (session.connection()) { return admin.grants(a); } }, text -> {
             JTextArea area = new JTextArea(admin.explanation() + "\n\n" + text, 20, 90); area.setEditable(false); area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-            JOptionPane.showMessageDialog(this, new JScrollPane(area), tr("Permisos de ") + admin.display(a), JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), new JScrollPane(area), tr("Permisos de ") + admin.display(a), JOptionPane.INFORMATION_MESSAGE);
         });
     }
     private void deleteUser() {
@@ -280,7 +280,7 @@ public final class UserManagerDialog extends JDialog {
                 }
                 return true;
             } finally { cleanup.run(); }
-        }, ignored -> { loadUsers(); JOptionPane.showMessageDialog(this, tr("Cambios aplicados correctamente."), tr("Administrar usuarios"), JOptionPane.INFORMATION_MESSAGE); });
+        }, ignored -> { loadUsers(); JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("Cambios aplicados correctamente."), tr("Administrar usuarios"), JOptionPane.INFORMATION_MESSAGE); });
         return true;
     }
     private <T> void run(String message, Callable<T> task, java.util.function.Consumer<T> done) {
@@ -292,7 +292,7 @@ public final class UserManagerDialog extends JDialog {
                 try { done.accept(get()); }
                 catch (Exception error) {
                     Throwable cause = error; while (cause.getCause() != null) cause = cause.getCause();
-                    status.setText(tr("Operación fallida")); JOptionPane.showMessageDialog(UserManagerDialog.this, Objects.toString(cause.getMessage(), tr("Operación fallida")) + "\n" + tr("La cuenta conectada debe tener permisos para administrar usuarios en este motor."), tr("Operación fallida"), JOptionPane.ERROR_MESSAGE);
+                    status.setText(tr("Operación fallida")); JOptionPane.showMessageDialog(DialogPosition.owner(UserManagerDialog.this), Objects.toString(cause.getMessage(), tr("Operación fallida")) + "\n" + tr("La cuenta conectada debe tener permisos para administrar usuarios en este motor."), tr("Operación fallida"), JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();

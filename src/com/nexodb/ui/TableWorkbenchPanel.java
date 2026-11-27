@@ -227,7 +227,7 @@ public final class TableWorkbenchPanel extends JPanel {
                     Throwable cause = rootCause(error);
                     UiLanguage.text(state, UiLanguage.key("Error al cargar"));
                     statusConsumer.accept(tr("No se pudo abrir ") + qualifiedName);
-                    JOptionPane.showMessageDialog(TableWorkbenchPanel.this,
+                    JOptionPane.showMessageDialog(DialogPosition.owner(TableWorkbenchPanel.this),
                             cause.getMessage(), tr("No se pudo abrir la tabla"), JOptionPane.ERROR_MESSAGE);
                 } finally {
                     progress.setVisible(false);
@@ -295,12 +295,12 @@ public final class TableWorkbenchPanel extends JPanel {
             return;
         }
         if (item.kind() != SchemaItem.Kind.TABLE || primaryKeys.isEmpty()) {
-            JOptionPane.showMessageDialog(this, tr("La edición requiere una tabla con clave primaria."),
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("La edición requiere una tabla con clave primaria."),
                     tr("Solo lectura"), JOptionPane.INFORMATION_MESSAGE);
             resetEditMode();
             return;
         }
-        int answer = JOptionPane.showConfirmDialog(this,
+        int answer = JOptionPane.showConfirmDialog(DialogPosition.owner(this),
                 tr("Los cambios se guardarán en la base de datos al terminar de editar cada celda.\n\n¿Activar el modo editable?"),
                 tr("Edición en tiempo real"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (answer != JOptionPane.YES_OPTION) {
@@ -313,7 +313,7 @@ public final class TableWorkbenchPanel extends JPanel {
             UiLanguage.text(state, UiLanguage.key("Editable · cambios inmediatos"));
         } catch (SQLException error) {
             resetEditMode();
-            JOptionPane.showMessageDialog(this, error.getMessage(), tr("No se pudo activar la edición"), JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), error.getMessage(), tr("No se pudo activar la edición"), JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -342,7 +342,7 @@ public final class TableWorkbenchPanel extends JPanel {
         JLabel hint = UiLanguage.text(new JLabel(tr("<html>Ejemplos de longitud: <b>255</b> o <b>10,2</b>. El valor predeterminado es una expresión SQL, por ejemplo <b>0</b>, <b>'texto'</b> o <b>CURRENT_TIMESTAMP</b>.</html>")), UiLanguage.key("<html>Ejemplos de longitud: <b>255</b> o <b>10,2</b>. El valor predeterminado es una expresión SQL, por ejemplo <b>0</b>, <b>'texto'</b> o <b>CURRENT_TIMESTAMP</b>.</html>"));
         hint.setForeground(UIManager.getColor("Label.disabledForeground"));
         JPanel content = new JPanel(new BorderLayout(6, 8)); content.add(form, BorderLayout.CENTER); content.add(hint, BorderLayout.SOUTH);
-        if (JOptionPane.showConfirmDialog(this, content, editing ? tr("Modificar columna") : tr("Nueva columna"),
+        if (JOptionPane.showConfirmDialog(DialogPosition.owner(this), content, editing ? tr("Modificar columna") : tr("Nueva columna"),
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         String columnName = name.getText().trim();
         String dataType = String.valueOf(type.getEditor().getItem()).trim().toUpperCase();
@@ -402,7 +402,7 @@ public final class TableWorkbenchPanel extends JPanel {
         JCheckBox unique = UiLanguage.text(new JCheckBox(tr("Índice único"), editing && tr("Sí").equals(value(indexesModel, selectedRow, 1))), UiLanguage.key("Índice único"));
         JPanel form = form(new String[]{tr("Nombre"), tr("Columnas"), tr("Tipo")},
                 new JComponent[]{name, new JScrollPane(selectedColumns), unique});
-        if (JOptionPane.showConfirmDialog(this, form, editing ? tr("Modificar índice") : tr("Crear índice"), JOptionPane.OK_CANCEL_OPTION,
+        if (JOptionPane.showConfirmDialog(DialogPosition.owner(this), form, editing ? tr("Modificar índice") : tr("Crear índice"), JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         List<String> chosen = selectedColumns.getSelectedValuesList();
         if (name.getText().isBlank() || chosen.isEmpty()) { warn(tr("Escribe un nombre y selecciona al menos una columna.")); return; }
@@ -460,7 +460,7 @@ public final class TableWorkbenchPanel extends JPanel {
         });
         JPanel form = form(new String[]{tr("Nombre de la relación"), tr("Columna local"), tr("Tabla referenciada"), tr("Columna referenciada"), tr("Al eliminar"), tr("Al actualizar")},
                 new JComponent[]{name, localColumn, referenceTable, referenceColumn, onDelete, onUpdate});
-        if (JOptionPane.showConfirmDialog(this, form, editing ? tr("Modificar relación") : tr("Nueva clave foránea"), JOptionPane.OK_CANCEL_OPTION,
+        if (JOptionPane.showConfirmDialog(DialogPosition.owner(this), form, editing ? tr("Modificar relación") : tr("Nueva clave foránea"), JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         String relation = name.getText().trim();
         String referencedTable = String.valueOf(referenceTable.getEditor().getItem()).trim();
@@ -513,7 +513,7 @@ public final class TableWorkbenchPanel extends JPanel {
                 try { get(); state.setText(success); statusConsumer.accept(success + " · " + item.name()); structureChanged.run(); refresh(); }
                 catch (Exception error) {
                     UiLanguage.text(state, UiLanguage.key("No se aplicó el cambio"));
-                    JOptionPane.showMessageDialog(TableWorkbenchPanel.this, rootCause(error).getMessage(),
+                    JOptionPane.showMessageDialog(DialogPosition.owner(TableWorkbenchPanel.this), rootCause(error).getMessage(),
                             tr("No se pudo modificar la estructura"), JOptionPane.ERROR_MESSAGE);
                 }
             }
@@ -604,9 +604,9 @@ public final class TableWorkbenchPanel extends JPanel {
     }
     private static int selectedModelRow(JTable table) { int row = table.getSelectedRow(); return row < 0 ? -1 : table.convertRowIndexToModel(row); }
     private static String value(DefaultTableModel model, int row, int column) { Object value = model.getValueAt(row, column); return value == null ? "" : value.toString(); }
-    private boolean confirm(String message) { return JOptionPane.showConfirmDialog(this, message, tr("Confirmar cambio"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION; }
-    private void info(String message) { JOptionPane.showMessageDialog(this, message, tr("Estructura de tabla"), JOptionPane.INFORMATION_MESSAGE); }
-    private void warn(String message) { JOptionPane.showMessageDialog(this, message, tr("Revisa la estructura"), JOptionPane.WARNING_MESSAGE); }
+    private boolean confirm(String message) { return JOptionPane.showConfirmDialog(DialogPosition.owner(this), message, tr("Confirmar cambio"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION; }
+    private void info(String message) { JOptionPane.showMessageDialog(DialogPosition.owner(this), message, tr("Estructura de tabla"), JOptionPane.INFORMATION_MESSAGE); }
+    private void warn(String message) { JOptionPane.showMessageDialog(DialogPosition.owner(this), message, tr("Revisa la estructura"), JOptionPane.WARNING_MESSAGE); }
 
     private void saveCell(int row, int column, Object oldValue, Object newValue, List<Object> originalRow) {
         if(!LicenseGate.ensure(this)||!Confirmations.ask(this,"Guardar cambio de celda",qualifiedName+" · "+dataModel.getColumnName(column)+"\n"+tr("Valor anterior: ")+oldValue+"\n"+tr("Nuevo valor: ")+newValue+"\n"+tr("¿Guardar este cambio en la base de datos?"))){dataModel.revertCell(row,column,oldValue);return;}
@@ -645,7 +645,7 @@ public final class TableWorkbenchPanel extends JPanel {
                     dataModel.revertCell(row, column, oldValue);
                     Throwable cause = rootCause(error);
                     UiLanguage.text(state, UiLanguage.key("No se guardó el cambio"));
-                    JOptionPane.showMessageDialog(TableWorkbenchPanel.this, cause.getMessage(),
+                    JOptionPane.showMessageDialog(DialogPosition.owner(TableWorkbenchPanel.this), cause.getMessage(),
                             tr("No se pudo actualizar la fila"), JOptionPane.ERROR_MESSAGE);
                 } finally {
                     dataTable.setEnabled(true);

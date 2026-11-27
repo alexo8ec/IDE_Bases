@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /** Primary-key based data comparison between databases from one or two active connections. */
-public final class DataCompareDialog extends JDialog {
+public final class DataCompareDialog extends CenteredDialog {
     private final JComboBox<SessionOption> sourceConnection = new JComboBox<>();
     private final JComboBox<SessionOption> targetConnection = new JComboBox<>();
     private final BiConsumer<JdbcSession, String> scriptConsumer;
@@ -96,7 +96,6 @@ public final class DataCompareDialog extends JDialog {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setMinimumSize(new Dimension(980, 620));
         setSize(1220, 760);
-        setLocationRelativeTo(owner);
         setContentPane(buildContent());
         configureTable();
         loadDatabases(sourceSession(), source, true);
@@ -228,7 +227,7 @@ public final class DataCompareDialog extends JDialog {
         String targetDb = (String) target.getSelectedItem();
         if (sourceSession == null || targetSession == null || sourceDb == null || targetDb == null
                 || (sourceSession == targetSession && sourceDb.equalsIgnoreCase(targetDb))) {
-            JOptionPane.showMessageDialog(this, tr("Selecciona un origen y un destino diferentes."), tr("Comparar datos"), JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("Selecciona un origen y un destino diferentes."), tr("Comparar datos"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         Options options = new Options(ignoreCase.isSelected(), trimText.isSelected(), nullEqualsEmpty.isSelected(),
@@ -269,7 +268,7 @@ public final class DataCompareDialog extends JDialog {
                 } catch (Exception error) {
                     Throwable cause=rootCause(error);
                     if(cause instanceof CancellationException||control.cancelled()){operation.cancelled(tr("Comparación cancelada"));UiLanguage.text(status,UiLanguage.key("Comparación cancelada de forma segura."));}
-                    else{operation.fail(cause);UiLanguage.text(status, UiLanguage.key("Error al comparar datos"));JOptionPane.showMessageDialog(DataCompareDialog.this, cause.getMessage(),tr("No se pudieron comparar los datos"), JOptionPane.ERROR_MESSAGE);}
+                    else{operation.fail(cause);UiLanguage.text(status, UiLanguage.key("Error al comparar datos"));JOptionPane.showMessageDialog(DialogPosition.owner(DataCompareDialog.this), cause.getMessage(),tr("No se pudieron comparar los datos"), JOptionPane.ERROR_MESSAGE);}
                 } finally {
                     if(compareWorker==this)compareWorker=null;if(comparisonControl==control)comparisonControl=null;if(comparisonOperation==operation)comparisonOperation=null;
                 }
@@ -307,10 +306,10 @@ public final class DataCompareDialog extends JDialog {
                 if(disposed||request!=selectionRevision)return;
                 try{
                     List<TablePair> pairs=get();
-                    if(pairs.isEmpty()){JOptionPane.showMessageDialog(DataCompareDialog.this,tr("No hay tablas equivalentes disponibles para configurar."),tr("Mapeo de columnas"),JOptionPane.INFORMATION_MESSAGE);return;}
-                    TablePair pair=(TablePair)JOptionPane.showInputDialog(DataCompareDialog.this,tr("Selecciona la tabla cuyo mapeo deseas configurar:"),tr("Mapeo de columnas y claves"),JOptionPane.PLAIN_MESSAGE,IconFactory.of(IconFactory.Kind.KEY,24),pairs.toArray(),pairs.get(0));
+                    if(pairs.isEmpty()){JOptionPane.showMessageDialog(DialogPosition.owner(DataCompareDialog.this),tr("No hay tablas equivalentes disponibles para configurar."),tr("Mapeo de columnas"),JOptionPane.INFORMATION_MESSAGE);return;}
+                    TablePair pair=(TablePair)JOptionPane.showInputDialog(DialogPosition.owner(DataCompareDialog.this),tr("Selecciona la tabla cuyo mapeo deseas configurar:"),tr("Mapeo de columnas y claves"),JOptionPane.PLAIN_MESSAGE,IconFactory.of(IconFactory.Kind.KEY,24),pairs.toArray(),pairs.get(0));
                     if(pair!=null)loadMappingEditor(sourceSession,sourceDb,targetSession,targetDb,pair,request);
-                }catch(Exception error){JOptionPane.showMessageDialog(DataCompareDialog.this,rootCause(error).getMessage(),tr("No se pudo preparar el mapeo"),JOptionPane.ERROR_MESSAGE);}
+                }catch(Exception error){JOptionPane.showMessageDialog(DialogPosition.owner(DataCompareDialog.this),rootCause(error).getMessage(),tr("No se pudo preparar el mapeo"),JOptionPane.ERROR_MESSAGE);}
             }
         }.execute();
     }
@@ -319,7 +318,7 @@ public final class DataCompareDialog extends JDialog {
         choosing=true;updateActions();progress.setIndeterminate(true);progress.setString(tr("Leyendo columnas y claves…"));progress.setVisible(true);
         new SwingWorker<MappingDraft,Void>(){
             @Override protected MappingDraft doInBackground()throws Exception{return new MappingDraft(pair,columns(sourceSession,sourceDb,pair.source(),false),columns(targetSession,targetDb,pair.target(),false),primaryKeys(sourceSession,sourceDb,pair.source()),primaryKeys(targetSession,targetDb,pair.target()),mappings.get(pair.key()));}
-            @Override protected void done(){choosing=false;updateActions();progress.setVisible(false);progress.setIndeterminate(false);if(disposed||request!=selectionRevision)return;try{showMappingEditor(get());}catch(Exception error){JOptionPane.showMessageDialog(DataCompareDialog.this,rootCause(error).getMessage(),tr("No se pudieron leer las columnas"),JOptionPane.ERROR_MESSAGE);}}
+            @Override protected void done(){choosing=false;updateActions();progress.setVisible(false);progress.setIndeterminate(false);if(disposed||request!=selectionRevision)return;try{showMappingEditor(get());}catch(Exception error){JOptionPane.showMessageDialog(DialogPosition.owner(DataCompareDialog.this),rootCause(error).getMessage(),tr("No se pudieron leer las columnas"),JOptionPane.ERROR_MESSAGE);}}
         }.execute();
     }
 
@@ -342,14 +341,14 @@ public final class DataCompareDialog extends JDialog {
         JLabel help=new JLabel("<html>"+tr("Relaciona columnas aunque tengan nombres diferentes. Marca una o varias columnas Clave que identifiquen cada fila de forma única.")+"<br>"+tr("Las columnas sin Comparar se omiten del análisis y del script de sincronización.")+"</html>");
         JPanel content=new JPanel(new BorderLayout(8,8));content.add(help,BorderLayout.NORTH);content.add(new JScrollPane(grid));content.setPreferredSize(new Dimension(920,480));
         while(true){
-            int answer=JOptionPane.showConfirmDialog(this,content,tr("Mapeo: ")+draft.pair().source()+" → "+draft.pair().target(),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
+            int answer=JOptionPane.showConfirmDialog(DialogPosition.owner(this),content,tr("Mapeo: ")+draft.pair().source()+" → "+draft.pair().target(),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE);
             if(answer!=JOptionPane.OK_OPTION)return;if(grid.isEditing())grid.getCellEditor().stopCellEditing();
             try{
                 List<ColumnMapping> selected=new ArrayList<>();Set<String> destinations=new HashSet<>();int keys=0;
                 for(int row=0;row<mappingModel.getRowCount();row++)if(Boolean.TRUE.equals(mappingModel.getValueAt(row,0))){String sourceName=String.valueOf(mappingModel.getValueAt(row,1)),targetName=String.valueOf(mappingModel.getValueAt(row,3)).trim();boolean key=Boolean.TRUE.equals(mappingModel.getValueAt(row,5));if(targetName.isBlank())throw new IllegalArgumentException(tr("Cada columna incluida necesita una columna de destino."));if(!destinations.add(targetName.toLowerCase(Locale.ROOT)))throw new IllegalArgumentException(tr("Una columna de destino no puede utilizarse dos veces."));selected.add(new ColumnMapping(sourceName,targetName,key));if(key)keys++;}
                 if(selected.isEmpty())throw new IllegalArgumentException(tr("Selecciona al menos una columna para comparar."));if(keys==0)throw new IllegalArgumentException(tr("Selecciona al menos una columna Clave."));
                 mappings.put(draft.pair().key(),new TableMapping(draft.pair().source(),draft.pair().target(),List.copyOf(selected)));updateMappingCaption();selectionRevision++;comparison=null;comparisonTarget=null;generate.setEnabled(false);saveScript.setEnabled(false);scriptPreview.setText("");status.setText(tr("Mapeo guardado para ")+draft.pair().source()+tr(". Pulsa Comparar datos para aplicarlo."));return;
-            }catch(IllegalArgumentException error){JOptionPane.showMessageDialog(this,error.getMessage(),tr("Mapeo incompleto"),JOptionPane.WARNING_MESSAGE);}
+            }catch(IllegalArgumentException error){JOptionPane.showMessageDialog(DialogPosition.owner(this),error.getMessage(),tr("Mapeo incompleto"),JOptionPane.WARNING_MESSAGE);}
         }
     }
 
@@ -522,7 +521,7 @@ public final class DataCompareDialog extends JDialog {
         text.setEditable(false); text.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         text.setText(difference.details().isEmpty() ? difference.detail() : String.join("\n", difference.details()));
         text.setCaretPosition(0);
-        JOptionPane.showMessageDialog(this, new JScrollPane(text), tr("Diferencias de ") + difference.table(), JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(DialogPosition.owner(this), new JScrollPane(text), tr("Diferencias de ") + difference.table(), JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void generateScript() {
@@ -536,12 +535,12 @@ public final class DataCompareDialog extends JDialog {
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle(tr("Guardar script de sincronización"));
         chooser.setSelectedFile(new java.io.File("sincronizacion-datos.sql"));
-        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        if (chooser.showSaveDialog(DialogPosition.owner(this)) != JFileChooser.APPROVE_OPTION) return;
         try {
             Files.writeString(chooser.getSelectedFile().toPath(), comparison.script(), StandardCharsets.UTF_8);
             UiLanguage.text(status, UiLanguage.key("Script guardado: "), chooser.getSelectedFile().getName());
         } catch (Exception error) {
-            JOptionPane.showMessageDialog(this, error.getMessage(), tr("No se pudo guardar el script"), JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), error.getMessage(), tr("No se pudo guardar el script"), JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -572,7 +571,7 @@ public final class DataCompareDialog extends JDialog {
                 if (disposed || request != selectionRevision) return;
                 try { showTableChooser(get()); }
                 catch (Exception error) {
-                    JOptionPane.showMessageDialog(DataCompareDialog.this, rootCause(error).getMessage(),
+                    JOptionPane.showMessageDialog(DialogPosition.owner(DataCompareDialog.this), rootCause(error).getMessage(),
                             tr("No se pudieron cargar las tablas"), JOptionPane.ERROR_MESSAGE);
                 }
             }

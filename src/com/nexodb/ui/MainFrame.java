@@ -370,7 +370,7 @@ public final class MainFrame extends JFrame {
 
         JMenu power=UiLanguage.text(new JMenu(tr("Herramientas avanzadas")),UiLanguage.key("Herramientas avanzadas"));
         power.add(toolMenuItem("Sincronizar bases de datos…",IconFactory.Kind.COMPARE,KeyEvent.VK_W,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,()->{
-            Object[] options={tr("Comparar esquemas"),tr("Comparar datos")};int choice=JOptionPane.showOptionDialog(this,tr("Selecciona qué deseas comparar. El script se abrirá en una consulta nueva para revisarlo antes de ejecutar."),tr("Sincronizar bases de datos"),JOptionPane.DEFAULT_OPTION,JOptionPane.PLAIN_MESSAGE,null,options,options[0]);if(choice==0)compareSchemas();if(choice==1)compareData();
+            Object[] options={tr("Comparar esquemas"),tr("Comparar datos")};int choice=JOptionPane.showOptionDialog(DialogPosition.owner(this),tr("Selecciona qué deseas comparar. El script se abrirá en una consulta nueva para revisarlo antes de ejecutar."),tr("Sincronizar bases de datos"),JOptionPane.DEFAULT_OPTION,JOptionPane.PLAIN_MESSAGE,null,options,options[0]);if(choice==0)compareSchemas();if(choice==1)compareData();
         }));
         power.add(toolMenuItem("Comparación visual de datos…",IconFactory.Kind.TABLE,KeyEvent.VK_Q,KeyEvent.CTRL_DOWN_MASK|KeyEvent.ALT_DOWN_MASK,this::compareData));
         power.add(toolMenuItem("Sincronizar esquemas…",IconFactory.Kind.COMPARE,KeyEvent.VK_Q,KeyEvent.CTRL_DOWN_MASK,this::compareSchemas));
@@ -432,34 +432,34 @@ public final class MainFrame extends JFrame {
     private JMenuItem toolMenuItem(String text,IconFactory.Kind icon,int key,int modifiers,Runnable action){JMenuItem item=UiLanguage.text(new JMenuItem(tr(text),IconFactory.of(icon,16)),UiLanguage.key(text));if(key!=0)item.setAccelerator(KeyStroke.getKeyStroke(key,modifiers));item.addActionListener(e->action.run());return item;}
     private void addToolTab(String title,JComponent panel){UiDesign.enhance(panel);workspaceTabs.addTab(title,IconFactory.of(panel instanceof VisualDatabasePanel?IconFactory.Kind.DIAGRAM:panel instanceof DataSearchPanel?IconFactory.Kind.SEARCH:panel instanceof ScheduledTasksPanel?IconFactory.Kind.EVENT:panel instanceof BackgroundOperationsPanel?IconFactory.Kind.HISTORY:IconFactory.Kind.SQL,16),panel);int index=workspaceTabs.indexOfComponent(panel);workspaceTabs.setTabComponentAt(index,closableTab(title,panel));workspaceTabs.setSelectedComponent(panel);}
     private void openOperations(){for(Component component:workspaceTabs.getComponents())if(component instanceof BackgroundOperationsPanel){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Operaciones en segundo plano"),new BackgroundOperationsPanel());}
-    private void openServerMonitor(){if(session==null||!session.isOpen()){JOptionPane.showMessageDialog(this,tr("Conecta una instancia primero."));return;}for(Component component:workspaceTabs.getComponents())if(component instanceof ServerMonitorPanel monitor&&monitor.origin()==session){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Monitor del servidor")+" · "+session.profile().name(),new ServerMonitorPanel(session));}
+    private void openServerMonitor(){if(session==null||!session.isOpen()){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Conecta una instancia primero."));return;}for(Component component:workspaceTabs.getComponents())if(component instanceof ServerMonitorPanel monitor&&monitor.origin()==session){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Monitor del servidor")+" · "+session.profile().name(),new ServerMonitorPanel(session));}
     private void openAudit(){for(Component component:workspaceTabs.getComponents())if(component instanceof AuditPanel){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Auditoría local"),new AuditPanel());}
     private void openDataQuality(){
-        if(!requireDatabase())return;if(session.profile().type()==DatabaseType.MONGODB||session.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(this,tr("Esta herramienta requiere un motor relacional reconocido."));return;}String database=queryPanel.activeDatabase();
+        if(!requireDatabase())return;if(session.profile().type()==DatabaseType.MONGODB||session.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Esta herramienta requiere un motor relacional reconocido."));return;}String database=queryPanel.activeDatabase();
         for(Component component:workspaceTabs.getComponents())if(component instanceof DataQualityPanel panel&&panel.origin()==session&&panel.database().equalsIgnoreCase(database)){workspaceTabs.setSelectedComponent(component);return;}
         addToolTab(tr("Calidad de datos")+" · "+database,new DataQualityPanel(session,database));
     }
     private void openDataDictionary(){
-        if(!requireDatabase())return;if(session.profile().type()==DatabaseType.MONGODB||session.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(this,tr("El diccionario requiere un motor relacional reconocido."));return;}JdbcSession origin=session;String database=queryPanel.activeDatabase();for(Component component:workspaceTabs.getComponents())if(component instanceof DataDictionaryPanel panel&&panel.origin()==origin&&panel.database().equalsIgnoreCase(database)){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Diccionario de datos")+" · "+database,new DataDictionaryPanel(origin,database,item->openTable(origin,item,TableWorkbenchPanel.COLUMNS),()->{activateSession(origin);queryPanel.selectDatabase(database);openQueryTool("designer");}));
+        if(!requireDatabase())return;if(session.profile().type()==DatabaseType.MONGODB||session.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("El diccionario requiere un motor relacional reconocido."));return;}JdbcSession origin=session;String database=queryPanel.activeDatabase();for(Component component:workspaceTabs.getComponents())if(component instanceof DataDictionaryPanel panel&&panel.origin()==origin&&panel.database().equalsIgnoreCase(database)){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Diccionario de datos")+" · "+database,new DataDictionaryPanel(origin,database,item->openTable(origin,item,TableWorkbenchPanel.COLUMNS),()->{activateSession(origin);queryPanel.selectDatabase(database);openQueryTool("designer");}));
     }
-    private void openDataLineage(){if(!requireDatabase())return;if(session.profile().type()==DatabaseType.MONGODB||session.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(this,tr("El linaje requiere un motor relacional reconocido."));return;}JdbcSession origin=session;String database=queryPanel.activeDatabase();for(Component component:workspaceTabs.getComponents())if(component instanceof DataLineagePanel panel&&panel.origin()==origin&&panel.database().equalsIgnoreCase(database)){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Linaje")+" · "+database,new DataLineagePanel(origin,database));}
+    private void openDataLineage(){if(!requireDatabase())return;if(session.profile().type()==DatabaseType.MONGODB||session.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("El linaje requiere un motor relacional reconocido."));return;}JdbcSession origin=session;String database=queryPanel.activeDatabase();for(Component component:workspaceTabs.getComponents())if(component instanceof DataLineagePanel panel&&panel.origin()==origin&&panel.database().equalsIgnoreCase(database)){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Linaje")+" · "+database,new DataLineagePanel(origin,database));}
     private void openMigrations(){
-        if(!requireDatabase())return;if(!com.nexodb.db.MigrationService.supported(session.profile().type())){JOptionPane.showMessageDialog(this,tr("Las migraciones versionadas requieren un motor SQL relacional reconocido."));return;}JdbcSession origin=session;for(Component component:workspaceTabs.getComponents())if(component instanceof MigrationPanel panel&&panel.origin()==origin){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Migraciones")+" · "+session.profile().name(),new MigrationPanel(origin,sql->{activateSession(origin);workspaceTabs.setSelectedIndex(0);queryPanel.openNewQuery(sql);}));
+        if(!requireDatabase())return;if(!com.nexodb.db.MigrationService.supported(session.profile().type())){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Las migraciones versionadas requieren un motor SQL relacional reconocido."));return;}JdbcSession origin=session;for(Component component:workspaceTabs.getComponents())if(component instanceof MigrationPanel panel&&panel.origin()==origin){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Migraciones")+" · "+session.profile().name(),new MigrationPanel(origin,sql->{activateSession(origin);workspaceTabs.setSelectedIndex(0);queryPanel.openNewQuery(sql);}));
     }
     private void openSqlProject(boolean create){
         if(!LicenseGate.ensure(this))return;JFileChooser chooser=new JFileChooser();chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);chooser.setDialogTitle(tr(create?"Selecciona la carpeta donde crear el proyecto":"Abrir proyecto SQL"));String last=AppSettings.get("sqlProject.lastPath","");if(!last.isBlank()){Path previous=Path.of(last),folder=Files.isDirectory(previous)?previous:previous.getParent();if(folder!=null&&Files.isDirectory(folder))chooser.setCurrentDirectory(folder.toFile());}
-        if(chooser.showOpenDialog(this)!=JFileChooser.APPROVE_OPTION)return;Path selected=chooser.getSelectedFile().toPath();try{SqlProjectService service;if(create){String name=JOptionPane.showInputDialog(this,tr("Nombre del proyecto SQL:"),"proyecto-sql");if(name==null)return;name=name.trim();if(name.isBlank()||name.contains("/")||name.contains("\\"))throw new java.io.IOException(tr("Escribe un nombre de proyecto sin rutas."));Path root=selected.resolve(name);if(nonEmptyDirectory(root))throw new java.io.IOException(tr("La carpeta del proyecto ya existe y no está vacía."));service=SqlProjectService.create(root,name);}else service=SqlProjectService.open(selected);for(Component component:workspaceTabs.getComponents())if(component instanceof SqlProjectPanel project&&project.root().equals(service.root())){workspaceTabs.setSelectedComponent(component);return;}SqlProjectPanel panel=new SqlProjectPanel(service,path->{workspaceTabs.setSelectedIndex(0);queryPanel.openSqlPath(path);});addToolTab(tr("Proyecto SQL")+" · "+service.name(),panel);AppSettings.put("sqlProject.lastPath",service.root().toString());}catch(Exception error){JOptionPane.showMessageDialog(this,error.getMessage(),tr("Proyecto SQL"),JOptionPane.ERROR_MESSAGE);}
+        if(chooser.showOpenDialog(DialogPosition.owner(this))!=JFileChooser.APPROVE_OPTION)return;Path selected=chooser.getSelectedFile().toPath();try{SqlProjectService service;if(create){String name=JOptionPane.showInputDialog(DialogPosition.owner(this),tr("Nombre del proyecto SQL:"),"proyecto-sql");if(name==null)return;name=name.trim();if(name.isBlank()||name.contains("/")||name.contains("\\"))throw new java.io.IOException(tr("Escribe un nombre de proyecto sin rutas."));Path root=selected.resolve(name);if(nonEmptyDirectory(root))throw new java.io.IOException(tr("La carpeta del proyecto ya existe y no está vacía."));service=SqlProjectService.create(root,name);}else service=SqlProjectService.open(selected);for(Component component:workspaceTabs.getComponents())if(component instanceof SqlProjectPanel project&&project.root().equals(service.root())){workspaceTabs.setSelectedComponent(component);return;}SqlProjectPanel panel=new SqlProjectPanel(service,path->{workspaceTabs.setSelectedIndex(0);queryPanel.openSqlPath(path);});addToolTab(tr("Proyecto SQL")+" · "+service.name(),panel);AppSettings.put("sqlProject.lastPath",service.root().toString());}catch(Exception error){JOptionPane.showMessageDialog(DialogPosition.owner(this),error.getMessage(),tr("Proyecto SQL"),JOptionPane.ERROR_MESSAGE);}
     }
     private static boolean nonEmptyDirectory(Path path)throws java.io.IOException{if(!Files.isDirectory(path))return false;try(var entries=Files.list(path)){return entries.findAny().isPresent();}}
     private void openManual(){for(Component component:workspaceTabs.getComponents())if(component instanceof HelpManualPanel){workspaceTabs.setSelectedComponent(component);return;}addToolTab(tr("Manual de uso"),new HelpManualPanel());}
     private void updateOperationsIndicator(){if(!SwingUtilities.isEventDispatchThread()){SwingUtilities.invokeLater(this::updateOperationsIndicator);return;}int active=BackgroundOperations.activeCount(),queued=BackgroundOperations.queuedCount();operationsButton.setText(Integer.toString(active));UiLanguage.tooltip(operationsButton,UiLanguage.caption(active==0?tr("Sin operaciones en segundo plano"):tr("Operaciones activas: ")+active+(queued>0?tr(" · En espera: ")+queued:"")));}
-    private boolean requireDatabase(){if(!LicenseGate.ensure(this))return false;if(session==null||!session.isOpen()||queryPanel.activeDatabase().isBlank()){JOptionPane.showMessageDialog(this,tr("Conecta y selecciona una base de datos primero."));return false;}return true;}
+    private boolean requireDatabase(){if(!LicenseGate.ensure(this))return false;if(session==null||!session.isOpen()||queryPanel.activeDatabase().isBlank()){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Conecta y selecciona una base de datos primero."));return false;}return true;}
     private void openQueryTool(String tool){
         if(tool.equals("reports")){openReports();return;}
         if(tool.equals("ai")){openAi();return;}
         if(tool.equals("plan")){openPlan();return;}
         if(!requireDatabase())return;JdbcSession origin=session;String database=queryPanel.activeDatabase();
-        if(origin.profile().type()==DatabaseType.MONGODB||origin.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(this,tr("El diseñador visual requiere un motor relacional reconocido. El editor SQL sigue disponible para esta conexión."));return;}
+        if(origin.profile().type()==DatabaseType.MONGODB||origin.profile().type()==DatabaseType.GENERIC){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("El diseñador visual requiere un motor relacional reconocido. El editor SQL sigue disponible para esta conexión."));return;}
         java.util.function.Consumer<String> open=sql->insertTemplate(origin,sql);
         if(tool.equals("search")){addToolTab(tr("Buscar datos")+" · "+database,new DataSearchPanel(origin,database,sql->{activateSession(origin);queryPanel.runSql(sql);workspaceTabs.setSelectedIndex(0);}));return;}
         boolean designer=tool.equals("designer");addToolTab(tr(designer?"Diseñador de esquemas":"Constructor visual de consultas")+" · "+database,new VisualDatabasePanel(origin,database,designer,open,item->openTable(origin,item,TableWorkbenchPanel.COLUMNS),()->{if(session==origin)refreshObjects();else refreshConnectionObjects(origin);}));
@@ -485,7 +485,7 @@ public final class MainFrame extends JFrame {
         if(!plan.isBlank())panel.setPlanContext(plan);addToolTab(tr("Asistente de IA"),panel);
     }
     private void openPlan(){
-        if(!LicenseGate.ensure(this))return;if(session==null||!session.isOpen()){JOptionPane.showMessageDialog(this,tr("Conecta primero una base de datos."));return;}JdbcSession origin=session;
+        if(!LicenseGate.ensure(this))return;if(session==null||!session.isOpen()){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Conecta primero una base de datos."));return;}JdbcSession origin=session;
         var panel=new ExecutionPlanPanel(origin,queryPanel.analysisSql(),busy->{queryPanel.setExternalBusy(busy);setBusy(busy);},sql->{if(origin.isOpen())activateSession(origin);if(queryPanel.openNewQuery(sql))workspaceTabs.setSelectedIndex(0);});
         panel.setAiHandler((query,rawPlan)->{if(origin.isOpen())activateSession(origin);openAi(query,rawPlan);});addToolTab(tr("Plan de ejecución"),panel);
     }
@@ -495,10 +495,10 @@ public final class MainFrame extends JFrame {
         if(kind!=null)panel.create(kind);
     }
     private void importExternal(){
-        if(!requireDatabase())return;Object[] options={tr("Archivo CSV / TSV"),tr("Otra tabla o conexión")};int choice=JOptionPane.showOptionDialog(this,tr("Origen de los datos:"),tr("Importar datos externos"),JOptionPane.DEFAULT_OPTION,JOptionPane.PLAIN_MESSAGE,null,options,options[0]);
-        if(choice==1){chooseTableToCopy(session,new SchemaItem(SchemaItem.Kind.SCHEMA,queryPanel.activeDatabase(),null,queryPanel.activeDatabase(),""));return;}if(choice!=0)return;ConnectionProfile profile=session.profile();if(profile.readOnly()){JOptionPane.showMessageDialog(this,tr("La conexión es de solo lectura."));return;}
-        if(profile.type()!=DatabaseType.MYSQL&&profile.type()!=DatabaseType.MARIADB){JOptionPane.showMessageDialog(this,tr("La importación CSV de esta versión está disponible para MySQL y MariaDB."));return;}
-        char[] password=null;try{if(secretStore.has(profile.id()))password=secretStore.load(profile.id());else{JPasswordField field=new JPasswordField(24);if(JOptionPane.showConfirmDialog(this,new Object[]{tr("Contraseña para abrir una conexión independiente:"),field},tr("Importar datos"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;password=field.getPassword();}new CsvImportDialog(this,profile,password,queryPanel.activeDatabase()).setVisible(true);refreshConnectionObjects(session);}catch(Exception error){showError(tr("Importar datos"),error);}finally{if(password!=null)Arrays.fill(password,'\0');}
+        if(!requireDatabase())return;Object[] options={tr("Archivo CSV / TSV"),tr("Otra tabla o conexión")};int choice=JOptionPane.showOptionDialog(DialogPosition.owner(this),tr("Origen de los datos:"),tr("Importar datos externos"),JOptionPane.DEFAULT_OPTION,JOptionPane.PLAIN_MESSAGE,null,options,options[0]);
+        if(choice==1){chooseTableToCopy(session,new SchemaItem(SchemaItem.Kind.SCHEMA,queryPanel.activeDatabase(),null,queryPanel.activeDatabase(),""));return;}if(choice!=0)return;ConnectionProfile profile=session.profile();if(profile.readOnly()){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("La conexión es de solo lectura."));return;}
+        if(profile.type()!=DatabaseType.MYSQL&&profile.type()!=DatabaseType.MARIADB){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("La importación CSV de esta versión está disponible para MySQL y MariaDB."));return;}
+        char[] password=null;try{if(secretStore.has(profile.id()))password=secretStore.load(profile.id());else{JPasswordField field=new JPasswordField(24);if(JOptionPane.showConfirmDialog(DialogPosition.owner(this),new Object[]{tr("Contraseña para abrir una conexión independiente:"),field},tr("Importar datos"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;password=field.getPassword();}new CsvImportDialog(this,profile,password,queryPanel.activeDatabase()).setVisible(true);refreshConnectionObjects(session);}catch(Exception error){showError(tr("Importar datos"),error);}finally{if(password!=null)Arrays.fill(password,'\0');}
     }
 
     private void showAbout() {
@@ -515,7 +515,7 @@ public final class MainFrame extends JFrame {
         details.setEditable(false);
         details.setOpaque(false);
         details.setBorder(new EmptyBorder(8, 8, 8, 8));
-        JOptionPane.showMessageDialog(this, details, tr("Acerca de AdisDB"), JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(DialogPosition.owner(this), details, tr("Acerca de AdisDB"), JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void styleToolbarButton(AbstractButton button, IconFactory.Kind icon, String tooltip) {
@@ -555,7 +555,7 @@ public final class MainFrame extends JFrame {
         panel.add(url);
         panel.add(Box.createVerticalStrut(7));
         panel.add(verification);
-        int answer = JOptionPane.showConfirmDialog(this, panel, tr("Canal de actualizaciones"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        int answer = JOptionPane.showConfirmDialog(DialogPosition.owner(this), panel, tr("Canal de actualizaciones"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (answer != JOptionPane.OK_OPTION) return;
         try {
             updateService.setManifestUrl(url.getText());
@@ -574,7 +574,7 @@ public final class MainFrame extends JFrame {
         if(manual&&!LicenseGate.ensure(this)||!manual&&!LicenseGate.licensed())return;
         if (checkingUpdates) return;
         if (updateService.getManifestUrl().isBlank()) {
-            if (manual) JOptionPane.showMessageDialog(this,
+            if (manual) JOptionPane.showMessageDialog(DialogPosition.owner(this),
                     "Esta copia todavía no tiene un canal público de actualizaciones.\n\n"
                             + "El administrador debe publicar update-manifest.json y el ZIP en un servidor HTTPS, "
                             + "y generar AdisDB con esa dirección. La configuración manual está en Ayuda → "
@@ -595,13 +595,13 @@ public final class MainFrame extends JFrame {
                         offerUpdate(update);
                     } else {
                         setStatus(new Object[]{UiLanguage.key("AdisDB está actualizado")});
-                        if (manual) JOptionPane.showMessageDialog(MainFrame.this,
+                        if (manual) JOptionPane.showMessageDialog(DialogPosition.owner(MainFrame.this),
                                 tr("Ya tienes la versión más reciente (") + UpdateService.CURRENT_VERSION + ").",
                                 tr("Sin actualizaciones"), JOptionPane.INFORMATION_MESSAGE);
                     }
                 } catch (Exception error) {
                     setStatus(new Object[]{UiLanguage.key("No se pudo comprobar la actualización")});
-                    if (manual) JOptionPane.showMessageDialog(MainFrame.this,
+                    if (manual) JOptionPane.showMessageDialog(DialogPosition.owner(MainFrame.this),
                             UpdateService.explainError(error), tr("No se pudo buscar actualizaciones"), JOptionPane.WARNING_MESSAGE);
                 } finally {
                     checkingUpdates = false;
@@ -621,14 +621,14 @@ public final class MainFrame extends JFrame {
         JPanel panel = new JPanel(new BorderLayout(6, 8));
         panel.add(new JLabel("AdisDB " + update.version() + tr(" está disponible.")), BorderLayout.NORTH);
         panel.add(new JScrollPane(notes), BorderLayout.CENTER);
-        int answer = JOptionPane.showConfirmDialog(this, panel, tr("Actualización disponible"),
+        int answer = JOptionPane.showConfirmDialog(DialogPosition.owner(this), panel, tr("Actualización disponible"),
                 JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
         if (answer == JOptionPane.YES_OPTION) downloadAndInstall(update);
     }
 
     private void downloadAndInstall(UpdateService.UpdateInfo update) {
         if(!LicenseGate.ensure(this))return;
-        JDialog progressDialog = new JDialog(this, tr("Descargando actualización"), true);
+        JDialog progressDialog = new CenteredDialog(this, tr("Descargando actualización"), true);
         JProgressBar progress = new JProgressBar(0, 100);
         progress.setStringPainted(true);
         JPanel panel = new JPanel(new BorderLayout(8, 8));
@@ -639,7 +639,6 @@ public final class MainFrame extends JFrame {
         progressDialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         progressDialog.pack();
         progressDialog.setSize(Math.max(470, progressDialog.getWidth()), progressDialog.getHeight());
-        progressDialog.setLocationRelativeTo(this);
 
         SwingWorker<Path, Void> download = new SwingWorker<>() {
             @Override protected Path doInBackground() throws Exception {
@@ -651,7 +650,7 @@ public final class MainFrame extends JFrame {
                 try {
                     Path zip = get();
                     if(!LicenseGate.ensure(MainFrame.this))return;
-                    int install = JOptionPane.showConfirmDialog(MainFrame.this,
+                    int install = JOptionPane.showConfirmDialog(DialogPosition.owner(MainFrame.this),
                             UpdateService.canInstallInPlace()
                                     ? tr("La actualización fue descargada y verificada.\n\n¿Instalarla ahora? AdisDB se cerrará y volverá a abrir.")
                                     : tr("La actualización fue descargada y verificada.\n\n¿Abrir el paquete con el instalador de tu sistema?"),
@@ -666,7 +665,7 @@ public final class MainFrame extends JFrame {
                         }
                     }
                 } catch (Exception error) {
-                    JOptionPane.showMessageDialog(MainFrame.this, UpdateService.explainError(error),
+                    JOptionPane.showMessageDialog(DialogPosition.owner(MainFrame.this), UpdateService.explainError(error),
                             tr("No se pudo instalar la actualización"), JOptionPane.WARNING_MESSAGE);
                 }
             }
@@ -813,10 +812,10 @@ public final class MainFrame extends JFrame {
         ConnectionProfile selected = profileList.getSelectedValue();
         if (selected == null) return;
         if (sessions.containsKey(selected.id())) {
-            JOptionPane.showMessageDialog(this, tr("Desconecta este perfil antes de eliminarlo."), tr("Conexión activa"), JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("Desconecta este perfil antes de eliminarlo."), tr("Conexión activa"), JOptionPane.WARNING_MESSAGE);
             return;
         }
-        int answer = JOptionPane.showConfirmDialog(this, tr("¿Eliminar el perfil “") + selected.name() + "”?", tr("Eliminar perfil"), JOptionPane.YES_NO_OPTION);
+        int answer = JOptionPane.showConfirmDialog(DialogPosition.owner(this), tr("¿Eliminar el perfil “") + selected.name() + "”?", tr("Eliminar perfil"), JOptionPane.YES_NO_OPTION);
         if (answer == JOptionPane.YES_OPTION) {
             profileStore.delete(selected);
             secretStore.delete(selected.id());
@@ -858,7 +857,7 @@ public final class MainFrame extends JFrame {
         if(needDatabase){panel.add(new JLabel(tr("Contraseña de base de datos:")),g);g.gridx=1;g.weightx=1;panel.add(databasePassword,g);g.gridx=1;g.gridy++;panel.add(rememberDatabase,g);g.gridy++;}
         if(needSsh){g.gridx=0;g.weightx=0;panel.add(new JLabel(profile.ssh().authentication()==SshConfig.Authentication.PRIVATE_KEY?"Frase de clave SSH:":"Contraseña SSH:"),g);g.gridx=1;g.weightx=1;panel.add(sshPassword,g);g.gridy++;panel.add(rememberSsh,g);}
         rememberDatabase.setEnabled(SecretStore.isSupported());rememberSsh.setEnabled(SecretStore.isSupported());
-        if(JOptionPane.showConfirmDialog(this,panel,tr("Conectar"),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE)!=JOptionPane.OK_OPTION){Arrays.fill(databaseSecret,'\0');Arrays.fill(sshSecret,'\0');return;}
+        if(JOptionPane.showConfirmDialog(DialogPosition.owner(this),panel,tr("Conectar"),JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE)!=JOptionPane.OK_OPTION){Arrays.fill(databaseSecret,'\0');Arrays.fill(sshSecret,'\0');return;}
         if(needDatabase)databaseSecret=databasePassword.getPassword();if(needSsh)sshSecret=sshPassword.getPassword();
         connect(profile,databaseSecret,sshSecret,needDatabase&&rememberDatabase.isSelected(),needSsh&&rememberSsh.isSelected());
     }
@@ -950,12 +949,12 @@ public final class MainFrame extends JFrame {
                     if (rememberAfterSuccess) {
                         try { secretStore.save(profile.id(), savedCandidate); }
                         catch (Exception error) {
-                            JOptionPane.showMessageDialog(MainFrame.this,
+                            JOptionPane.showMessageDialog(DialogPosition.owner(MainFrame.this),
                                     tr("La conexión se abrió, pero Windows no pudo proteger la contraseña.\n") + rootCause(error).getMessage(),
                                     tr("Contraseña no guardada"), JOptionPane.WARNING_MESSAGE);
                         }
                     }
-                    if(rememberSshAfterSuccess){try{secretStore.save(SshConfig.secretId(profile.id()),savedSshCandidate);}catch(Exception error){JOptionPane.showMessageDialog(MainFrame.this,"La conexión se abrió, pero Windows no pudo proteger la contraseña SSH.\n"+rootCause(error).getMessage(),"Contraseña SSH no guardada",JOptionPane.WARNING_MESSAGE);}}
+                    if(rememberSshAfterSuccess){try{secretStore.save(SshConfig.secretId(profile.id()),savedSshCandidate);}catch(Exception error){JOptionPane.showMessageDialog(DialogPosition.owner(MainFrame.this),"La conexión se abrió, pero Windows no pudo proteger la contraseña SSH.\n"+rootCause(error).getMessage(),"Contraseña SSH no guardada",JOptionPane.WARNING_MESSAGE);}}
                     activateSession(next);
                     showObjectsAfterConnection();
                     setStatus(new Object[]{UiLanguage.key("Conectado a "), next.connection().getMetaData().getDatabaseProductName()});
@@ -1455,20 +1454,20 @@ public final class MainFrame extends JFrame {
         menu.addSeparator();objectMenuEntry(menu,"Actualizar","object-refresh",IconFactory.Kind.REFRESH,0,true,()->{if(isGroup(item.kind()))refreshNode(node);else if(node.getParent() instanceof LazyNode parent)refreshNode(parent);});
     }
     private JMenuItem objectMenuEntry(JPopupMenu menu,String caption,String name,IconFactory.Kind icon,int key,boolean enabled,Runnable action){JMenuItem entry=UiLanguage.text(new JMenuItem(tr(caption),IconFactory.of(icon,16)),UiLanguage.key(caption));entry.setName(name);entry.setEnabled(enabled);if(key!=0)entry.setAccelerator(KeyStroke.getKeyStroke(key,0));entry.addActionListener(e->action.run());menu.add(entry);return entry;}
-    private void createStoredObject(JdbcSession target,SchemaItem parent){if(!LicenseGate.ensure(this))return;String name=JOptionPane.showInputDialog(this,tr("Nombre del nuevo objeto:"));if(name==null)return;try{StoredObjectService.quote(name);SchemaItem item=new SchemaItem(StoredObjectService.objectKind(parent.kind()),StoredObjectService.namespace(parent),null,name,"");addToolTab(tr("Crear objeto")+" · "+name,new StoredObjectEditorPanel(target,item,null,this::storedObjectsChanged));}catch(Exception error){showError(tr("Crear objeto"),error);}}
+    private void createStoredObject(JdbcSession target,SchemaItem parent){if(!LicenseGate.ensure(this))return;String name=JOptionPane.showInputDialog(DialogPosition.owner(this),tr("Nombre del nuevo objeto:"));if(name==null)return;try{StoredObjectService.quote(name);SchemaItem item=new SchemaItem(StoredObjectService.objectKind(parent.kind()),StoredObjectService.namespace(parent),null,name,"");addToolTab(tr("Crear objeto")+" · "+name,new StoredObjectEditorPanel(target,item,null,this::storedObjectsChanged));}catch(Exception error){showError(tr("Crear objeto"),error);}}
     private void storedObjectsChanged(JdbcSession target){if(target.isOpen()){refreshConnectionObjects(target);if(target==session)queryPanel.refreshCompletions();}}
     private void storedObjectDefinitionChanged(JdbcSession target){if(target.isOpen()&&target==session)queryPanel.refreshCompletions();}
     private void readStoredObject(JdbcSession target,SchemaItem item,java.util.function.Consumer<StoredObjectService.Definition> action){if(!LicenseGate.ensure(this)||!target.isOpen())return;setBusy(true);new SwingWorker<StoredObjectService.Definition,Void>(){protected StoredObjectService.Definition doInBackground()throws Exception{return StoredObjectService.read(target,item);}protected void done(){setBusy(false);try{action.accept(get());}catch(Exception error){showError(tr("No se pudo abrir la definición"),rootCause(error));}}}.execute();}
     private void editStoredObject(JdbcSession target,SchemaItem item){selectObjectDatabase(target,item);String editorName="stored-object-editor:"+StoredObjectFormatStore.key(target.profile(),item);for(int i=0;i<workspaceTabs.getTabCount();i++)if(editorName.equals(workspaceTabs.getComponentAt(i).getName())){workspaceTabs.setSelectedIndex(i);return;}readStoredObject(target,item,definition->addToolTab(tr("Modificar objeto")+" · "+item.name(),new StoredObjectEditorPanel(target,item,definition,this::storedObjectDefinitionChanged)));}
     private void runStoredDdl(JdbcSession target,String sql){if(!LicenseGate.ensure(this))return;try{StoredObjectService.requireWritable(target);}catch(Exception error){showError(tr("Modificar objeto"),error);return;}if(!Confirmations.ask(this,"Modificar objeto",target.profile().name()+"\n\n"+sql+"\n\n"+tr("Esta operación modifica la estructura y no se puede deshacer con Rollback. ¿Continuar?")))return;setBusy(true);new SwingWorker<Void,Void>(){protected Void doInBackground()throws Exception{StoredObjectService.apply(target,sql);return null;}protected void done(){setBusy(false);try{get();storedObjectsChanged(target);setStatus(tr("Objeto actualizado."));}catch(Exception error){showError(tr("No se pudo modificar el objeto"),rootCause(error));}}}.execute();}
     private void dropStoredObject(JdbcSession target,SchemaItem item){runStoredDdl(target,StoredObjectService.dropSql(item));}
-    private void renameStoredObject(JdbcSession target,SchemaItem item){String name=JOptionPane.showInputDialog(this,tr("Nuevo nombre:"),item.name());if(name==null||name.equals(item.name()))return;try{runStoredDdl(target,StoredObjectService.renameSql(item,name));}catch(Exception error){showError(tr("Renombrar"),error);}}
-    private void exportStoredObject(JdbcSession target,SchemaItem item){readStoredObject(target,item,definition->{JFileChooser chooser=new JFileChooser();chooser.setSelectedFile(new java.io.File(item.name()+".sql"));if(chooser.showSaveDialog(this)!=JFileChooser.APPROVE_OPTION)return;Path path=chooser.getSelectedFile().toPath();if(java.nio.file.Files.exists(path)&&!Confirmations.ask(this,"Reemplazar archivo",path.toString()))return;try{java.nio.file.Files.writeString(path,StoredObjectService.exportSql(definition));setStatus(tr("Definición exportada: ")+path.getFileName());}catch(Exception error){showError(tr("Exportar definición"),error);}});}
-    private void exportStoredObjectToProject(JdbcSession target,SchemaItem item){List<SqlProjectPanel> projects=new ArrayList<>();for(Component component:workspaceTabs.getComponents())if(component instanceof SqlProjectPanel project)projects.add(project);if(projects.isEmpty()){JOptionPane.showMessageDialog(this,tr("Abre o crea primero un Proyecto SQL desde el menú Archivo."),tr("Guardar en proyecto Git"),JOptionPane.INFORMATION_MESSAGE);return;}record Choice(SqlProjectPanel panel){@Override public String toString(){return panel.projectName()+" · "+panel.root();}}List<Choice> choices=projects.stream().map(Choice::new).toList();Choice selected=(Choice)JOptionPane.showInputDialog(this,tr("Selecciona el proyecto que conservará la definición y su historial:"),tr("Guardar en proyecto Git"),JOptionPane.PLAIN_MESSAGE,null,choices.toArray(),choices.get(0));if(selected==null)return;readStoredObject(target,item,definition->{String database=safeProjectName(StoredObjectService.namespace(item)),kind=item.kind().name().toLowerCase(Locale.ROOT),name=safeProjectName(item.name());Path relative=Path.of("objetos",database,kind,name+".sql");selected.panel().importSql(relative,StoredObjectService.exportSql(definition));workspaceTabs.setSelectedComponent(selected.panel());setStatus(tr("Definición preparada para Git: ")+relative);});}
+    private void renameStoredObject(JdbcSession target,SchemaItem item){String name=JOptionPane.showInputDialog(DialogPosition.owner(this),tr("Nuevo nombre:"),item.name());if(name==null||name.equals(item.name()))return;try{runStoredDdl(target,StoredObjectService.renameSql(item,name));}catch(Exception error){showError(tr("Renombrar"),error);}}
+    private void exportStoredObject(JdbcSession target,SchemaItem item){readStoredObject(target,item,definition->{JFileChooser chooser=new JFileChooser();chooser.setSelectedFile(new java.io.File(item.name()+".sql"));if(chooser.showSaveDialog(DialogPosition.owner(this))!=JFileChooser.APPROVE_OPTION)return;Path path=chooser.getSelectedFile().toPath();if(java.nio.file.Files.exists(path)&&!Confirmations.ask(this,"Reemplazar archivo",path.toString()))return;try{java.nio.file.Files.writeString(path,StoredObjectService.exportSql(definition));setStatus(tr("Definición exportada: ")+path.getFileName());}catch(Exception error){showError(tr("Exportar definición"),error);}});}
+    private void exportStoredObjectToProject(JdbcSession target,SchemaItem item){List<SqlProjectPanel> projects=new ArrayList<>();for(Component component:workspaceTabs.getComponents())if(component instanceof SqlProjectPanel project)projects.add(project);if(projects.isEmpty()){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Abre o crea primero un Proyecto SQL desde el menú Archivo."),tr("Guardar en proyecto Git"),JOptionPane.INFORMATION_MESSAGE);return;}record Choice(SqlProjectPanel panel){@Override public String toString(){return panel.projectName()+" · "+panel.root();}}List<Choice> choices=projects.stream().map(Choice::new).toList();Choice selected=(Choice)JOptionPane.showInputDialog(DialogPosition.owner(this),tr("Selecciona el proyecto que conservará la definición y su historial:"),tr("Guardar en proyecto Git"),JOptionPane.PLAIN_MESSAGE,null,choices.toArray(),choices.get(0));if(selected==null)return;readStoredObject(target,item,definition->{String database=safeProjectName(StoredObjectService.namespace(item)),kind=item.kind().name().toLowerCase(Locale.ROOT),name=safeProjectName(item.name());Path relative=Path.of("objetos",database,kind,name+".sql");selected.panel().importSql(relative,StoredObjectService.exportSql(definition));workspaceTabs.setSelectedComponent(selected.panel());setStatus(tr("Definición preparada para Git: ")+relative);});}
     private static String safeProjectName(String value){String safe=Objects.toString(value,"objeto").replaceAll("[^A-Za-z0-9._-]+","_");return safe.isBlank()?"objeto":safe;}
     private void debugStoredProcedure(JdbcSession target,SchemaItem item){readStoredObject(target,item,definition->{
         com.nexodb.debug.MysqlProcedure.compile(definition);char[] password=null;
-        try{if(secretStore.has(target.profile().id()))password=secretStore.load(target.profile().id());else if(target.profile().authenticationMode()==com.nexodb.model.AuthenticationMode.WINDOWS)password=new char[0];else{JPasswordField field=new JPasswordField(24);if(JOptionPane.showConfirmDialog(this,new Object[]{tr("Contraseña para dos conexiones independientes de depuración:"),target.profile().name(),field},tr("Depurar procedimiento"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;password=field.getPassword();}addToolTab(tr("Depurar procedimiento")+" · "+item.name(),new StoredProcedureDebugPanel(target.profile(),password,item,definition,this::setStatus));}catch(Exception error){showError(tr("No se pudo iniciar el depurador"),error);}finally{if(password!=null)Arrays.fill(password,'\0');}
+        try{if(secretStore.has(target.profile().id()))password=secretStore.load(target.profile().id());else if(target.profile().authenticationMode()==com.nexodb.model.AuthenticationMode.WINDOWS)password=new char[0];else{JPasswordField field=new JPasswordField(24);if(JOptionPane.showConfirmDialog(DialogPosition.owner(this),new Object[]{tr("Contraseña para dos conexiones independientes de depuración:"),target.profile().name(),field},tr("Depurar procedimiento"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;password=field.getPassword();}addToolTab(tr("Depurar procedimiento")+" · "+item.name(),new StoredProcedureDebugPanel(target.profile(),password,item,definition,this::setStatus));}catch(Exception error){showError(tr("No se pudo iniciar el depurador"),error);}finally{if(password!=null)Arrays.fill(password,'\0');}
     });}
 
     private void addMenu(JPopupMenu menu, String text, IconFactory.Kind icon, ActionListener action) {
@@ -1497,10 +1496,10 @@ public final class MainFrame extends JFrame {
                 try {
                     List<SchemaItem> tables = get();
                     if (tables.isEmpty()) {
-                        JOptionPane.showMessageDialog(MainFrame.this, tr("La base no contiene tablas."), tr("Copiar tabla"), JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog(DialogPosition.owner(MainFrame.this), tr("La base no contiene tablas."), tr("Copiar tabla"), JOptionPane.INFORMATION_MESSAGE);
                         return;
                     }
-                    SchemaItem selected = (SchemaItem) JOptionPane.showInputDialog(MainFrame.this,
+                    SchemaItem selected = (SchemaItem) JOptionPane.showInputDialog(DialogPosition.owner(MainFrame.this),
                             tr("Selecciona la tabla que deseas copiar:"), tr("Copiar tabla a otra base"),
                             JOptionPane.PLAIN_MESSAGE, IconFactory.of(IconFactory.Kind.TABLE, 28), tables.toArray(), tables.get(0));
                     if (selected != null) copyTable(source, selected);
@@ -1517,7 +1516,7 @@ public final class MainFrame extends JFrame {
         JPanel options = new JPanel(new BorderLayout(8, 8));
         options.add(UiLanguage.text(new JLabel(tr("Máximo de filas (0 = todas):")), UiLanguage.key("Máximo de filas (0 = todas):")), BorderLayout.NORTH);
         options.add(limit, BorderLayout.CENTER);
-        if (JOptionPane.showConfirmDialog(this, options, tr("Exportar ") + table.name(),
+        if (JOptionPane.showConfirmDialog(DialogPosition.owner(this), options, tr("Exportar ") + table.name(),
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         ExportChooser.Request request = ExportChooser.choose(this, table.name());
         if (request == null) return;
@@ -1588,15 +1587,15 @@ public final class MainFrame extends JFrame {
     }
 
     private void transferSql(boolean importing,JdbcSession target,SchemaItem item){
-        if(target==null||!target.isOpen()){JOptionPane.showMessageDialog(this,tr("Conecta primero una base de datos."));return;}
+        if(target==null||!target.isOpen()){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Conecta primero una base de datos."));return;}
         ConnectionProfile profile=target.profile();
-        if(!com.nexodb.db.SqlBackupService.supported(profile.type())&&!com.nexodb.db.PortableBackupService.supported(profile.type())){JOptionPane.showMessageDialog(this,tr("Este motor todavía no admite respaldo o restauración SQL desde AdisDB."));return;}
-        if(importing&&profile.readOnly()){JOptionPane.showMessageDialog(this,tr("Esta conexión es de solo lectura. Edita la conexión y desactiva Solo lectura antes de importar SQL."));return;}
+        if(!com.nexodb.db.SqlBackupService.supported(profile.type())&&!com.nexodb.db.PortableBackupService.supported(profile.type())){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Este motor todavía no admite respaldo o restauración SQL desde AdisDB."));return;}
+        if(importing&&profile.readOnly()){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Esta conexión es de solo lectura. Edita la conexión y desactiva Solo lectura antes de importar SQL."));return;}
         char[] password=null;
         try{
             if(secretStore.has(profile.id()))password=secretStore.load(profile.id());
             else if(profile.authenticationMode()==com.nexodb.model.AuthenticationMode.WINDOWS)password=new char[0];
-            else{JPasswordField field=new JPasswordField(24);if(JOptionPane.showConfirmDialog(this,new Object[]{tr("Contraseña para abrir una conexión independiente:"),profile.name(),field},tr("Operación SQL"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;password=field.getPassword();}
+            else{JPasswordField field=new JPasswordField(24);if(JOptionPane.showConfirmDialog(DialogPosition.owner(this),new Object[]{tr("Contraseña para abrir una conexión independiente:"),profile.name(),field},tr("Operación SQL"),JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;password=field.getPassword();}
             String selected=target==session?queryPanel.activeDatabase():java.util.Objects.toString(target.connection().getCatalog(),"");String table="";
             if(item!=null){if(item.kind()==SchemaItem.Kind.SCHEMA)selected=item.name();else if(item.catalog()!=null&&!item.catalog().isBlank())selected=item.catalog();if(item.kind()==SchemaItem.Kind.TABLE||item.kind()==SchemaItem.Kind.VIEW)table=item.name();}
             SqlTransferDialog dialog=new SqlTransferDialog(this,profile,password,importing,selected,table);
@@ -1758,7 +1757,7 @@ public final class MainFrame extends JFrame {
 
     private void compareSchemas() {
         if (session == null || !session.isOpen()) {
-            JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Comparar esquemas"), JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("Conecta primero una base de datos."), tr("Comparar esquemas"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         new SchemaCompareDialog(this, session, new ArrayList<>(sessions.values()), this::insertTemplate, schemaChoices).showDialog();
@@ -1766,7 +1765,7 @@ public final class MainFrame extends JFrame {
 
     private void compareData() {
         if (session == null || !session.isOpen()) {
-            JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Comparar datos"), JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("Conecta primero una base de datos."), tr("Comparar datos"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         new DataCompareDialog(this, session, new ArrayList<>(sessions.values()), this::insertTemplate, dataChoices).showDialog();
@@ -1774,7 +1773,7 @@ public final class MainFrame extends JFrame {
 
     private void manageUsers() {
         if (session == null || !session.isOpen()) {
-            JOptionPane.showMessageDialog(this, tr("Conecta primero una base de datos."), tr("Administrar usuarios"), JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(this), tr("Conecta primero una base de datos."), tr("Administrar usuarios"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         new UserManagerDialog(this, session).showDialog();
@@ -1815,13 +1814,13 @@ public final class MainFrame extends JFrame {
         BackgroundOperations.removeListener(operationsListener);
         dispose();
     }
-    private boolean confirmScheduledTaskHandoff(){List<com.nexodb.db.ScheduledTasks.Task> running=scheduledTasks.runningTasks();if(running.isEmpty())return true;String names=running.stream().map(com.nexodb.db.ScheduledTasks.Task::name).limit(5).collect(java.util.stream.Collectors.joining("\n• ","• ",running.size()>5?"\n…":""));com.nexodb.tools.ExternalTaskScheduler.Status external=com.nexodb.tools.ExternalTaskScheduler.configured().status();if(!external.installed()){JOptionPane.showMessageDialog(this,tr("Hay tareas todavía en ejecución:")+"\n"+names+"\n\n"+tr("AdisDB no se cerrará porque el ejecutor externo no está instalado. Espera a que terminen o actívalo desde Tareas programadas."),tr("Tareas en ejecución"),JOptionPane.WARNING_MESSAGE);return false;}return JOptionPane.showConfirmDialog(this,tr("Hay tareas todavía en ejecución:")+"\n"+names+"\n\n"+tr("Al cerrar se interrumpirá la conexión actual y la tarea quedará pendiente. El ejecutor externo la reintentará en pocos minutos. ¿Cerrar ahora?"),tr("Continuar tareas con AdisDB cerrado"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)==JOptionPane.YES_OPTION;}
+    private boolean confirmScheduledTaskHandoff(){List<com.nexodb.db.ScheduledTasks.Task> running=scheduledTasks.runningTasks();if(running.isEmpty())return true;String names=running.stream().map(com.nexodb.db.ScheduledTasks.Task::name).limit(5).collect(java.util.stream.Collectors.joining("\n• ","• ",running.size()>5?"\n…":""));com.nexodb.tools.ExternalTaskScheduler.Status external=com.nexodb.tools.ExternalTaskScheduler.configured().status();if(!external.installed()){JOptionPane.showMessageDialog(DialogPosition.owner(this),tr("Hay tareas todavía en ejecución:")+"\n"+names+"\n\n"+tr("AdisDB no se cerrará porque el ejecutor externo no está instalado. Espera a que terminen o actívalo desde Tareas programadas."),tr("Tareas en ejecución"),JOptionPane.WARNING_MESSAGE);return false;}return JOptionPane.showConfirmDialog(DialogPosition.owner(this),tr("Hay tareas todavía en ejecución:")+"\n"+names+"\n\n"+tr("Al cerrar se interrumpirá la conexión actual y la tarea quedará pendiente. El ejecutor externo la reintentará en pocos minutos. ¿Cerrar ahora?"),tr("Continuar tareas con AdisDB cerrado"),JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE)==JOptionPane.YES_OPTION;}
     private boolean canCloseStoredWorkspaces(){for(Component component:workspaceTabs.getComponents()){if(component instanceof StoredObjectEditorPanel editor&&!editor.canClose())return false;if(component instanceof StoredProcedureDebugPanel debug&&!debug.canClose())return false;}return true;}
 
     private void showError(String title, Throwable error) {
         String message = error.getMessage();
         if (message == null || message.isBlank()) message = error.toString();
-        JOptionPane.showMessageDialog(this, message, title, JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(DialogPosition.owner(this), message, title, JOptionPane.ERROR_MESSAGE);
     }
 
     private static Throwable rootCause(Throwable error) {

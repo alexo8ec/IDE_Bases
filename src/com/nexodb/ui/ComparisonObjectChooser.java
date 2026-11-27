@@ -41,12 +41,12 @@ final class ComparisonObjectChooser {
         JPanel heading = new JPanel(new BorderLayout(5,8)); heading.add(new JLabel(tr("Solo se compararán los elementos marcados.")), BorderLayout.NORTH); heading.add(search);
         JPanel content = new JPanel(new BorderLayout(5,8)); content.add(heading, BorderLayout.NORTH);
         content.add(new JScrollPane(table), BorderLayout.CENTER); content.add(buttons, BorderLayout.SOUTH); content.setPreferredSize(new Dimension(620,480));
-        while (JOptionPane.showConfirmDialog(owner, content, tr("Seleccionar tablas"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION) {
+        while (JOptionPane.showConfirmDialog(DialogPosition.owner(owner), content, tr("Seleccionar tablas"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION) {
             if (table.isEditing()) table.getCellEditor().stopCellEditing();
             Set<String> keys = new LinkedHashSet<>();
             for (int i=0;i<objects.size();i++) if (Boolean.TRUE.equals(model.getValueAt(i,0))) keys.add(objects.get(i).key());
             if (!keys.isEmpty()) return Optional.of(Set.copyOf(keys));
-            JOptionPane.showMessageDialog(owner, tr("Selecciona al menos una tabla."), tr("Seleccionar tablas"), JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(DialogPosition.owner(owner), tr("Selecciona al menos una tabla."), tr("Seleccionar tablas"), JOptionPane.INFORMATION_MESSAGE);
         }
         return Optional.empty();
     }

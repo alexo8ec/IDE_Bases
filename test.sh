@@ -19,6 +19,7 @@ for test in db.PlanDiagnosticsTest util.SqlTextTest CoreTest db.JdbcSessionTest 
   db.SchemaMetadataReaderTest ui.ComparisonSelectionTest ui.ConnectionFeedbackTest db.QueryEditSqlTest db.SqlColumnCompletionTest ui.SqlDraftPersistenceTest ui.QueryTabsTest db.SqlScriptReaderTest ui.SqlDocumentTest licensing.LicenseTest; do
   java -Dnexodb.disableDraftPersistence=true -Djava.awt.headless=true -cp "$test_classes:$classpath" "com.nexodb.$test"
 done
+java -Dnexodb.disableDraftPersistence=true -cp "$test_classes:$classpath" com.nexodb.ui.DialogPositionTest
 if [[ -f "$root/build/sqlite-test.jar" ]]; then
   java -Dnexodb.disableDraftPersistence=true -Djava.awt.headless=true -cp "$test_classes:$classpath" com.nexodb.db.SQLiteConnectionTest
 fi
