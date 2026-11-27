@@ -1,6 +1,12 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.79**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.80**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Búsqueda en el editor y variables de sesión SQL — 0.18.80
+
+- Usa `Ctrl+F` para buscar palabras o frases en la consulta y pasar de una coincidencia a otra.
+- Selecciona una palabra, número o frase para resaltar y contar sus repeticiones en el editor.
+- En MySQL y MariaDB, puedes ejecutar asignaciones sencillas a variables de sesión `@variable` antes de una consulta de solo lectura.
 
 ## Permisos de administración más fiables — 0.18.79
 

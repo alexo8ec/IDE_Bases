@@ -32,7 +32,8 @@ with zipfile.ZipFile(portable) as archive:
     assert archive.read('AdisDB.exe')==archive.read('NexoDB Studio.exe')
     assert archive.read('app/AdisDB.cfg')==archive.read('app/NexoDB Studio.cfg')
     with zipfile.ZipFile(io.BytesIO(archive.read('app/nexodb-studio.jar'))) as app:
-        assert version.encode() in app.read('com/nexodb/update/UpdateService.class')
+        assert app.read('com/nexodb/version.txt').decode('utf-8').strip() == version, 'Incorrect embedded application version'
+        assert f'Implementation-Version: {version}' in app.read('META-INF/MANIFEST.MF').decode('utf-8').splitlines(), 'Incorrect JAR manifest version'
         assert b'AdisDB' in app.read('com/nexodb/util/ProductBrand.class')
         assert app.read('com/nexodb/licensing/public-key.der')==(root/'resources/com/nexodb/licensing/public-key.der').read_bytes()
         assert not any(name.startswith(('com/nexodb/issuer/','.signing/')) or name.endswith(('.nxvault','.nexolicense')) for name in app.namelist())

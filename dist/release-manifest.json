@@ -1,16 +1,48 @@
 {
   "product": "AdisDB",
-  "version": "0.18.79",
+  "suite": "AdisOne",
+  "version": "0.18.80",
   "publisher": "Alex Mite Salazar",
   "contact": "alexo8ec@hotmail.com",
+  "notes": "AdisDB 0.18.80: busca palabras o frases con Ctrl+F y cuenta sus repeticiones al seleccionar texto. MySQL y MariaDB admiten variables de sesión en consultas de solo lectura.",
   "installer": {
-    "file": "AdisDB-0.18.79.exe",
-    "url": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/installer/AdisDB-0.18.79.exe",
-    "sha256": "5a2e3b2de46221cbfa351dc6b777d3404b491ae273ae3337e956d61ea48fa075"
+    "file": "AdisDB-0.18.80.exe",
+    "url": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/installer/AdisDB-0.18.80.exe",
+    "sha256": "3c7186237824f7f0c037c88816d11c06977d840fec19a7832b9b65390748e3fb"
   },
   "portable": {
-    "file": "AdisDB-0.18.79-win64.zip",
-    "url": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.79-win64.zip",
-    "sha256": "bad6014f4d1d5b800fa5fbdfee2f431766b028c65a88f7b4a204912e45e87e15"
+    "file": "AdisDB-0.18.80-win64.zip",
+    "url": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.80-win64.zip",
+    "sha256": "057ae83d59c3ad1d50e2ed072a9c968d17ad8047d051861a5fd6894bfdb318f8"
+  },
+  "platforms": {
+    "windows-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.80-win64.zip",
+      "sha256": "057ae83d59c3ad1d50e2ed072a9c968d17ad8047d051861a5fd6894bfdb318f8"
+    },
+    "linux-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.80-linux-x64.deb",
+      "sha256": "4c85c6dc72a2461e20743af2f2f87c154bd6d721a0b35f8fff92862c1c28110b"
+    },
+    "linux-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.80-linux-arm64.deb",
+      "sha256": "5e0776dd9942435369595000edbb9f3b0ceb8eb069f8f096a8ad96780a61f9ba"
+    },
+    "macos-x64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.80-macos-x64.zip",
+      "sha256": "27f2c02781d8796a956a3b6820a8ad77e2f2ff36b13740137b9992277e533dd3"
+    },
+    "macos-arm64": {
+      "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.80-macos-arm64.zip",
+      "sha256": "7303009a8cd49a17db0326afa759c5d915643241516612b588c19d49a7e19630"
+    }
+  },
+  "android": {
+    "version": "0.18.32",
+    "versionCode": 1832,
+    "downloadUrl": "https://raw.githubusercontent.com/alexo8ec/IDE_Bases/main/dist/AdisDB-0.18.32-android.apk",
+    "sha256": "318f0878d6d7a9e2212631e3e18ced3b22fd41f21974fac7b261eb312b44a3c7",
+    "size": 7107067,
+    "notes": "AdisDB Android 0.18.32: compilacion firmada y sincronizada con la entrega empresarial. Conserva conexiones, consultas, licencia, firma e identificador de la aplicacion."
   }
 }
