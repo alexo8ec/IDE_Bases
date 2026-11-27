@@ -1,10 +1,16 @@
 package com.nexodb.ui;
 
+import com.nexodb.MetadataFixture;
 import com.nexodb.db.*;
 import com.nexodb.model.*;
 import javax.swing.*;
 import java.lang.reflect.*;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.atomic.*;
 
@@ -31,7 +37,95 @@ public final class QueryBatchTest {
             run(panel,busy,"INSERT INTO writes VALUES(1); INSERT INTO writes VALUES(1); INSERT INTO writes VALUES(2)",0,-1);
             equal(1,confirmations.get());equal(List.of(List.of(1)),session.execute("SELECT id FROM writes",10).rows());
         }
-        System.out.println("QueryBatchTest: OK (all statements at every caret, selection only, final statement without semicolon, separate results, read error continues, write error stops)");
+        verifySessionVariableBatch(DatabaseType.MYSQL, "MySQL", false);
+        verifySessionVariableBatch(DatabaseType.GENERIC, "MariaDB", false);
+        verifySessionVariableBatch(DatabaseType.MARIADB, "MariaDB", true);
+        System.out.println("QueryBatchTest: OK (selection and batch results, read/write error behavior, session-variable CTE on the same read-only connection)");
+    }
+
+    private static void verifySessionVariableBatch(DatabaseType profileType, String databaseProduct, boolean failAssignment) throws Exception {
+        List<String> expected = List.of(
+                "SET @empresa = 'EMP-DEMO'",
+                "SET @fecha_desde = '2025-01-01'",
+                "SET @fecha_hasta = '2025-12-31'",
+                "SET @codigo = NULL",
+                "-- NULL incluye todos los códigos.\nWITH kardex AS (SELECT @empresa AS empresa) SELECT empresa FROM kardex");
+        List<String> executed = new ArrayList<>();
+        var busy = new AtomicBoolean();
+        var readOnly = new AtomicBoolean();
+        var panelRef = new AtomicReference<QueryPanel>();
+        DatabaseMetaData metadata = (DatabaseMetaData) Proxy.newProxyInstance(QueryBatchTest.class.getClassLoader(),
+                new Class<?>[]{DatabaseMetaData.class}, (proxy, method, arguments) -> switch (method.getName()) {
+                    case "getDatabaseProductName" -> databaseProduct;
+                    default -> null;
+                });
+        Connection connection = (Connection) Proxy.newProxyInstance(QueryBatchTest.class.getClassLoader(),
+                new Class<?>[]{Connection.class}, (proxy, method, arguments) -> switch (method.getName()) {
+                    case "getMetaData" -> metadata;
+                    case "isClosed" -> false;
+                    case "getAutoCommit" -> true;
+                    case "isReadOnly" -> readOnly.get();
+                    case "setReadOnly" -> { readOnly.set((Boolean) arguments[0]); yield null; }
+                    case "createStatement" -> variableStatement(expected, executed, readOnly, failAssignment);
+                    default -> null;
+                });
+        var profile = new ConnectionProfile("variable-batch", "Test", profileType, "", 0, "", "", "", "", "", true);
+        var constructor = JdbcSession.class.getDeclaredConstructor(ConnectionProfile.class, Connection.class, java.net.URLClassLoader.class);
+        constructor.setAccessible(true);
+        try (var session = constructor.newInstance(profile, connection, null)) {
+            SwingUtilities.invokeAndWait(() -> {
+                var panel = new QueryPanel(status -> {}, busy::set, null);
+                set(panel, "session", session);
+                panelRef.set(panel);
+            });
+            var panel = panelRef.get();
+            String prefix = "DELETE FROM inventario;\n";
+            String selected = String.join(";\n", expected) + ";";
+            run(panel, busy, prefix + selected + "\nDROP TABLE inventario;", prefix.length(), prefix.length() + selected.length());
+            if (failAssignment) {
+                equal(expected.subList(0, 3), executed);
+                equal(List.of(), values(panel));
+                if (!field(panel, "messages", JTextArea.class).getText().contains("Fixture rejected variable assignment")) {
+                    throw new AssertionError("Failed variable assignment was not reported");
+                }
+            } else {
+                equal(expected, executed);
+                equal(List.of("EMP-DEMO"), values(panel));
+                SwingUtilities.invokeAndWait(() -> {
+                    var tabs = field(panel, "outputTabs", JTabbedPane.class);
+                    var grid = Arrays.stream(tabs.getComponents()).filter(QueryResultPanel.class::isInstance)
+                            .map(QueryResultPanel.class::cast).findFirst().orElseThrow();
+                    equal(session, grid.origin());
+                    equal(false, field(grid, "reload", JButton.class).isEnabled());
+                    equal(false, field(grid, "pageable", Boolean.class));
+                });
+            }
+        }
+    }
+
+    private static Statement variableStatement(List<String> expected, List<String> executed, AtomicBoolean readOnly, boolean failAssignment) {
+        AtomicReference<ResultSet> rows = new AtomicReference<>();
+        AtomicInteger updateCount = new AtomicInteger(-1);
+        return (Statement) Proxy.newProxyInstance(QueryBatchTest.class.getClassLoader(), new Class<?>[]{Statement.class},
+                (proxy, method, arguments) -> switch (method.getName()) {
+                    case "execute" -> {
+                        equal(true, readOnly.get());
+                        String sql = (String) arguments[0];
+                        equal(expected.get(executed.size()), sql);
+                        executed.add(sql);
+                        if (failAssignment && executed.size() == 3) throw new SQLException("Fixture rejected variable assignment", "42000");
+                        if (executed.size() == expected.size()) {
+                            rows.set(MetadataFixture.rows(new String[]{"empresa"}, new Object[]{"EMP-DEMO"}));
+                            yield true;
+                        }
+                        updateCount.set(0);
+                        yield false;
+                    }
+                    case "getResultSet" -> rows.get();
+                    case "getUpdateCount" -> updateCount.get();
+                    case "getMoreResults" -> { updateCount.set(-1); yield false; }
+                    default -> null;
+                });
     }
 
     private static void run(QueryPanel panel,AtomicBoolean busy,String sql,int start,int end) throws Exception {

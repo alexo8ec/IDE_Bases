@@ -24,7 +24,7 @@ public final class QueryPaging {
     public static boolean supported(String sql) {
         try {
             var statements=SqlText.executionStatements(sql);
-            if(statements.size()!=1||!SqlExecutionPolicy.readOnly(sql))return false;
+            if(statements.size()!=1||!SqlExecutionPolicy.readOnly(sql)||SqlExecutionPolicy.referencesSessionVariables(sql))return false;
             var tokens=SqlScriptTools.tokens(sql);
             return !tokens.isEmpty()&&(tokens.get(0).is("SELECT")||tokens.get(0).is("WITH"));
         }catch(java.io.IOException error){return false;}

@@ -9,6 +9,7 @@ import com.nexodb.db.SqlColumnCompletion;
 import com.nexodb.db.SqlJoinCompletion;
 import com.nexodb.db.SqlTableAliases;
 import com.nexodb.db.SqlExecutionPolicy;
+import com.nexodb.model.DatabaseType;
 import com.nexodb.util.DataExporter;
 import com.nexodb.util.SqlText;
 import com.nexodb.util.SqlDraftStore;
@@ -163,9 +164,9 @@ public final class QueryPanel extends JPanel {
     }
     private SqlEditorPane addQuery(String sql){
         SqlEditorPane pane=new SqlEditorPane();configureEditor(pane);pane.setKeywords(sqlKeywords);pane.setDialect(session==null?com.nexodb.model.DatabaseType.GENERIC:session.profile().type());pane.restoreText(sql);
-        queryEditors.add(pane);JScrollPane scroll=new JScrollPane(pane);scroll.setRowHeaderView(new SqlLineNumbers(pane));int number=++querySequence;
+        queryEditors.add(pane);int number=++querySequence;
         DocumentState info=new DocumentState();info.number=number;documents.put(pane,info);
-        UiLanguage.addTab(queryTabs,new Object[]{UiLanguage.key("Consulta")," ",number},IconFactory.of(IconFactory.Kind.SQL,14),scroll);
+        UiLanguage.addTab(queryTabs,new Object[]{UiLanguage.key("Consulta")," ",number},IconFactory.of(IconFactory.Kind.SQL,14),new SqlEditorSearchPanel(pane));
         JPanel label=new JPanel(new FlowLayout(FlowLayout.LEFT,3,0));label.setOpaque(false);
         label.add(info.label);
         JButton close=new JButton("×");close.setMargin(new Insets(0,4,0,4));close.setFocusable(false);
@@ -460,6 +461,11 @@ public final class QueryPanel extends JPanel {
         styleAction(export, IconFactory.Kind.EXPORT, tr("Exportar resultados (Ctrl+Shift+E)"));
         JButton format = new JButton();
         styleAction(format, IconFactory.Kind.FORMAT, tr("Formatear SQL (Ctrl+Shift+F)"));
+        JButton find = UiLanguage.button("Buscar en SQL");
+        styleAction(find, IconFactory.Kind.SEARCH, tr("Buscar en SQL (Ctrl+F)"));
+        find.addActionListener(event -> {
+            if (queryTabs.getSelectedComponent() instanceof SqlEditorSearchPanel search) search.openSearch();
+        });
         execute.addActionListener(e -> executeSql());
         format.addActionListener(e -> formatSql());
         cancel.addActionListener(e -> cancelSql());
@@ -476,6 +482,7 @@ public final class QueryPanel extends JPanel {
         toolbar.add(execute);
         toolbar.add(cancel);
         toolbar.add(format);
+        toolbar.add(find);
         toolbar.add(readOnly);readOnly.addActionListener(e->{
             if(!readOnly.isSelected()&&(session==null||session.profile().readOnly()||!confirm.test("Habilitar cambios",tr("La conexión podrá ejecutar instrucciones que modifican datos o estructura. Cada ejecución de cambios pedirá confirmación. ¿Habilitar cambios?")+"\n"+session.profile().name())))readOnly.setSelected(true);
             if(readOnly.isSelected())for(int i=0;i<outputTabs.getTabCount();i++)if(outputTabs.getComponentAt(i) instanceof QueryResultPanel panel)panel.resetReadOnly();updateActions();
@@ -566,10 +573,12 @@ public final class QueryPanel extends JPanel {
         }
         if (statements.isEmpty()) return;
         List<Integer> statementOffsets=new ArrayList<>();int offsetCursor=0;for(String statement:statements){int at=sql.indexOf(statement,offsetCursor);statementOffsets.add(scriptOffset+(at<0?offsetCursor:at));offsetCursor=(at<0?offsetCursor:at)+statement.length();}
-        boolean readsOnly=statements.stream().allMatch(SqlExecutionPolicy::readOnly);
+        DatabaseType effectiveType = statements.stream().anyMatch(statement -> statement.indexOf('@') >= 0)
+                ? session.effectiveType() : session.profile().type();
+        boolean readsOnly = statements.stream().allMatch(statement -> SqlExecutionPolicy.readOnly(statement, effectiveType));
         if(!readsOnly&&(readOnly.isSelected()||session.profile().readOnly())){JOptionPane.showMessageDialog(this,tr("La consulta está en modo Solo lectura. Habilita cambios de forma explícita antes de ejecutar instrucciones de escritura."),tr("Solo lectura"),JOptionPane.INFORMATION_MESSAGE);return;}
         if(!readsOnly&&!confirm.test("Ejecutar cambios SQL",session.profile().name()+" · "+activeDatabase()+"\n"+tr("Se ejecutarán %s sentencias. Pueden modificar datos o estructura. ¿Continuar?",statements.size())+"\n\n"+sql.substring(0,Math.min(sql.length(),3000))))return;
-        int limit = rowLimit();boolean executeReadOnly=readOnly.isSelected();
+        int limit = rowLimit();boolean executeReadOnly=readOnly.isSelected() || session.profile().readOnly();
         clearResultTabs();
         appendMessage(tr("Ejecutando ") + statements.size() + (statements.size() == 1 ? tr(" sentencia") : tr(" sentencias")), preview(sql));
         JdbcSession executingSession = session;
@@ -596,7 +605,7 @@ public final class QueryPanel extends JPanel {
                         }
                         outcomes.add(new StatementOutcome(i + 1, statement, null, rootCause(error)));
                         recordHistory(executingSession,executionDatabase,statement,(System.nanoTime()-started)/1_000_000,0,rootCause(error).getMessage());
-                        if(!readsOnly)break;
+                        if(!readsOnly || SqlExecutionPolicy.sessionVariableAssignment(statement, effectiveType))break;
                     }
                 }
                 return outcomes;
@@ -625,7 +634,8 @@ public final class QueryPanel extends JPanel {
                             totalRows += result.rows().size();
                             addResultTab(resultTabName(outcome.sql(), outcome.index()), result, executingSession, outcome.sql(), limit);
                             resultTabs++;
-                            String suffix = result.truncated() ? (limit==Integer.MAX_VALUE?tr(" (carga virtual; desplázate para continuar)"):tr(" (límite alcanzado)")) : "";
+                            boolean virtual = limit == Integer.MAX_VALUE && QueryPaging.supported(outcome.sql());
+                            String suffix = result.truncated() ? (virtual?tr(" (carga virtual; desplázate para continuar)"):tr(" (límite alcanzado)")) : "";
                             appendMessage(tr("Resultado ") + outcome.index(), result.rows().size() + tr(" filas") + suffix
                                     + tr(" en ") + result.elapsedMillis() + " ms");
                         } else {

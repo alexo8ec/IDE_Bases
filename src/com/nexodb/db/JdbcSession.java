@@ -46,6 +46,7 @@ public final class JdbcSession implements AutoCloseable {
     private final SshTunnel sshTunnel;
     private final ReadPool readPool;
     private final QueryEditSupport.MetadataCache editMetadata = new QueryEditSupport.MetadataCache();
+    private volatile DatabaseType effectiveType;
     private volatile Statement activeStatement;
 
     private JdbcSession(ConnectionProfile profile, Connection connection, URLClassLoader driverLoader) {
@@ -436,6 +437,14 @@ public final class JdbcSession implements AutoCloseable {
     }
 
     public ConnectionProfile profile() { return profile; }
+    public DatabaseType effectiveType() {
+        DatabaseType type = effectiveType;
+        if (type == null) {
+            type = QueryPlan.effectiveType(profile.type(), connection);
+            effectiveType = type;
+        }
+        return type;
+    }
     public Connection connection() { return connection; }
     public ReadLease borrowReadOnly()throws Exception{return borrowReadOnly(30_000);}
     public ReadLease borrowReadOnly(long timeoutMillis)throws Exception{if(readPool==null)throw new SQLException("Una sesión auxiliar no puede crear más conexiones auxiliares.");return readPool.borrow(timeoutMillis);}
@@ -572,7 +581,10 @@ public final class JdbcSession implements AutoCloseable {
       synchronized(connection) {
         long started = System.nanoTime();
         List<QueryResult> results = new ArrayList<>();
-        boolean audited=!SqlExecutionPolicy.readOnly(sql);
+        boolean audited = !SqlExecutionPolicy.readOnly(sql);
+        if (audited && SqlExecutionPolicy.sessionVariableAssignment(sql, DatabaseType.MYSQL)) {
+            audited = !SqlExecutionPolicy.sessionVariableAssignment(sql, effectiveType());
+        }
         try (Statement statement = connection.createStatement()) {
             activeStatement = statement;
             configureRowLimit(statement,maxRows);

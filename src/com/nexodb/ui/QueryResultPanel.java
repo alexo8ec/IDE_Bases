@@ -59,6 +59,7 @@ final class QueryResultPanel extends JPanel {
     private boolean changingPageSize;
     private boolean pagingRequested;
     private final boolean pageable;
+    private final boolean replayable;
     private final String pageCatalog,pageSchema;
     private final Consumer<Boolean> busy;
     private final Consumer<String> changed;
@@ -97,6 +98,7 @@ final class QueryResultPanel extends JPanel {
                      Consumer<Boolean> busy, Consumer<String> changed, Consumer<JTable> resize) {
         super(new BorderLayout());this.origin=origin;this.model=model;this.table=table;this.sql=sql;this.viewSql=sql;this.limit=limit;
         pageable=QueryPaging.supported(sql);
+        replayable=SqlExecutionPolicy.readOnly(sql)&&!SqlExecutionPolicy.referencesSessionVariables(sql);
         viewColumns=List.copyOf(result.columns().subList(0,result.visibleColumnCount()));viewTypes=List.copyOf(result.jdbcTypes().subList(0,result.visibleColumnCount()));viewEditing=result.editing();viewOrigins=result.origins();
         serverView=(result.truncated()||limit==Integer.MAX_VALUE)&&result.hiddenColumns()==0&&ResultQuery.supported(sql,origin.profile().type(),viewColumns);
         pageCatalog=namespace(origin,true);pageSchema=namespace(origin,false);
@@ -437,7 +439,7 @@ final class QueryResultPanel extends JPanel {
         boolean enabled=available&&!saving&&target!=null&&!origin.profile().readOnly();
         CellCursor cursor=currentCursor();edit.setEnabled(enabled&&!stale);model.setEditable(enabled&&!stale&&edit.isSelected());if(table.getSelectedRow()<0)restoreCursor(cursor);
         mode.setEnabled(enabled&&!stale);updatingMode=true;try{int index=edit.isSelected()?editTargets.indexOf(target)+1:0;mode.setSelectedIndex(Math.max(0,index));}finally{updatingMode=false;}
-        addRow.setEnabled(enabled&&!stale&&edit.isSelected());save.setEnabled(enabled&&!stale&&edit.isSelected()&&hasChanges());discard.setEnabled(available&&!saving&&hasChanges());reload.setEnabled(available&&!saving&&SqlExecutionPolicy.readOnly(sql));
+        addRow.setEnabled(enabled&&!stale&&edit.isSelected());save.setEnabled(enabled&&!stale&&edit.isSelected()&&hasChanges());discard.setEnabled(available&&!saving&&hasChanges());reload.setEnabled(available&&!saving&&replayable);
         int row=table.getSelectedRow(),column=table.getSelectedColumn();
         setNull.setEnabled(canEditSelectedCell());
         referenceButton.setEnabled(available&&!saving&&column>=0&&hasReference(table.convertColumnIndexToModel(column))&&row>=0);
@@ -607,7 +609,7 @@ final class QueryResultPanel extends JPanel {
     private void reload(){reloadResult(false,(fresh,error)->{if(error!=null&&!isCancellation(error))showError(error,"Error al ejecutar la consulta");});}
     void reloadForReport(java.util.function.BiConsumer<QueryResult,Throwable> completion){reloadResult(true,completion);}
     private void reloadResult(boolean report,java.util.function.BiConsumer<QueryResult,Throwable> completion){
-        if(!available||saving||disposed||!SqlExecutionPolicy.readOnly(sql)){completion.accept(null,new IllegalStateException(tr("El resultado no está disponible para actualizarse.")));return;}
+        if(!available||saving||disposed||!replayable){completion.accept(null,new IllegalStateException(tr("El resultado no está disponible para actualizarse.")));return;}
         if(!pageCatalog.equals(namespace(origin,true))||!pageSchema.equals(namespace(origin,false))){completion.accept(null,new IllegalStateException(tr("La base o el esquema activo cambió. Vuelve al origen del resultado antes de recargar.")));return;}
         if(!confirmDiscard()){completion.accept(null,new java.util.concurrent.CancellationException(tr("Actualización cancelada.")));return;}
         if(pageable){resetTotal();resetPagingState();}

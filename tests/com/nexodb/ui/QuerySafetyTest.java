@@ -12,6 +12,7 @@ public final class QuerySafetyTest {
     public static void main(String[] args)throws Exception{
         for(String sql:List.of("SELECT 1","SELECT 'DELETE FROM x'","SELECT `UPDATE` FROM t","WITH a AS(SELECT 1) SELECT * FROM a","SHOW CREATE TABLE t"))equal(true,SqlExecutionPolicy.readOnly(sql));
         for(String sql:List.of("DELETE FROM x","UPDATE x SET a=1","CREATE TABLE t(a INT)","SELECT * INTO OUTFILE '/tmp/x' FROM t","WITH a AS(DELETE FROM t RETURNING *) SELECT * FROM a","CALL p()","EXPLAIN ANALYZE DELETE FROM t"))equal(false,SqlExecutionPolicy.readOnly(sql));
+        verifySessionVariablePolicy();
         ConnectionProfile profile=new ConnectionProfile("safety-test","Test",DatabaseType.H2,"",0,"mem:safety","sa","jdbc:h2:mem:safety","org.h2.Driver",Path.of("build/h2-test.jar").toAbsolutePath().toString(),false);
         try(JdbcSession session=JdbcSession.open(profile,new char[0])){
             session.execute("CREATE TABLE people(id INT PRIMARY KEY,name VARCHAR(100))",10);session.execute("INSERT INTO people SELECT X, 'name' FROM SYSTEM_RANGE(1,1205)",10);
@@ -22,7 +23,48 @@ public final class QuerySafetyTest {
             SwingUtilities.invokeAndWait(()->{try{set(ref.get(),"confirm",(java.util.function.BiPredicate<String,String>)(title,text)->true);ref.get().executeCurrent();}catch(Exception e){throw new RuntimeException(e);}});await(busy);equal(0,session.execute("SELECT * FROM people",10).rows().size());
             SwingUtilities.invokeAndWait(()->{QueryResult result;try{session.execute("INSERT INTO people VALUES(7,'kept')",10);result=session.execute("SELECT * FROM people",10);}catch(Exception e){throw new RuntimeException(e);}ResultTableModel model=new ResultTableModel();model.setResult(result);JTable table=new JTable(model);QueryResultPanel grid=new QueryResultPanel(session,result,model,table,"SELECT * FROM people",10,x->{},s->{},t->{});equal(false,table.isCellEditable(0,1));try{set(grid,"confirm",(java.util.function.BiPredicate<String,String>)(title,text)->false);}catch(Exception e){throw new RuntimeException(e);}field(grid,"edit",JToggleButton.class).doClick();equal(false,field(grid,"edit",JToggleButton.class).isSelected());equal(false,table.isCellEditable(0,1));});
         }
-        System.out.println("QuerySafetyTest: OK (default read-only, SELECT never prompts, default and virtual first page use 1000 rows, No prevents DELETE, Yes executes only selected SQL, denied edit never unlocks grid)");
+        System.out.println("QuerySafetyTest: OK (dialect-specific session variables, default read-only, SELECT never prompts, row limit, DELETE confirmation, denied grid edit)");
+    }
+
+    private static void verifySessionVariablePolicy() {
+        List<String> safeAssignments = List.of(
+                "SET @empresa = 'EMP-DEMO'",
+                "SET @fecha_desde = '2025-01-01', @fecha_hasta = '2025-12-31'",
+                "SET @codigo := NULL",
+                "/* parámetro de consulta */ SET @nota = 'O''Reilly; -- demo' # variable de sesión",
+                "SET @copia = @codigo, @n = -1.25e+2, @activo = TRUE"
+        );
+        List<String> protectedStatements = List.of(
+                "SET GLOBAL sql_mode = 'ANSI_QUOTES'",
+                "SET SESSION transaction_read_only = 0",
+                "SET @@session.autocommit = 0",
+                "SET @codigo = 1, @@session.autocommit = 0",
+                "SET @codigo = next_id()",
+                "SET @codigo = (SELECT id FROM inventario)",
+                "SET @codigo = 1; DROP TABLE inventario",
+                "SET @codigo = 1 /*! , autocommit = 0 */",
+                "SET @codigo = 1 /*M! , autocommit = 0 */",
+                "SET @codigo = 'texto sin cerrar",
+                "SET @codigo = 1,"
+        );
+        for (DatabaseType type : List.of(DatabaseType.MYSQL, DatabaseType.MARIADB)) {
+            safeAssignments.forEach(sql -> assertReadOnly(type, sql, true));
+            protectedStatements.forEach(sql -> assertReadOnly(type, sql, false));
+            assertReadOnly(type, "UPDATE inventario SET codigo = @codigo", false);
+            assertReadOnly(type, "WITH a AS (SELECT @codigo) SELECT * FROM a", true);
+        }
+        for (DatabaseType type : List.of(DatabaseType.POSTGRESQL, DatabaseType.SQLSERVER, DatabaseType.H2)) {
+            assertReadOnly(type, safeAssignments.get(0), false);
+        }
+        equal(false, SqlExecutionPolicy.readOnly(safeAssignments.get(0)));
+        equal(true, SqlExecutionPolicy.referencesSessionVariables("WITH a AS (SELECT @codigo) SELECT * FROM a"));
+        equal(false, SqlExecutionPolicy.referencesSessionVariables("SELECT 'valor @codigo' /* @otra */"));
+    }
+
+    private static void assertReadOnly(DatabaseType type, String sql, boolean expected) {
+        if (SqlExecutionPolicy.readOnly(sql, type) != expected) {
+            throw new AssertionError(type + " readOnly(" + sql + ") should be " + expected);
+        }
     }
     private static void await(AtomicBoolean busy)throws Exception{long end=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(10);while(busy.get()&&System.nanoTime()<end)Thread.sleep(20);SwingUtilities.invokeAndWait(()->{});if(busy.get())throw new AssertionError("Operation timed out");}
     private static <T>T field(Object obj,String name,Class<T> type){try{Field f=obj.getClass().getDeclaredField(name);f.setAccessible(true);return type.cast(f.get(obj));}catch(Exception e){throw new RuntimeException(e);}}

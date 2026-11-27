@@ -5,10 +5,13 @@ import com.nexodb.model.*;
 import com.nexodb.util.*;
 import javax.swing.*;
 import javax.swing.text.StyleConstants;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.lang.reflect.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.atomic.*;
+import java.util.function.BooleanSupplier;
 
 public final class QueryTabsTest {
     public static void main(String[] args)throws Exception {
@@ -49,8 +52,82 @@ public final class QueryTabsTest {
                 equal(false,busy.get());equal(1,session.execute("SELECT * FROM keep_me",10).rows().size());equal(1,session.execute("SELECT * FROM generated",10).rows().size());
             }
         }
+        verifySearchAndSelection();
         System.out.println("QueryTabsTest: OK (isolated generated scripts, original DELETE never executed, all tabs restored, legacy header migration, keyword highlighting/casing/completion)");
     }
+
+    private static void verifySearchAndSelection() throws Exception {
+        String sql = "SELECT 'saldo total 007', 'SALDO TOTAL 007', 'saldo total 9', saldo_total100, 1007;";
+        AtomicReference<QueryPanel> owner = new AtomicReference<>();
+        SwingUtilities.invokeAndWait(() -> owner.set(new QueryPanel(text -> {}, busy -> {}, null)));
+        QueryPanel panel = owner.get();
+        SqlEditorPane pane = editor(panel);
+        SqlEditorSearchPanel search = (SqlEditorSearchPanel) tabs(panel).getSelectedComponent();
+        JLabel selectionCounter = field(search, "selectionCounter", JLabel.class);
+        JLabel counter = field(search, "counter", JLabel.class);
+        JTextField term = field(search, "term", JTextField.class);
+        SwingUtilities.invokeAndWait(() -> pane.restoreText(sql));
+
+        for (String selected : List.of("saldo", "007", "saldo total")) {
+            SwingUtilities.invokeAndWait(() -> pane.select(sql.indexOf(selected), sql.indexOf(selected) + selected.length()));
+            awaitSearch(() -> selectionCounter.isVisible() && selectionCounter.getText().equals("2 coincidencias"));
+            SwingUtilities.invokeAndWait(() -> {
+                equal(2, pane.getHighlighter().getHighlights().length);
+                equal(selected, pane.getSelectedText());
+                equal(sql, pane.getText());
+            });
+        }
+
+        SwingUtilities.invokeAndWait(() -> invokeKey(pane, KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK));
+        awaitSearch(() -> counter.getText().equals("1 de 3"));
+        SwingUtilities.invokeAndWait(() -> {
+            equal("saldo total", term.getText());
+            field(search, "previous", JButton.class).doClick(0);
+        });
+        awaitSearch(() -> counter.getText().equals("3 de 3"));
+        SwingUtilities.invokeAndWait(term::postActionEvent);
+        awaitSearch(() -> counter.getText().equals("1 de 3"));
+        SwingUtilities.invokeAndWait(() -> {
+            equal("saldo total", pane.getSelectedText());
+            equal(sql, pane.getText());
+            equal(false, pane.canUndoEdit());
+            term.setText("saldo.*");
+        });
+        awaitSearch(() -> counter.getText().equals("Sin coincidencias"));
+
+        SwingUtilities.invokeAndWait(() -> {
+            invokeKey(pane, KeyEvent.VK_ESCAPE, 0);
+            pane.setCaretPosition(pane.getSelectionEnd());
+            equal(false, field(search, "findBar", JPanel.class).isVisible());
+            equal(false, selectionCounter.isVisible());
+            equal(0, pane.getHighlighter().getHighlights().length);
+            pane.select(sql.indexOf("007"), sql.indexOf("007") + 3);
+        });
+        awaitSearch(selectionCounter::isVisible);
+        SwingUtilities.invokeAndWait(() -> {
+            panel.insertSql("SELECT 007;");
+            equal(false, selectionCounter.isVisible());
+            equal(0, pane.getHighlighter().getHighlights().length);
+            equal(0, editor(panel).getHighlighter().getHighlights().length);
+        });
+    }
+
+    private static void invokeKey(JComponent component, int key, int modifiers) {
+        Object binding = component.getInputMap(JComponent.WHEN_FOCUSED).get(KeyStroke.getKeyStroke(key, modifiers));
+        component.getActionMap().get(binding).actionPerformed(new ActionEvent(component, ActionEvent.ACTION_PERFORMED, binding.toString()));
+    }
+
+    private static void awaitSearch(BooleanSupplier ready) throws Exception {
+        AtomicBoolean completed = new AtomicBoolean(false);
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        do {
+            SwingUtilities.invokeAndWait(() -> completed.set(ready.getAsBoolean()));
+            if (completed.get()) return;
+            Thread.sleep(20);
+        } while (System.nanoTime() < deadline);
+        throw new AssertionError("SQL search did not produce the expected result");
+    }
+
     private static SqlEditorPane editor(QueryPanel p){return field(p,"editor",SqlEditorPane.class);}
     private static JTabbedPane tabs(QueryPanel p){return field(p,"queryTabs",JTabbedPane.class);}
     private static <T>T field(Object obj,String name,Class<T> type){try{Field f=obj.getClass().getDeclaredField(name);f.setAccessible(true);return type.cast(f.get(obj));}catch(Exception error){throw new RuntimeException(error);}}
