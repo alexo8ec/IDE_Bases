@@ -29,6 +29,13 @@ public final class ConnectionFeedbackTest {
                 FlatLightLaf.setup();
             }catch(Exception error){throw new RuntimeException(error);}
         });
+        String sshMessage = ConnectionDialog.connectionFailureMessage(
+                new java.util.concurrent.ExecutionException(
+                        new IllegalStateException("No se pudo contactar el servidor SSH bastion.example:22.",
+                                new java.net.ConnectException("Connection refused: getsockopt"))));
+        if (!sshMessage.contains("servidor SSH") || sshMessage.contains("getsockopt")) {
+            throw new AssertionError("El diagnóstico SSH perdió el mensaje útil: " + sshMessage);
+        }
         I18n.initialize("es");System.out.println("ConnectionFeedbackTest: OK (prominent result, both themes, no password/URL)");
     }
     private static String text(Component component){

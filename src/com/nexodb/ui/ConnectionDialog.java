@@ -798,9 +798,7 @@ public final class ConnectionDialog extends JDialog {
     }
 
     private void showConnectionError(Exception exception) {
-        Throwable cause = exception;
-        while (cause.getCause() != null) cause = cause.getCause();
-        String message = cause.getMessage();
+        String message = connectionFailureMessage(exception);
         if (message != null && message.toLowerCase().contains("handshake_failure")) {
             Object[] options = {tr("Usar sin SSL/TLS"), tr("Cancelar")};
             int answer = JOptionPane.showOptionDialog(this,
@@ -817,6 +815,33 @@ public final class ConnectionDialog extends JDialog {
             return;
         }
         JOptionPane.showMessageDialog(this, ConnectionTestFeedback.failure(message), tr("Error de conexión"), JOptionPane.PLAIN_MESSAGE);
+    }
+
+    /**
+     * Keeps the actionable message produced by the SSH/JDBC layer instead of
+     * replacing it with a low-level cause such as "Connection refused:
+     * getsockopt".  SwingWorker.get() commonly wraps the original exception
+     * in ExecutionException, so walk from the outside and skip only wrapper or
+     * raw Java-network messages when a more useful message is available.
+     */
+    static String connectionFailureMessage(Throwable error) {
+        String fallback = null;
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            String candidate = current.getMessage();
+            if (candidate == null || candidate.isBlank()) continue;
+            candidate = candidate.trim();
+            if (fallback == null) fallback = candidate;
+            String lower = candidate.toLowerCase(java.util.Locale.ROOT);
+            boolean wrapper = current instanceof java.util.concurrent.ExecutionException
+                    || current instanceof java.util.concurrent.CompletionException;
+            boolean rawJava = lower.startsWith("java.") || lower.startsWith("javax.")
+                    || lower.startsWith("com.jcraft.");
+            boolean rawSocket = lower.equals("connection refused: getsockopt")
+                    || lower.equals("connection timed out: getsockopt")
+                    || lower.startsWith("connect timed out");
+            if (!wrapper && !rawJava && !(rawSocket && current.getCause() != null)) return candidate;
+        }
+        return fallback == null ? tr("Error desconocido") : fallback;
     }
 }
 
