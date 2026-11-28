@@ -1,6 +1,12 @@
 # AdisDB
 
-La versión actual de escritorio es **0.18.82**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+La versión actual de escritorio es **0.18.83**. Incluye los siguientes cambios y sus paquetes para Windows, Linux y macOS. Android mantiene su versión independiente **0.18.32**.
+
+## Navegación horizontal de resultados — 0.18.83
+
+- `Inicio` y `Fin` saltan a la primera y última columna de la fila actual.
+- `Ctrl+Inicio` y `Ctrl+Fin` conservan la navegación completa de la cuadrícula.
+- La tecla `Fin` ya no provoca cargas de página involuntarias.
 
 ## Compilación de mantenimiento — 0.18.82
 

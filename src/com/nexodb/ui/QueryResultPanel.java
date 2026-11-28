@@ -175,6 +175,13 @@ final class QueryResultPanel extends JPanel {
         table.addMouseListener(new MouseAdapter(){public void mouseClicked(MouseEvent event){if(SwingUtilities.isLeftMouseButton(event)&&event.getClickCount()==2){int row=table.rowAtPoint(event.getPoint()),column=table.columnAtPoint(event.getPoint());if(row>=0&&column>=0)openOrEditCell(row,column,event);}}});
         table.addMouseListener(new MouseAdapter(){public void mouseClicked(MouseEvent e){int row=table.rowAtPoint(e.getPoint()),col=table.columnAtPoint(e.getPoint());if(SwingUtilities.isLeftMouseButton(e)&&e.getClickCount()==1&&row>=0&&col>=0&&hasReference(table.convertColumnIndexToModel(col))){Rectangle cell=table.getCellRect(row,col,false);if(e.getX()>=cell.x+cell.width-44&&e.getX()<cell.x+cell.width-18)openReference(row,col);}}});
         table.getInputMap().put(KeyStroke.getKeyStroke("control SPACE"),"lookup-reference");table.getActionMap().put("lookup-reference",new AbstractAction(){public void actionPerformed(ActionEvent e){openReference(table.getSelectedRow(),table.getSelectedColumn());}});
+        // Inicio/Fin navegan por las columnas de la fila actual, como en una
+        // hoja de cálculo. Ctrl+Inicio/Ctrl+Fin conservan el comportamiento
+        // de JTable para saltar a los extremos de toda la cuadrícula.
+        table.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_HOME,0),"grid-first-column");
+        table.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_END,0),"grid-last-column");
+        table.getActionMap().put("grid-first-column",new AbstractAction(){public void actionPerformed(ActionEvent e){moveToColumnEdge(false);}});
+        table.getActionMap().put("grid-last-column",new AbstractAction(){public void actionPerformed(ActionEvent e){moveToColumnEdge(true);}});
         table.getInputMap().put(KeyStroke.getKeyStroke("F2"),"edit-result-cell");table.getActionMap().put("edit-result-cell",new AbstractAction(){public void actionPerformed(ActionEvent event){editSelectedCell();}});
         installVirtualPaging();
         table.getSelectionModel().addListSelectionListener(event->rowSelectionChanged(event.getValueIsAdjusting()));
@@ -187,6 +194,14 @@ final class QueryResultPanel extends JPanel {
         loadReferences();
     }
     private static void button(AbstractButton button,String name,IconFactory.Kind icon,String hint){button.setName(name);button.setIcon(IconFactory.of(icon,16));UiLanguage.tooltip(button,UiLanguage.key(hint));}
+    private void moveToColumnEdge(boolean last){
+        int row=table.getSelectedRow();
+        if(row<0)row=table.getEditingRow();
+        if(row<0||table.getColumnCount()==0)return;
+        int column=last?table.getColumnCount()-1:0;
+        table.changeSelection(row,column,false,false);
+        table.scrollRectToVisible(table.getCellRect(row,column,true));
+    }
     private void configureTargets(QueryResult result,String preferred){
         autoSaveRows.clear();activeModelRow=-1;
         editTargets=result.editing()==null?List.of():result.editing().targets();
@@ -432,7 +447,7 @@ final class QueryResultPanel extends JPanel {
     private void installVirtualPaging(){
         scroll.addMouseWheelListener(e->{if(e.getWheelRotation()>0)SwingUtilities.invokeLater(this::loadNextIfNeeded);});
         scroll.getVerticalScrollBar().addMouseListener(new MouseAdapter(){public void mouseReleased(MouseEvent e){loadNextIfNeeded();}});
-        table.addKeyListener(new KeyAdapter(){public void keyReleased(KeyEvent e){if(e.getKeyCode()==KeyEvent.VK_END||e.getKeyCode()==KeyEvent.VK_PAGE_DOWN||e.getKeyCode()==KeyEvent.VK_DOWN)SwingUtilities.invokeLater(QueryResultPanel.this::loadNextIfNeeded);}});
+        table.addKeyListener(new KeyAdapter(){public void keyReleased(KeyEvent e){if(e.getKeyCode()==KeyEvent.VK_PAGE_DOWN||e.getKeyCode()==KeyEvent.VK_DOWN)SwingUtilities.invokeLater(QueryResultPanel.this::loadNextIfNeeded);}});
     }
     private void loadNextIfNeeded(){
         if(!pageable||!available||saving||hasChanges()||!model.definition().truncated())return;
